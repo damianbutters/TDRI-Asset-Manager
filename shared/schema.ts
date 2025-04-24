@@ -29,6 +29,8 @@ export const roadAssets = pgTable("road_assets", {
   width: doublePrecision("width").notNull(), // in feet
   surfaceType: text("surface_type").notNull(), // e.g. Asphalt, Concrete
   condition: integer("condition").notNull(), // 0-100 PCI
+  moistureLevel: doublePrecision("moisture_level"), // moisture level in percentage
+  lastMoistureReading: timestamp("last_moisture_reading"), // date of last moisture reading
   lastInspection: timestamp("last_inspection").notNull(),
   nextInspection: timestamp("next_inspection"),
   geometry: json("geometry"), // GeoJSON for the road segment

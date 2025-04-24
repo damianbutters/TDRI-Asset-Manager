@@ -62,8 +62,10 @@ export default function RoadAssets() {
     width: z.coerce.number().positive("Width must be positive"),
     surfaceType: z.string().min(1, "Surface type is required"),
     condition: z.coerce.number().min(0).max(100, "Condition must be between 0 and 100"),
+    moistureLevel: z.coerce.number().min(0).max(100, "Moisture level must be between 0 and 100").optional(),
     lastInspection: z.string().min(1, "Last inspection date is required"),
-    nextInspection: z.string().optional()
+    nextInspection: z.string().optional(),
+    lastMoistureReading: z.string().optional()
   });
 
   // Create form
