@@ -39,9 +39,14 @@ export default function CSVImport({
     // Parse and show preview
     Papa.parse(selectedFile, {
       header: true,
-      preview: 3, // Preview first 3 rows
+      preview: 5, // Preview first 5 rows
+      skipEmptyLines: 'greedy', // Skip empty lines and lines with just whitespace
       complete: (results) => {
-        setPreviewData(results.data);
+        // Filter out rows that are completely empty (all values are empty strings or undefined)
+        const filteredData = results.data.filter(row => 
+          Object.values(row).some(val => val !== undefined && val !== "" && val !== null)
+        );
+        setPreviewData(filteredData);
       },
       error: (error) => {
         toast({
@@ -70,12 +75,20 @@ export default function CSVImport({
       // Parse the CSV file
       Papa.parse(file, {
         header: true,
+        skipEmptyLines: 'greedy', // Skip empty lines and lines with just whitespace
         complete: async (results) => {
           try {
             setProgress(20);
             
+            // Filter out rows that are completely empty (all values are empty strings or undefined)
+            const filteredData = results.data.filter(row => 
+              Object.values(row).some(val => val !== undefined && val !== "" && val !== null)
+            );
+            
+            console.log(`Filtered out ${results.data.length - filteredData.length} empty rows`);
+            
             // Get the total number of rows to process
-            const totalRows = results.data.length;
+            const totalRows = filteredData.length;
             const chunkSize = 1000; // Process 1000 rows at a time
             let processedRows = 0;
             let successCount = 0;
@@ -86,7 +99,7 @@ export default function CSVImport({
             // Process data in chunks to avoid payload size issues
             for (let i = 0; i < totalRows; i += chunkSize) {
               // Calculate the chunk of data to process
-              const chunk = results.data.slice(i, i + chunkSize);
+              const chunk = filteredData.slice(i, i + chunkSize);
               
               // Update progress based on how many chunks we've processed
               const chunkProgress = Math.floor(30 + (i / totalRows) * 60);
