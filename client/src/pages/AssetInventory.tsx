@@ -40,7 +40,7 @@ export default function AssetInventory() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedAssetType, setSelectedAssetType] = useState<any>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   
   const { toast } = useToast();
   
@@ -171,7 +171,7 @@ export default function AssetInventory() {
   
   // Filter asset types by category
   const filteredAssetTypes = assetTypesQuery.data ? 
-    (selectedCategory ? 
+    (selectedCategory && selectedCategory !== "all" ? 
       assetTypesQuery.data.filter((type) => type.category === selectedCategory) : 
       assetTypesQuery.data) : 
     [];
@@ -417,12 +417,12 @@ export default function AssetInventory() {
             </CardHeader>
             <CardContent>
               <div className="mb-4">
-                <Select value={selectedCategory || ""} onValueChange={(value) => setSelectedCategory(value || null)}>
+                <Select value={selectedCategory || "all"} onValueChange={(value) => setSelectedCategory(value)}>
                   <SelectTrigger className="w-[280px]">
                     <SelectValue placeholder="Filter by Category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Categories</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
                     {categories.map((category) => (
                       <SelectItem key={category} value={category}>
                         {category}

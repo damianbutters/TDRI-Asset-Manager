@@ -48,18 +48,15 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
               <Link 
                 href={item.path}
                 onClick={closeMobileMenu}
+                className={cn(
+                  "flex items-center px-4 py-3",
+                  location === item.path 
+                    ? "text-primary bg-blue-50 border-l-4 border-primary" 
+                    : "text-neutral-textSecondary hover:bg-blue-50 hover:text-primary"
+                )}
               >
-                <a 
-                  className={cn(
-                    "flex items-center px-4 py-3",
-                    location === item.path 
-                      ? "text-primary bg-blue-50 border-l-4 border-primary" 
-                      : "text-neutral-textSecondary hover:bg-blue-50 hover:text-primary"
-                  )}
-                >
-                  <i className={`fas fa-${item.icon} w-6`} aria-hidden="true"></i>
-                  <span>{item.name}</span>
-                </a>
+                <i className={`fas fa-${item.icon} w-6`} aria-hidden="true"></i>
+                <span>{item.name}</span>
               </Link>
             </li>
           ))}
