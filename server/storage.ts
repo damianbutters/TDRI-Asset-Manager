@@ -434,6 +434,162 @@ export class MemStorage implements IStorage {
       resourceType: "SYSTEM",
       resourceId: "0"
     });
+
+    // Create default asset types
+    this.createAssetType({
+      name: "Pavement Marking",
+      description: "Road markings including lane dividers, crosswalks, stop lines, etc.",
+      category: "Signage and Marking",
+      conditionRatingScale: "1-10",
+      conditionRatingType: "numeric",
+      inspectionFrequencyMonths: 6,
+      active: true
+    });
+
+    this.createAssetType({
+      name: "Traffic Sign",
+      description: "Road signs including regulatory, warning, and informational signs",
+      category: "Signage and Marking",
+      conditionRatingScale: "1-10",
+      conditionRatingType: "numeric",
+      inspectionFrequencyMonths: 12,
+      active: true
+    });
+
+    this.createAssetType({
+      name: "Guardrail",
+      description: "Safety barriers along roadways to prevent vehicles from leaving the road",
+      category: "Safety Equipment",
+      conditionRatingScale: "1-10",
+      conditionRatingType: "numeric",
+      inspectionFrequencyMonths: 12,
+      active: true
+    });
+
+    this.createAssetType({
+      name: "Drainage Structure",
+      description: "Culverts, catch basins, and other drainage structures",
+      category: "Drainage",
+      conditionRatingScale: "1-10",
+      conditionRatingType: "numeric",
+      inspectionFrequencyMonths: 12,
+      active: true
+    });
+
+    this.createAssetType({
+      name: "Sidewalk",
+      description: "Pedestrian walkways alongside roadways",
+      category: "Pedestrian Facilities",
+      conditionRatingScale: "1-10",
+      conditionRatingType: "numeric",
+      inspectionFrequencyMonths: 24,
+      active: true
+    });
+    
+    // Sample guardrail
+    this.createRoadwayAsset({
+      assetId: "GR-1001",
+      name: "Main Street Guardrail",
+      description: "Guardrail along Main Street curve",
+      location: "Main Street at Oak Avenue Intersection",
+      assetTypeId: 3, // Guardrail type
+      installationDate: new Date(now.getFullYear() - 5, 3, 15),
+      expectedLifespan: 15,
+      manufacturer: "SafeGuard Inc.",
+      condition: 85,
+      lastInspection: new Date(now.getFullYear(), now.getMonth() - 2, 10),
+      nextInspection: new Date(now.getFullYear() + 1, now.getMonth() - 2, 10),
+      latitude: 37.7749,
+      longitude: -122.4194,
+      length: 120,
+      width: 0.5,
+      height: 0.75,
+      material: "Galvanized Steel",
+      notes: "Standard W-beam guardrail with wooden posts"
+    });
+
+    // Sample traffic sign
+    this.createRoadwayAsset({
+      assetId: "TS-2035",
+      name: "Stop Sign - Oak & Main",
+      description: "Stop sign at Oak and Main intersection",
+      location: "Oak Avenue at Main Street Intersection",
+      assetTypeId: 2, // Traffic Sign type
+      installationDate: new Date(now.getFullYear() - 2, 7, 22),
+      expectedLifespan: 10,
+      manufacturer: "SignCo",
+      condition: 92,
+      lastInspection: new Date(now.getFullYear(), now.getMonth() - 1, 5),
+      nextInspection: new Date(now.getFullYear() + 1, now.getMonth() - 1, 5),
+      latitude: 37.7746,
+      longitude: -122.4192,
+      width: 0.75,
+      height: 0.75,
+      material: "Aluminum",
+      notes: "Standard octagonal stop sign with reflective coating"
+    });
+
+    // Sample pavement marking
+    this.createRoadwayAsset({
+      assetId: "PM-3222",
+      name: "Crosswalk - School Zone",
+      description: "School zone crosswalk marking",
+      location: "Main Street at Elementary School",
+      assetTypeId: 1, // Pavement Marking type
+      installationDate: new Date(now.getFullYear() - 1, 5, 10),
+      expectedLifespan: 3,
+      manufacturer: "RoadMark Solutions",
+      condition: 75,
+      lastInspection: new Date(now.getFullYear(), now.getMonth() - 3, 15),
+      nextInspection: new Date(now.getFullYear() + 1, now.getMonth() - 3, 15),
+      latitude: 37.7752,
+      longitude: -122.4199,
+      length: 12,
+      width: 3,
+      material: "Thermoplastic",
+      notes: "High-visibility crosswalk with reflective elements"
+    });
+
+    // Create some sample inspections
+    this.createAssetInspection({
+      roadwayAssetId: 1, // Guardrail
+      inspectionDate: new Date(now.getFullYear(), now.getMonth() - 2, 10),
+      condition: 85,
+      inspectorId: 1,
+      comments: "Guardrail in good condition, minor scratches observed",
+      maintenanceNeeded: false
+    });
+
+    this.createAssetInspection({
+      roadwayAssetId: 2, // Traffic Sign
+      inspectionDate: new Date(now.getFullYear(), now.getMonth() - 1, 5),
+      condition: 92,
+      inspectorId: 1,
+      comments: "Sign is clearly visible and well-mounted, no issues",
+      maintenanceNeeded: false
+    });
+
+    this.createAssetInspection({
+      roadwayAssetId: 3, // Pavement Marking
+      inspectionDate: new Date(now.getFullYear(), now.getMonth() - 3, 15),
+      condition: 75,
+      inspectorId: 1,
+      comments: "Marking shows some wear, still visible but beginning to fade",
+      maintenanceNeeded: true,
+      maintenanceNotes: "Consider repainting in next maintenance cycle"
+    });
+
+    // Create some sample maintenance records
+    this.createAssetMaintenanceRecord({
+      roadwayAssetId: 3, // Pavement Marking
+      description: "Repainted crosswalk markings",
+      maintenanceDate: new Date(now.getFullYear(), now.getMonth() - 1, 20),
+      performedBy: 1,
+      cost: 1200,
+      beforeCondition: 75,
+      afterCondition: 95,
+      notes: "Complete repainting of school zone crosswalk with new thermoplastic material"
+    });
   }
   
   async getUser(id: number): Promise<User | undefined> {
@@ -721,6 +877,179 @@ export class MemStorage implements IStorage {
     this.auditLogs.set(id, auditLog);
     return auditLog;
   }
+
+  // Asset Type methods
+  async getAssetTypes(): Promise<AssetType[]> {
+    return Array.from(this.assetTypes.values());
+  }
+
+  async getAssetType(id: number): Promise<AssetType | undefined> {
+    return this.assetTypes.get(id);
+  }
+
+  async createAssetType(type: InsertAssetType): Promise<AssetType> {
+    const id = this.assetTypeIdCounter++;
+    const now = new Date();
+    const assetType: AssetType = {
+      ...type,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.assetTypes.set(id, assetType);
+    return assetType;
+  }
+
+  async updateAssetType(id: number, type: Partial<InsertAssetType>): Promise<AssetType | undefined> {
+    const existingType = this.assetTypes.get(id);
+    if (!existingType) return undefined;
+
+    const updatedType: AssetType = {
+      ...existingType,
+      ...type,
+      updatedAt: new Date()
+    };
+
+    this.assetTypes.set(id, updatedType);
+    return updatedType;
+  }
+
+  async deleteAssetType(id: number): Promise<boolean> {
+    return this.assetTypes.delete(id);
+  }
+
+  // Roadway Asset methods
+  async getRoadwayAssets(): Promise<RoadwayAsset[]> {
+    return Array.from(this.roadwayAssets.values());
+  }
+
+  async getRoadwayAssetsByType(assetTypeId: number): Promise<RoadwayAsset[]> {
+    return Array.from(this.roadwayAssets.values())
+      .filter(asset => asset.assetTypeId === assetTypeId);
+  }
+
+  async getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined> {
+    return this.roadwayAssets.get(id);
+  }
+
+  async createRoadwayAsset(asset: InsertRoadwayAsset): Promise<RoadwayAsset> {
+    const id = this.roadwayAssetIdCounter++;
+    const now = new Date();
+    const roadwayAsset: RoadwayAsset = {
+      ...asset,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.roadwayAssets.set(id, roadwayAsset);
+    return roadwayAsset;
+  }
+
+  async updateRoadwayAsset(id: number, asset: Partial<InsertRoadwayAsset>): Promise<RoadwayAsset | undefined> {
+    const existingAsset = this.roadwayAssets.get(id);
+    if (!existingAsset) return undefined;
+
+    const updatedAsset: RoadwayAsset = {
+      ...existingAsset,
+      ...asset,
+      updatedAt: new Date()
+    };
+
+    this.roadwayAssets.set(id, updatedAsset);
+    return updatedAsset;
+  }
+
+  async deleteRoadwayAsset(id: number): Promise<boolean> {
+    return this.roadwayAssets.delete(id);
+  }
+
+  // Asset Inspection methods
+  async getAssetInspections(): Promise<AssetInspection[]> {
+    return Array.from(this.assetInspections.values());
+  }
+
+  async getAssetInspectionsByAssetId(roadwayAssetId: number): Promise<AssetInspection[]> {
+    return Array.from(this.assetInspections.values())
+      .filter(inspection => inspection.roadwayAssetId === roadwayAssetId)
+      .sort((a, b) => b.inspectionDate.getTime() - a.inspectionDate.getTime()); // Sort by date, newest first
+  }
+
+  async getAssetInspection(id: number): Promise<AssetInspection | undefined> {
+    return this.assetInspections.get(id);
+  }
+
+  async createAssetInspection(inspection: InsertAssetInspection): Promise<AssetInspection> {
+    const id = this.assetInspectionIdCounter++;
+    const now = new Date();
+    const assetInspection: AssetInspection = {
+      ...inspection,
+      id,
+      createdAt: now
+    };
+    this.assetInspections.set(id, assetInspection);
+    return assetInspection;
+  }
+
+  async updateAssetInspection(id: number, inspection: Partial<InsertAssetInspection>): Promise<AssetInspection | undefined> {
+    const existingInspection = this.assetInspections.get(id);
+    if (!existingInspection) return undefined;
+
+    const updatedInspection: AssetInspection = {
+      ...existingInspection,
+      ...inspection
+    };
+
+    this.assetInspections.set(id, updatedInspection);
+    return updatedInspection;
+  }
+
+  async deleteAssetInspection(id: number): Promise<boolean> {
+    return this.assetInspections.delete(id);
+  }
+
+  // Asset Maintenance Record methods
+  async getAssetMaintenanceRecords(): Promise<AssetMaintenanceRecord[]> {
+    return Array.from(this.assetMaintenanceRecords.values());
+  }
+
+  async getAssetMaintenanceRecordsByAssetId(roadwayAssetId: number): Promise<AssetMaintenanceRecord[]> {
+    return Array.from(this.assetMaintenanceRecords.values())
+      .filter(record => record.roadwayAssetId === roadwayAssetId)
+      .sort((a, b) => b.maintenanceDate.getTime() - a.maintenanceDate.getTime()); // Sort by date, newest first
+  }
+
+  async getAssetMaintenanceRecord(id: number): Promise<AssetMaintenanceRecord | undefined> {
+    return this.assetMaintenanceRecords.get(id);
+  }
+
+  async createAssetMaintenanceRecord(record: InsertAssetMaintenanceRecord): Promise<AssetMaintenanceRecord> {
+    const id = this.assetMaintenanceRecordIdCounter++;
+    const now = new Date();
+    const maintenanceRecord: AssetMaintenanceRecord = {
+      ...record,
+      id,
+      createdAt: now
+    };
+    this.assetMaintenanceRecords.set(id, maintenanceRecord);
+    return maintenanceRecord;
+  }
+
+  async updateAssetMaintenanceRecord(id: number, record: Partial<InsertAssetMaintenanceRecord>): Promise<AssetMaintenanceRecord | undefined> {
+    const existingRecord = this.assetMaintenanceRecords.get(id);
+    if (!existingRecord) return undefined;
+
+    const updatedRecord: AssetMaintenanceRecord = {
+      ...existingRecord,
+      ...record
+    };
+
+    this.assetMaintenanceRecords.set(id, updatedRecord);
+    return updatedRecord;
+  }
+
+  async deleteAssetMaintenanceRecord(id: number): Promise<boolean> {
+    return this.assetMaintenanceRecords.delete(id);
+  }
 }
 
 // DatabaseStorage implementation
@@ -985,6 +1314,160 @@ export class DatabaseStorage implements IStorage {
       timestamp: new Date()
     }).returning();
     return newLog;
+  }
+
+  // Asset Type methods
+  async getAssetTypes(): Promise<AssetType[]> {
+    return await db.select().from(assetTypes);
+  }
+
+  async getAssetType(id: number): Promise<AssetType | undefined> {
+    const [assetType] = await db.select().from(assetTypes).where(eq(assetTypes.id, id));
+    return assetType;
+  }
+
+  async createAssetType(type: InsertAssetType): Promise<AssetType> {
+    const now = new Date();
+    const [newType] = await db.insert(assetTypes).values({
+      ...type,
+      createdAt: now,
+      updatedAt: now
+    }).returning();
+    return newType;
+  }
+
+  async updateAssetType(id: number, type: Partial<InsertAssetType>): Promise<AssetType | undefined> {
+    const [updatedType] = await db.update(assetTypes)
+      .set({
+        ...type,
+        updatedAt: new Date()
+      })
+      .where(eq(assetTypes.id, id))
+      .returning();
+    return updatedType;
+  }
+
+  async deleteAssetType(id: number): Promise<boolean> {
+    const result = await db.delete(assetTypes).where(eq(assetTypes.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Roadway Asset methods
+  async getRoadwayAssets(): Promise<RoadwayAsset[]> {
+    return await db.select().from(roadwayAssets);
+  }
+
+  async getRoadwayAssetsByType(assetTypeId: number): Promise<RoadwayAsset[]> {
+    return await db.select()
+      .from(roadwayAssets)
+      .where(eq(roadwayAssets.assetTypeId, assetTypeId));
+  }
+
+  async getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined> {
+    const [asset] = await db.select().from(roadwayAssets).where(eq(roadwayAssets.id, id));
+    return asset;
+  }
+
+  async createRoadwayAsset(asset: InsertRoadwayAsset): Promise<RoadwayAsset> {
+    const now = new Date();
+    const [newAsset] = await db.insert(roadwayAssets).values({
+      ...asset,
+      createdAt: now,
+      updatedAt: now
+    }).returning();
+    return newAsset;
+  }
+
+  async updateRoadwayAsset(id: number, asset: Partial<InsertRoadwayAsset>): Promise<RoadwayAsset | undefined> {
+    const [updatedAsset] = await db.update(roadwayAssets)
+      .set({
+        ...asset,
+        updatedAt: new Date()
+      })
+      .where(eq(roadwayAssets.id, id))
+      .returning();
+    return updatedAsset;
+  }
+
+  async deleteRoadwayAsset(id: number): Promise<boolean> {
+    const result = await db.delete(roadwayAssets).where(eq(roadwayAssets.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Asset Inspection methods
+  async getAssetInspections(): Promise<AssetInspection[]> {
+    return await db.select().from(assetInspections);
+  }
+
+  async getAssetInspectionsByAssetId(roadwayAssetId: number): Promise<AssetInspection[]> {
+    return await db.select()
+      .from(assetInspections)
+      .where(eq(assetInspections.roadwayAssetId, roadwayAssetId))
+      .orderBy(desc(assetInspections.inspectionDate));
+  }
+
+  async getAssetInspection(id: number): Promise<AssetInspection | undefined> {
+    const [inspection] = await db.select().from(assetInspections).where(eq(assetInspections.id, id));
+    return inspection;
+  }
+
+  async createAssetInspection(inspection: InsertAssetInspection): Promise<AssetInspection> {
+    const [newInspection] = await db.insert(assetInspections).values({
+      ...inspection,
+      createdAt: new Date()
+    }).returning();
+    return newInspection;
+  }
+
+  async updateAssetInspection(id: number, inspection: Partial<InsertAssetInspection>): Promise<AssetInspection | undefined> {
+    const [updatedInspection] = await db.update(assetInspections)
+      .set(inspection)
+      .where(eq(assetInspections.id, id))
+      .returning();
+    return updatedInspection;
+  }
+
+  async deleteAssetInspection(id: number): Promise<boolean> {
+    const result = await db.delete(assetInspections).where(eq(assetInspections.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Asset Maintenance Record methods
+  async getAssetMaintenanceRecords(): Promise<AssetMaintenanceRecord[]> {
+    return await db.select().from(assetMaintenanceRecords);
+  }
+
+  async getAssetMaintenanceRecordsByAssetId(roadwayAssetId: number): Promise<AssetMaintenanceRecord[]> {
+    return await db.select()
+      .from(assetMaintenanceRecords)
+      .where(eq(assetMaintenanceRecords.roadwayAssetId, roadwayAssetId))
+      .orderBy(desc(assetMaintenanceRecords.maintenanceDate));
+  }
+
+  async getAssetMaintenanceRecord(id: number): Promise<AssetMaintenanceRecord | undefined> {
+    const [record] = await db.select().from(assetMaintenanceRecords).where(eq(assetMaintenanceRecords.id, id));
+    return record;
+  }
+
+  async createAssetMaintenanceRecord(record: InsertAssetMaintenanceRecord): Promise<AssetMaintenanceRecord> {
+    const [newRecord] = await db.insert(assetMaintenanceRecords).values({
+      ...record,
+      createdAt: new Date()
+    }).returning();
+    return newRecord;
+  }
+
+  async updateAssetMaintenanceRecord(id: number, record: Partial<InsertAssetMaintenanceRecord>): Promise<AssetMaintenanceRecord | undefined> {
+    const [updatedRecord] = await db.update(assetMaintenanceRecords)
+      .set(record)
+      .where(eq(assetMaintenanceRecords.id, id))
+      .returning();
+    return updatedRecord;
+  }
+
+  async deleteAssetMaintenanceRecord(id: number): Promise<boolean> {
+    const result = await db.delete(assetMaintenanceRecords).where(eq(assetMaintenanceRecords.id, id));
+    return result.rowCount > 0;
   }
 }
 
