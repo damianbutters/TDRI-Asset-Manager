@@ -12,6 +12,7 @@ import BudgetPlanning from "@/pages/BudgetPlanning";
 import MapView from "@/pages/MapView";
 import ImportExport from "@/pages/ImportExport";
 import AuditLogs from "@/pages/AuditLogs";
+import AssetInventory from "@/pages/AssetInventory";
 import { useState } from "react";
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
             <Route path="/map-view" component={MapView} />
             <Route path="/import-export" component={ImportExport} />
             <Route path="/audit-logs" component={AuditLogs} />
+            <Route path="/asset-inventory" component={AssetInventory} />
             <Route component={NotFound} />
           </Switch>
         </main>
