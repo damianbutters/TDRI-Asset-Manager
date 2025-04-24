@@ -1,88 +1,98 @@
-import { createServer } from "http";
+import { createServer, Server } from "http";
 import express, { Express, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import * as zfd from "zod-form-data";
 import { storage } from "./storage";
 import * as schema from "@shared/schema";
+import { 
+  insertRoadAssetSchema, 
+  insertMaintenanceTypeSchema, 
+  insertMaintenanceProjectSchema,
+  insertPolicySchema,
+  insertBudgetAllocationSchema 
+} from "@shared/schema";
 
 /**
- * Simulates a reverse geocoding service to convert coordinates to road names
- * In a production app, this would use a real geocoding API
- */ 
-function simulateReverseGeocoding(longitude: number, latitude: number): string {
-  // Define regions for different parts of Mechanicsville
-  const mechanicsvilleRegions = [
-    { name: "Main Street", minLong: -77.38, maxLong: -77.36, minLat: 37.605, maxLat: 37.615 },
-    { name: "Atlee Road", minLong: -77.39, maxLong: -77.37, minLat: 37.615, maxLat: 37.625 },
-    { name: "Old Church Road", minLong: -77.37, maxLong: -77.35, minLat: 37.615, maxLat: 37.625 },
-    { name: "Mechanicsville Turnpike", minLong: -77.40, maxLong: -77.36, minLat: 37.595, maxLat: 37.605 },
-    { name: "Rural Point Road", minLong: -77.38, maxLong: -77.35, minLat: 37.625, maxLat: 37.635 },
-    { name: "Pole Green Road", minLong: -77.41, maxLong: -77.38, minLat: 37.625, maxLat: 37.645 },
-    { name: "Shady Grove Road", minLong: -77.42, maxLong: -77.40, minLat: 37.615, maxLat: 37.635 },
-    { name: "Bell Creek Road", minLong: -77.41, maxLong: -77.39, minLat: 37.595, maxLat: 37.615 }
-  ];
-  
-  // For Pennsylvania coordinates (around -79.94, 40.36)
-  const pennsylvaniaRegions = [
-    { name: "Forbes Avenue", minLong: -80.00, maxLong: -79.94, minLat: 40.35, maxLat: 40.38 },
-    { name: "Fifth Avenue", minLong: -79.96, maxLong: -79.90, minLat: 40.36, maxLat: 40.39 },
-    { name: "Penn Avenue", minLong: -79.95, maxLong: -79.91, minLat: 40.34, maxLat: 40.37 },
-    { name: "Bigelow Boulevard", minLong: -79.97, maxLong: -79.93, minLat: 40.37, maxLat: 40.40 },
-    { name: "Centre Avenue", minLong: -79.98, maxLong: -79.94, minLat: 40.34, maxLat: 40.37 },
-    { name: "Craig Street", minLong: -79.95, maxLong: -79.93, minLat: 40.36, maxLat: 40.39 }
-  ];
-  
-  // Combine all regions
-  const allRegions = [...mechanicsvilleRegions, ...pennsylvaniaRegions];
-  
-  // First try to find a matching region
-  for (const region of allRegions) {
-    if (
-      longitude >= region.minLong && 
-      longitude <= region.maxLong && 
-      latitude >= region.minLat && 
-      latitude <= region.maxLat
-    ) {
-      return region.name;
+ * Uses OpenStreetMap's Nominatim API to convert coordinates to real road names and locations
+ * This uses actual OSM data for accurate road identification
+ */
+async function reverseGeocode(longitude: number, latitude: number): Promise<{roadName: string, location: string}> {
+  try {
+    // Following Nominatim usage policy - identify app and add delay between requests
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
+    
+    // Sleep for 1 second to respect Nominatim usage policy
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'TDRIPlanner-RoadAssetManagement/1.0',
+        'Accept-Language': 'en-US,en'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`OpenStreetMap API returned ${response.status}: ${response.statusText}`);
     }
-  }
-  
-  // If no specific region matched, determine if it's closer to Mechanicsville or Pittsburgh
-  const mechanicsvilleCenterLong = -77.373;
-  const mechanicsvilleCenterLat = 37.608;
-  
-  const pittsburghCenterLong = -79.947;
-  const pittsburghCenterLat = 40.368;
-  
-  const distToMechanicsville = Math.sqrt(
-    Math.pow(longitude - mechanicsvilleCenterLong, 2) + 
-    Math.pow(latitude - mechanicsvilleCenterLat, 2)
-  );
-  
-  const distToPittsburgh = Math.sqrt(
-    Math.pow(longitude - pittsburghCenterLong, 2) + 
-    Math.pow(latitude - pittsburghCenterLat, 2)
-  );
-  
-  // Use the closest city to generate a road name
-  if (distToMechanicsville < distToPittsburgh) {
-    const streetNumber = Math.floor(1000 + Math.random() * 8000);
-    const streetNames = ["Atlee", "Battlefield", "Cedar", "Dogwood", "Elm", "Foxridge", "Georgetown", "Hickory"];
-    const streetTypes = ["Road", "Avenue", "Street", "Lane", "Drive", "Boulevard", "Way"];
     
-    const randomStreet = streetNames[Math.floor(Math.random() * streetNames.length)];
-    const randomType = streetTypes[Math.floor(Math.random() * streetTypes.length)];
+    const data = await response.json();
+    console.log("OSM API RESPONSE:", JSON.stringify(data));
     
-    return `${randomStreet} ${randomType} (Mechanicsville)`;
-  } else {
-    const streetNumber = Math.floor(1000 + Math.random() * 8000);
-    const streetNames = ["Allegheny", "Butler", "Carnegie", "Duquesne", "Etna", "Frick", "Grant", "Hamilton"];
-    const streetTypes = ["Street", "Avenue", "Road", "Way", "Boulevard", "Drive", "Lane"];
+    // Extract road info from the API response
+    const address = data.address;
+    let roadName = "Unknown Road";
+    let location = "Unknown Location";
     
-    const randomStreet = streetNames[Math.floor(Math.random() * streetNames.length)];
-    const randomType = streetTypes[Math.floor(Math.random() * streetTypes.length)];
+    // Try to find the most specific road name in the address hierarchy
+    if (address) {
+      // Road name priority from most to least specific
+      const roadFields = [
+        'road', 'street', 'highway', 'pedestrian', 'path', 'footway', 
+        'cycleway', 'service', 'track', 'residential'
+      ];
+      
+      // Find the first available road name
+      for (const field of roadFields) {
+        if (address[field]) {
+          roadName = address[field];
+          break;
+        }
+      }
+      
+      // Build location from city, county, state if available
+      const locationParts = [];
+      if (address.city || address.town || address.village || address.hamlet) {
+        locationParts.push(address.city || address.town || address.village || address.hamlet);
+      }
+      if (address.county) {
+        locationParts.push(address.county);
+      }
+      if (address.state) {
+        locationParts.push(address.state);
+      }
+      
+      if (locationParts.length > 0) {
+        location = locationParts.join(", ");
+      }
+    }
     
-    return `${randomStreet} ${randomType} (Pittsburgh)`;
+    // If no road name was found, use display name as fallback
+    if (roadName === "Unknown Road" && data.display_name) {
+      const displayParts = data.display_name.split(',');
+      if (displayParts.length > 0) {
+        roadName = displayParts[0].trim();
+      }
+    }
+    
+    console.log(`GEOCODING: Coordinates (${longitude}, ${latitude}) resolved to "${roadName}" in "${location}"`);
+    return { roadName, location };
+  } catch (error) {
+    console.error("Error in reverse geocoding:", error);
+    // Fallback in case the API call fails
+    return { 
+      roadName: "Unnamed Road", 
+      location: `Near (${latitude.toFixed(6)}, ${longitude.toFixed(6)})` 
+    };
   }
 }
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -893,16 +903,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`MOISTURE IMPORT DIAGNOSTIC: Generated new asset ID: ${newAssetId}`);
               
               try {
-                // Simulate geocoding to get a road name based on coordinates
-                // In a production app, this would use a real geocoding service API
-                const roadName = simulateReverseGeocoding(longitude, latitude);
-                console.log(`MOISTURE IMPORT DIAGNOSTIC: Determined road name from coordinates: "${roadName}"`);
+                // Use OpenStreetMap API for real geocoding to get accurate road name and location
+                const geoInfo = await reverseGeocode(longitude, latitude);
+                console.log(`MOISTURE IMPORT DIAGNOSTIC: Determined road name from coordinates: "${geoInfo.roadName}" in "${geoInfo.location}"`);
                 
-                // Create a new road asset with these coordinates
+                // Create a new road asset with the real location data from OpenStreetMap
                 const newAssetData = {
                   assetId: newAssetId,
-                  name: roadName,
-                  location: `${longitude.toFixed(6)}, ${latitude.toFixed(6)}`,
+                  name: geoInfo.roadName,
+                  location: geoInfo.location,
                   length: 0.1, // Default length
                   width: 6.0, // Default width
                   surfaceType: "Unknown",
