@@ -298,13 +298,13 @@ export class WeatherService {
       console.log("Starting rainfall data update for all road assets");
       
       // Get all road assets
-      const roadAssets = await db.select().from(rainfallHistory);
+      const allRoadAssets = await db.select().from(roadAssets);
       
       let successCount = 0;
       let failCount = 0;
       
       // Update each road asset
-      for (const asset of roadAssets) {
+      for (const asset of allRoadAssets) {
         const success = await this.updateRainfallData(asset);
         if (success) {
           successCount++;

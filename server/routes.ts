@@ -11,6 +11,7 @@ import {
   insertPolicySchema,
   insertBudgetAllocationSchema 
 } from "@shared/schema";
+import { weatherService } from "./weather-service";
 
 /**
  * Uses OpenStreetMap's Nominatim API to convert coordinates to real road names and locations
@@ -140,6 +141,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ipAddress: req.ip,
         resourceType: "road_asset",
         resourceId: asset.id.toString(),
+      });
+
+      // Fetch and store rainfall data for the new road asset
+      // We do this asynchronously so it doesn't block the response
+      weatherService.updateRainfallData(asset).catch(err => {
+        console.error(`Error fetching initial rainfall data for road asset ${asset.id}:`, err);
       });
 
       res.status(201).json(asset);
@@ -631,6 +638,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Moisture Data Import
+  // Rainfall data endpoints
+  app.get("/api/road-assets/:id/rainfall", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID" });
+      }
+
+      const roadAsset = await storage.getRoadAsset(id);
+      if (!roadAsset) {
+        return res.status(404).json({ message: "Road asset not found" });
+      }
+
+      // Get rainfall data
+      const rainfallData = await weatherService.getRainfallDataForRoadAsset(id);
+      
+      res.json({
+        roadAssetId: id,
+        roadName: roadAsset.name,
+        weatherStationId: roadAsset.weatherStationId,
+        weatherStationName: roadAsset.weatherStationName,
+        lastRainfallUpdate: roadAsset.lastRainfallUpdate,
+        rainfallData
+      });
+    } catch (error) {
+      console.error("Error getting rainfall data:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Endpoint to update rainfall data for a specific road asset
+  app.post("/api/road-assets/:id/update-rainfall", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID" });
+      }
+
+      const roadAsset = await storage.getRoadAsset(id);
+      if (!roadAsset) {
+        return res.status(404).json({ message: "Road asset not found" });
+      }
+
+      // Update rainfall data
+      const success = await weatherService.updateRainfallData(roadAsset);
+      
+      if (!success) {
+        return res.status(500).json({ message: "Failed to update rainfall data" });
+      }
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Updated rainfall data",
+        details: `Updated rainfall data for ${roadAsset.name}`,
+        ipAddress: req.ip,
+        resourceType: "road_asset",
+        resourceId: id.toString(),
+      });
+
+      // Get updated road asset
+      const updatedAsset = await storage.getRoadAsset(id);
+      
+      res.json({
+        success: true,
+        message: "Rainfall data updated successfully",
+        roadAsset: updatedAsset
+      });
+    } catch (error) {
+      console.error("Error updating rainfall data:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Endpoint to update rainfall data for all road assets
+  app.post("/api/update-all-rainfall", async (req: Request, res: Response) => {
+    try {
+      // Start the update process in the background
+      weatherService.updateAllRoadAssets().catch((error) => {
+        console.error("Background rainfall update failed:", error);
+      });
+      
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Started rainfall data update",
+        details: "Started rainfall data update for all road assets",
+        ipAddress: req.ip,
+        resourceType: "system",
+        resourceId: "rainfall-update",
+      });
+      
+      res.json({
+        success: true,
+        message: "Rainfall data update started for all road assets"
+      });
+    } catch (error) {
+      console.error("Error starting rainfall update:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  
   app.post("/api/import/moisture-data", async (req: Request, res: Response) => {
     try {
       const schema = zfd.formData({
