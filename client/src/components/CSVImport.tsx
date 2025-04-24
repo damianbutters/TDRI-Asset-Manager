@@ -119,9 +119,15 @@ export default function CSVImport({
                   
                   // If there are errors in the response, add them to error details
                   if (chunkResult.errors && Array.isArray(chunkResult.errors)) {
-                    setErrorDetails(prev => [...prev, ...chunkResult.errors.map((err: any) => 
-                      `Rows ${currentChunkStart}-${currentChunkEnd}: ${err.message || JSON.stringify(err)}`
-                    )]);
+                    setErrorDetails(prev => [...prev, ...chunkResult.errors.map((err: any) => {
+                      // Try to extract row number if it's included in the error message
+                      const rowMatch = err.message.match(/Row (\d+):/);
+                      if (rowMatch) {
+                        return err.message; // The message already contains row information
+                      } else {
+                        return `Rows ${currentChunkStart}-${currentChunkEnd}: ${err.message || JSON.stringify(err)}`;
+                      }
+                    })]);
                   }
                 } else if (chunkResult.message) {
                   // If the request wasn't successful but returned a message

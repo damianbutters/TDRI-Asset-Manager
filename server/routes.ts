@@ -448,9 +448,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let readingDate: Date | undefined;
           let roadAssetId: string | undefined;
           
+          // Store what we found in the row for better error messages
+          const rowData: Record<string, string> = {};
+          
+          // Check if the CSV line has enough values
+          if (values.length < 3) {
+            throw new Error(`Insufficient data in row (expected at least longitude, latitude, and moisture values but found only ${values.length} column(s))`);
+          }
+          
           headers.forEach((header, index) => {
             const value = values[index]?.trim();
             if (!value) return;
+            
+            // Store what we found for better error reporting
+            rowData[header.toLowerCase()] = value;
             
             switch (header.toLowerCase()) {
               case 'longitude':
@@ -500,10 +511,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       }
                     }
                   }
+                  
+                  // If all parsing attempts failed, throw an error with the problematic value
+                  if (readingDate === undefined || isNaN(readingDate.getTime())) {
+                    throw new Error(`Invalid date format: "${value}". Try using a standard format like YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS`);
+                  }
                 } catch (err) {
                   console.error("Error parsing date:", value, err);
-                  // If all parsing attempts fail, default to current date
-                  readingDate = new Date();
+                  if (err instanceof Error && err.message.includes("Invalid date format")) {
+                    // Rethrow the specific error we created above
+                    throw err;
+                  }
+                  // For other parsing errors, provide specific feedback
+                  throw new Error(`Failed to parse date: "${value}". Error: ${err instanceof Error ? err.message : "Unknown error"}`);
                 }
                 break;
               case 'roadassetid':
@@ -512,11 +532,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
           
-          // Validate required fields
-          if (longitude === undefined || isNaN(longitude) || 
-              latitude === undefined || isNaN(latitude) || 
-              moisture === undefined || isNaN(moisture)) {
-            throw new Error("Missing or invalid required fields (longitude, latitude, moisture)");
+          // Validate required fields with specific error messages that include the actual values
+          if (longitude === undefined || isNaN(longitude)) {
+            const foundValue = rowData['longitude'] || 'missing';
+            throw new Error(`Missing or invalid longitude value: "${foundValue}" (must be a numeric value)`);
+          }
+          
+          if (latitude === undefined || isNaN(latitude)) {
+            const foundValue = rowData['latitude'] || 'missing';
+            throw new Error(`Missing or invalid latitude value: "${foundValue}" (must be a numeric value)`);
+          }
+          
+          if (moisture === undefined || isNaN(moisture)) {
+            const foundValue = rowData['moisture'] || 'missing';
+            throw new Error(`Missing or invalid moisture value: "${foundValue}" (must be a numeric value between 0-100)`);
+          }
+          
+          // Add range validation for moisture
+          if (moisture < 0 || moisture > 100) {
+            throw new Error(`Moisture value out of range: ${moisture} (must be between 0-100)`);
           }
           
           // If no date is provided, use current date
