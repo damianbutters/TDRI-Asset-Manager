@@ -1052,18 +1052,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
-          // Update the moisture data for the road asset
+          // Create a moisture reading with coordinates
           if (assetToUpdate) {
+            // Create new moisture reading record
+            const moistureReading = await storage.createMoistureReading({
+              roadAssetId: assetToUpdate.id,
+              latitude: latitude,
+              longitude: longitude,
+              moistureValue: moisture,
+              readingDate: readingDate
+            });
+            
+            // Update the last moisture reading timestamp on the road asset
             const updatedAsset = await storage.updateRoadAsset(assetToUpdate.id, {
-              moistureLevel: moisture,
               lastMoistureReading: readingDate
             });
             
-            if (updatedAsset) {
+            if (moistureReading && updatedAsset) {
               importedCount++;
               updatedAssets.add(assetToUpdate.id);
             } else {
-              throw new Error(`Failed to update road asset with ID ${assetToUpdate.id}`);
+              throw new Error(`Failed to create moisture reading for road asset with ID ${assetToUpdate.id}`);
             }
           }
         } catch (error) {
@@ -1088,15 +1097,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: 1,
         username: "admin",
         action: "Imported moisture data",
-        details: `Created ${newAssetsCreated} new road assets and updated ${existingAssetsUpdated} existing assets with ${importedCount} moisture readings. Errors: ${errorCount}`,
+        details: `Created ${newAssetsCreated} new road assets and added ${importedCount} detailed moisture readings with coordinates to ${existingAssetsUpdated} existing assets. Errors: ${errorCount}`,
         ipAddress: req.ip,
-        resourceType: "road_asset",
+        resourceType: "moisture_reading",
         resourceId: "moisture-import",
       });
       
       res.json({ 
         success: true, 
-        message: `Successfully imported ${importedCount} moisture readings, creating ${newAssetsCreated} new road assets and updating ${existingAssetsUpdated} existing assets. Errors: ${errorCount}.`,
+        message: `Successfully imported ${importedCount} detailed moisture readings with coordinates, creating ${newAssetsCreated} new road assets and updating ${existingAssetsUpdated} existing assets. Errors: ${errorCount}.`,
         errors: errorDetails.map(err => ({
           message: `Row ${err.row}: ${err.message}`
         }))
@@ -1119,6 +1128,184 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: error instanceof Error ? error.message : "An unexpected error occurred"
         }]
       });
+    }
+  });
+
+  // Moisture Readings Routes
+  app.get("/api/road-assets/:id/moisture-readings", async (req: Request, res: Response) => {
+    try {
+      const roadAssetId = parseInt(req.params.id);
+      if (isNaN(roadAssetId)) {
+        return res.status(400).json({ message: "Invalid road asset ID" });
+      }
+
+      const roadAsset = await storage.getRoadAsset(roadAssetId);
+      if (!roadAsset) {
+        return res.status(404).json({ message: "Road asset not found" });
+      }
+
+      const moistureReadings = await storage.getMoistureReadings(roadAssetId);
+      res.json(moistureReadings);
+    } catch (error) {
+      console.error("Error getting moisture readings:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/moisture-readings/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid moisture reading ID" });
+      }
+
+      const reading = await storage.getMoistureReading(id);
+      if (!reading) {
+        return res.status(404).json({ message: "Moisture reading not found" });
+      }
+
+      res.json(reading);
+    } catch (error) {
+      console.error("Error getting moisture reading:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/moisture-readings", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertMoistureReadingSchema.parse(req.body);
+      
+      // Verify the road asset exists
+      const roadAsset = await storage.getRoadAsset(validatedData.roadAssetId);
+      if (!roadAsset) {
+        return res.status(404).json({ message: "Road asset not found" });
+      }
+
+      const reading = await storage.createMoistureReading(validatedData);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Created moisture reading",
+        details: `Created moisture reading for road asset ${roadAsset.name} (ID: ${roadAsset.id})`,
+        ipAddress: req.ip,
+        resourceType: "moisture_reading",
+        resourceId: reading.id.toString(),
+      });
+
+      // Update the road asset's last moisture reading timestamp
+      await storage.updateRoadAsset(roadAsset.id, {
+        lastMoistureReading: reading.readingDate
+      });
+
+      res.status(201).json(reading);
+    } catch (error) {
+      console.error("Error creating moisture reading:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/moisture-readings/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid moisture reading ID" });
+      }
+
+      const existingReading = await storage.getMoistureReading(id);
+      if (!existingReading) {
+        return res.status(404).json({ message: "Moisture reading not found" });
+      }
+
+      const validatedData = insertMoistureReadingSchema.partial().parse(req.body);
+      const updatedReading = await storage.updateMoistureReading(id, validatedData);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Updated moisture reading",
+        details: `Updated moisture reading ID ${id} for road asset ID ${existingReading.roadAssetId}`,
+        ipAddress: req.ip,
+        resourceType: "moisture_reading",
+        resourceId: id.toString(),
+      });
+
+      res.json(updatedReading);
+    } catch (error) {
+      console.error("Error updating moisture reading:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/moisture-readings/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid moisture reading ID" });
+      }
+
+      const existingReading = await storage.getMoistureReading(id);
+      if (!existingReading) {
+        return res.status(404).json({ message: "Moisture reading not found" });
+      }
+
+      await storage.deleteMoistureReading(id);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Deleted moisture reading",
+        details: `Deleted moisture reading ID ${id} for road asset ID ${existingReading.roadAssetId}`,
+        ipAddress: req.ip,
+        resourceType: "moisture_reading",
+        resourceId: id.toString(),
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting moisture reading:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/road-assets/:id/moisture-readings", async (req: Request, res: Response) => {
+    try {
+      const roadAssetId = parseInt(req.params.id);
+      if (isNaN(roadAssetId)) {
+        return res.status(400).json({ message: "Invalid road asset ID" });
+      }
+
+      const roadAsset = await storage.getRoadAsset(roadAssetId);
+      if (!roadAsset) {
+        return res.status(404).json({ message: "Road asset not found" });
+      }
+
+      await storage.deleteMoistureReadingsByRoadAsset(roadAssetId);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Deleted all moisture readings",
+        details: `Deleted all moisture readings for road asset ${roadAsset.name} (ID: ${roadAsset.id})`,
+        ipAddress: req.ip,
+        resourceType: "road_asset",
+        resourceId: roadAssetId.toString(),
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting moisture readings:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 
