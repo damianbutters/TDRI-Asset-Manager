@@ -643,4 +643,222 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// DatabaseStorage implementation
+export class DatabaseStorage implements IStorage {
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+  
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+  
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+  
+  // Road asset methods
+  async getRoadAssets(): Promise<RoadAsset[]> {
+    return await db.select().from(roadAssets);
+  }
+  
+  async getRoadAsset(id: number): Promise<RoadAsset | undefined> {
+    const [asset] = await db.select().from(roadAssets).where(eq(roadAssets.id, id));
+    return asset;
+  }
+  
+  async getRoadAssetByAssetId(assetId: string): Promise<RoadAsset | undefined> {
+    const [asset] = await db.select().from(roadAssets).where(eq(roadAssets.assetId, assetId));
+    return asset;
+  }
+  
+  async createRoadAsset(asset: InsertRoadAsset): Promise<RoadAsset> {
+    const now = new Date();
+    const [newAsset] = await db.insert(roadAssets).values({
+      ...asset,
+      createdAt: now,
+      updatedAt: now
+    }).returning();
+    return newAsset;
+  }
+  
+  async updateRoadAsset(id: number, asset: Partial<InsertRoadAsset>): Promise<RoadAsset | undefined> {
+    const [updatedAsset] = await db.update(roadAssets)
+      .set({
+        ...asset,
+        updatedAt: new Date()
+      })
+      .where(eq(roadAssets.id, id))
+      .returning();
+    return updatedAsset;
+  }
+  
+  async deleteRoadAsset(id: number): Promise<boolean> {
+    const result = await db.delete(roadAssets).where(eq(roadAssets.id, id));
+    return result.rowCount > 0;
+  }
+  
+  // Maintenance type methods
+  async getMaintenanceTypes(): Promise<MaintenanceType[]> {
+    return await db.select().from(maintenanceTypes);
+  }
+  
+  async getMaintenanceType(id: number): Promise<MaintenanceType | undefined> {
+    const [type] = await db.select().from(maintenanceTypes).where(eq(maintenanceTypes.id, id));
+    return type;
+  }
+  
+  async createMaintenanceType(type: InsertMaintenanceType): Promise<MaintenanceType> {
+    const [newType] = await db.insert(maintenanceTypes).values(type).returning();
+    return newType;
+  }
+  
+  async updateMaintenanceType(id: number, type: Partial<InsertMaintenanceType>): Promise<MaintenanceType | undefined> {
+    const [updatedType] = await db.update(maintenanceTypes)
+      .set(type)
+      .where(eq(maintenanceTypes.id, id))
+      .returning();
+    return updatedType;
+  }
+  
+  async deleteMaintenanceType(id: number): Promise<boolean> {
+    const result = await db.delete(maintenanceTypes).where(eq(maintenanceTypes.id, id));
+    return result.rowCount > 0;
+  }
+  
+  // Maintenance project methods
+  async getMaintenanceProjects(): Promise<MaintenanceProject[]> {
+    return await db.select().from(maintenanceProjects);
+  }
+  
+  async getMaintenanceProject(id: number): Promise<MaintenanceProject | undefined> {
+    const [project] = await db.select().from(maintenanceProjects).where(eq(maintenanceProjects.id, id));
+    return project;
+  }
+  
+  async createMaintenanceProject(project: InsertMaintenanceProject): Promise<MaintenanceProject> {
+    const [newProject] = await db.insert(maintenanceProjects).values({
+      ...project,
+      createdAt: new Date()
+    }).returning();
+    return newProject;
+  }
+  
+  async updateMaintenanceProject(id: number, project: Partial<InsertMaintenanceProject>): Promise<MaintenanceProject | undefined> {
+    const [updatedProject] = await db.update(maintenanceProjects)
+      .set(project)
+      .where(eq(maintenanceProjects.id, id))
+      .returning();
+    return updatedProject;
+  }
+  
+  async deleteMaintenanceProject(id: number): Promise<boolean> {
+    const result = await db.delete(maintenanceProjects).where(eq(maintenanceProjects.id, id));
+    return result.rowCount > 0;
+  }
+  
+  // Policy methods
+  async getPolicies(): Promise<Policy[]> {
+    return await db.select().from(policies);
+  }
+  
+  async getPolicy(id: number): Promise<Policy | undefined> {
+    const [policy] = await db.select().from(policies).where(eq(policies.id, id));
+    return policy;
+  }
+  
+  async createPolicy(policy: InsertPolicy): Promise<Policy> {
+    const now = new Date();
+    const [newPolicy] = await db.insert(policies).values({
+      ...policy,
+      createdAt: now,
+      updatedAt: now
+    }).returning();
+    return newPolicy;
+  }
+  
+  async updatePolicy(id: number, policy: Partial<InsertPolicy>): Promise<Policy | undefined> {
+    const [updatedPolicy] = await db.update(policies)
+      .set({
+        ...policy,
+        updatedAt: new Date()
+      })
+      .where(eq(policies.id, id))
+      .returning();
+    return updatedPolicy;
+  }
+  
+  async deletePolicy(id: number): Promise<boolean> {
+    const result = await db.delete(policies).where(eq(policies.id, id));
+    return result.rowCount > 0;
+  }
+  
+  // Budget allocation methods
+  async getBudgetAllocations(): Promise<BudgetAllocation[]> {
+    return await db.select().from(budgetAllocations);
+  }
+  
+  async getBudgetAllocation(id: number): Promise<BudgetAllocation | undefined> {
+    const [budget] = await db.select().from(budgetAllocations).where(eq(budgetAllocations.id, id));
+    return budget;
+  }
+  
+  async getActiveBudgetAllocation(): Promise<BudgetAllocation | undefined> {
+    const [budget] = await db.select().from(budgetAllocations).where(eq(budgetAllocations.active, "true"));
+    return budget;
+  }
+  
+  async createBudgetAllocation(budget: InsertBudgetAllocation): Promise<BudgetAllocation> {
+    const [newBudget] = await db.insert(budgetAllocations).values({
+      ...budget,
+      createdAt: new Date()
+    }).returning();
+    return newBudget;
+  }
+  
+  async updateBudgetAllocation(id: number, budget: Partial<InsertBudgetAllocation>): Promise<BudgetAllocation | undefined> {
+    const [updatedBudget] = await db.update(budgetAllocations)
+      .set(budget)
+      .where(eq(budgetAllocations.id, id))
+      .returning();
+    return updatedBudget;
+  }
+  
+  async setBudgetAllocationActive(id: number): Promise<BudgetAllocation | undefined> {
+    // First, set all allocations to inactive
+    await db.update(budgetAllocations).set({ active: "false" });
+    
+    // Then set the specified one to active
+    const [activeBudget] = await db.update(budgetAllocations)
+      .set({ active: "true" })
+      .where(eq(budgetAllocations.id, id))
+      .returning();
+    
+    return activeBudget;
+  }
+  
+  async deleteBudgetAllocation(id: number): Promise<boolean> {
+    const result = await db.delete(budgetAllocations).where(eq(budgetAllocations.id, id));
+    return result.rowCount > 0;
+  }
+  
+  // Audit log methods
+  async getAuditLogs(): Promise<AuditLog[]> {
+    return await db.select().from(auditLogs).orderBy(desc(auditLogs.timestamp));
+  }
+  
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [newLog] = await db.insert(auditLogs).values({
+      ...log,
+      timestamp: new Date()
+    }).returning();
+    return newLog;
+  }
+}
+
+// Export an instance of DatabaseStorage
+export const storage = new DatabaseStorage();

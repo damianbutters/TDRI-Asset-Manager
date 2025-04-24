@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, doublePrecision, json, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // User table
 export const users = pgTable("users", {
@@ -146,6 +147,61 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
   timestamp: true,
 });
+
+// Define relationships between tables
+export const roadAssetsRelations = relations(roadAssets, ({ many }) => ({
+  maintenanceProjects: many(maintenanceProjects),
+}));
+
+export const maintenanceTypesRelations = relations(maintenanceTypes, ({ many }) => ({
+  maintenanceProjects: many(maintenanceProjects),
+  policies: many(policies),
+}));
+
+export const maintenanceProjectsRelations = relations(maintenanceProjects, ({ one }) => ({
+  roadAsset: one(roadAssets, {
+    fields: [maintenanceProjects.roadAssetId],
+    references: [roadAssets.id],
+  }),
+  maintenanceType: one(maintenanceTypes, {
+    fields: [maintenanceProjects.maintenanceTypeId],
+    references: [maintenanceTypes.id],
+  }),
+  updatedByUser: one(users, {
+    fields: [maintenanceProjects.updatedBy],
+    references: [users.id],
+    relationName: "user_maintenance_projects"
+  })
+}));
+
+export const policiesRelations = relations(policies, ({ one }) => ({
+  maintenanceType: one(maintenanceTypes, {
+    fields: [policies.maintenanceTypeId],
+    references: [maintenanceTypes.id],
+  })
+}));
+
+export const budgetAllocationsRelations = relations(budgetAllocations, ({ one }) => ({
+  createdByUser: one(users, {
+    fields: [budgetAllocations.createdBy],
+    references: [users.id],
+    relationName: "user_budget_allocations"
+  })
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [auditLogs.userId],
+    references: [users.id],
+    relationName: "user_audit_logs"
+  })
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  maintenanceProjects: many(maintenanceProjects, { relationName: "user_maintenance_projects" }),
+  budgetAllocations: many(budgetAllocations, { relationName: "user_budget_allocations" }),
+  auditLogs: many(auditLogs, { relationName: "user_audit_logs" }),
+}));
 
 // Types
 export type User = typeof users.$inferSelect;
