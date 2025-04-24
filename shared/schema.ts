@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, doublePrecision, json, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, doublePrecision, json, boolean, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -269,6 +269,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   maintenanceProjects: many(maintenanceProjects, { relationName: "user_maintenance_projects" }),
   budgetAllocations: many(budgetAllocations, { relationName: "user_budget_allocations" }),
   auditLogs: many(auditLogs, { relationName: "user_audit_logs" }),
+  assetInspections: many(assetInspections),
+  assetMaintenanceRecords: many(assetMaintenanceRecords),
 }));
 
 // Types
@@ -298,3 +300,164 @@ export type InsertRainfallHistory = z.infer<typeof insertRainfallHistorySchema>;
 
 export type MoistureReading = typeof moistureReadings.$inferSelect;
 export type InsertMoistureReading = z.infer<typeof insertMoistureReadingSchema>;
+
+// Asset Types table - for defining custom asset types
+export const assetTypes = pgTable("asset_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(), // e.g. "Pavement", "Sign", "Guardrail", etc.
+  description: text("description").notNull(),
+  conditionRatingScale: text("condition_rating_scale").notNull().default("0-100"), // e.g. "0-100", "1-5", etc.
+  conditionRatingType: text("condition_rating_type").notNull().default("numeric"), // e.g. "numeric", "text", etc.
+  category: text("category").notNull(), // e.g. "Surface", "Safety", "Drainage", etc.
+  inspectionFrequencyMonths: integer("inspection_frequency_months").notNull().default(12), // default frequency in months
+  customFields: json("custom_fields"), // Store additional field definitions specific to this asset type
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  active: boolean("active").notNull().default(true),
+});
+
+export const insertAssetTypeSchema = createInsertSchema(assetTypes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Roadway Assets table - generic table for all types of road assets
+export const roadwayAssets = pgTable("roadway_assets", {
+  id: serial("id").primaryKey(),
+  assetId: text("asset_id").notNull(), // e.g. "SG-2023-001" (sign), "GR-2023-002" (guardrail)
+  assetTypeId: integer("asset_type_id").notNull().references(() => assetTypes.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  location: text("location").notNull(),
+  roadAssetId: integer("road_asset_id").references(() => roadAssets.id), // Associated with which road (optional)
+  installDate: timestamp("install_date"),
+  manufactureDate: timestamp("manufacture_date"),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  condition: integer("condition").notNull().default(100), // General condition score (0-100)
+  lastInspection: timestamp("last_inspection"),
+  nextInspection: timestamp("next_inspection"),
+  latitude: doublePrecision("latitude"), // Exact location
+  longitude: doublePrecision("longitude"), // Exact location
+  geometry: json("geometry"), // For line/polygon assets like guardrails or pavement markings
+  customData: json("custom_data"), // Store type-specific data (varies by asset type)
+  lastMaintenanceDate: timestamp("last_maintenance_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  active: boolean("active").notNull().default(true),
+}, (table) => {
+  return {
+    assetIdUnique: unique().on(table.assetId),
+  };
+});
+
+export const insertRoadwayAssetSchema = createInsertSchema(roadwayAssets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Asset inspections table
+export const assetInspections = pgTable("asset_inspections", {
+  id: serial("id").primaryKey(),
+  roadwayAssetId: integer("roadway_asset_id").notNull().references(() => roadwayAssets.id, { onDelete: 'cascade' }),
+  inspectionDate: timestamp("inspection_date").notNull(),
+  inspectorId: integer("inspector_id").references(() => users.id),
+  condition: integer("condition").notNull(), // 0-100 or other scale as defined in asset type
+  comments: text("comments"),
+  images: json("images"), // Array of image URLs or base64 strings
+  maintenanceNeeded: boolean("maintenance_needed").default(false),
+  maintenanceNotes: text("maintenance_notes"),
+  customInspectionData: json("custom_inspection_data"), // Additional inspection data specific to asset type
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAssetInspectionSchema = createInsertSchema(assetInspections).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Asset maintenance records
+export const assetMaintenanceRecords = pgTable("asset_maintenance_records", {
+  id: serial("id").primaryKey(),
+  roadwayAssetId: integer("roadway_asset_id").notNull().references(() => roadwayAssets.id, { onDelete: 'cascade' }),
+  maintenanceDate: timestamp("maintenance_date").notNull(),
+  maintenanceTypeId: integer("maintenance_type_id").references(() => maintenanceTypes.id),
+  performedBy: integer("performed_by").references(() => users.id),
+  cost: doublePrecision("cost"),
+  description: text("description").notNull(),
+  beforeCondition: integer("before_condition"),
+  afterCondition: integer("after_condition"),
+  materials: json("materials"), // Materials used
+  laborHours: doublePrecision("labor_hours"),
+  equipmentUsed: text("equipment_used"),
+  customMaintenanceData: json("custom_maintenance_data"), // Additional maintenance data
+  images: json("images"), // Array of image URLs or base64 strings
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAssetMaintenanceRecordSchema = createInsertSchema(assetMaintenanceRecords).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Define relationships for new tables
+export const assetTypesRelations = relations(assetTypes, ({ many }) => ({
+  roadwayAssets: many(roadwayAssets),
+}));
+
+export const roadwayAssetsRelations = relations(roadwayAssets, ({ one, many }) => ({
+  assetType: one(assetTypes, {
+    fields: [roadwayAssets.assetTypeId],
+    references: [assetTypes.id],
+  }),
+  roadAsset: one(roadAssets, {
+    fields: [roadwayAssets.roadAssetId],
+    references: [roadAssets.id],
+  }),
+  inspections: many(assetInspections),
+  maintenanceRecords: many(assetMaintenanceRecords),
+}));
+
+export const assetInspectionsRelations = relations(assetInspections, ({ one }) => ({
+  roadwayAsset: one(roadwayAssets, {
+    fields: [assetInspections.roadwayAssetId],
+    references: [roadwayAssets.id],
+  }),
+  inspector: one(users, {
+    fields: [assetInspections.inspectorId],
+    references: [users.id],
+  }),
+}));
+
+export const assetMaintenanceRecordsRelations = relations(assetMaintenanceRecords, ({ one }) => ({
+  roadwayAsset: one(roadwayAssets, {
+    fields: [assetMaintenanceRecords.roadwayAssetId],
+    references: [roadwayAssets.id],
+  }),
+  maintenanceType: one(maintenanceTypes, {
+    fields: [assetMaintenanceRecords.maintenanceTypeId],
+    references: [maintenanceTypes.id],
+  }),
+  performedByUser: one(users, {
+    fields: [assetMaintenanceRecords.performedBy],
+    references: [users.id],
+  }),
+}));
+
+// Relations were defined above in usersRelations
+
+// Export types for the new tables
+export type AssetType = typeof assetTypes.$inferSelect;
+export type InsertAssetType = z.infer<typeof insertAssetTypeSchema>;
+
+export type RoadwayAsset = typeof roadwayAssets.$inferSelect;
+export type InsertRoadwayAsset = z.infer<typeof insertRoadwayAssetSchema>;
+
+export type AssetInspection = typeof assetInspections.$inferSelect;
+export type InsertAssetInspection = z.infer<typeof insertAssetInspectionSchema>;
+
+export type AssetMaintenanceRecord = typeof assetMaintenanceRecords.$inferSelect;
+export type InsertAssetMaintenanceRecord = z.infer<typeof insertAssetMaintenanceRecordSchema>;
