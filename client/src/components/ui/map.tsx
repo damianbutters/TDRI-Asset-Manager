@@ -179,41 +179,45 @@ export default function Map({
           })}
           
           {/* Render all the individual moisture reading markers */}
-          {Object.entries(moistureReadings).map(([roadAssetId, readings]) => (
-            readings.map((reading) => {
-              const readingColor = getMoistureColor(reading.moistureValue);
-              return (
-                <CircleMarker
-                  key={`moisture-point-${reading.id}`}
-                  center={[reading.latitude, reading.longitude]}
-                  radius={5}
-                  pathOptions={{
-                    color: readingColor,
-                    fillColor: readingColor,
-                    fillOpacity: 0.8,
-                    weight: 1,
-                  }}
-                >
-                  <Popup>
-                    <div className="p-2">
-                      <h3 className="font-medium text-sm">Moisture Reading</h3>
-                      <div className="flex flex-col gap-1 mt-1">
-                        <p className="text-xs">
-                          <span className="font-medium">Value:</span> {reading.moistureValue.toFixed(2)}%
-                        </p>
-                        <p className="text-xs">
-                          <span className="font-medium">Date:</span> {new Date(reading.readingDate).toLocaleDateString()}
-                        </p>
-                        <p className="text-xs">
-                          <span className="font-medium">Coordinates:</span> {reading.latitude.toFixed(5)}, {reading.longitude.toFixed(5)}
-                        </p>
+          <div>
+            {console.log("Moisture readings:", moistureReadings)}
+            {Object.entries(moistureReadings).flatMap(([roadAssetId, readings]) => 
+              readings.map((reading) => {
+                console.log("Rendering reading:", reading);
+                const readingColor = getMoistureColor(reading.moistureValue);
+                return (
+                  <CircleMarker
+                    key={`moisture-point-${reading.id}`}
+                    center={[reading.latitude, reading.longitude]}
+                    radius={5}
+                    pathOptions={{
+                      color: readingColor,
+                      fillColor: readingColor,
+                      fillOpacity: 0.8,
+                      weight: 1,
+                    }}
+                  >
+                    <Popup>
+                      <div className="p-2">
+                        <h3 className="font-medium text-sm">Moisture Reading</h3>
+                        <div className="flex flex-col gap-1 mt-1">
+                          <p className="text-xs">
+                            <span className="font-medium">Value:</span> {reading.moistureValue.toFixed(2)}%
+                          </p>
+                          <p className="text-xs">
+                            <span className="font-medium">Date:</span> {new Date(reading.readingDate).toLocaleDateString()}
+                          </p>
+                          <p className="text-xs">
+                            <span className="font-medium">Coordinates:</span> {reading.latitude.toFixed(5)}, {reading.longitude.toFixed(5)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              );
-            })
-          ))}
+                    </Popup>
+                  </CircleMarker>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
       
