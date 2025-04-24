@@ -5,7 +5,6 @@ import {
   Polyline, 
   Popup, 
   useMap, 
-  LayersControl,
   CircleMarker
 } from "react-leaflet";
 import L from "leaflet";
@@ -142,34 +141,17 @@ export default function Map({
   
   return (
     <MapContainer 
-      className={`${height} w-full rounded-lg`} 
       center={center} 
       zoom={zoom} 
-      scrollWheelZoom={true}
+      className={`w-full ${height}`}
+      style={{ 
+        zIndex: 0 
+      }}
     >
-      <LayersControl position="topright">
-        {/* Base Maps */}
-        <LayersControl.BaseLayer checked name="OpenStreetMap">
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-        </LayersControl.BaseLayer>
-        
-        <LayersControl.BaseLayer name="Satellite">
-          <TileLayer
-            attribution='&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          />
-        </LayersControl.BaseLayer>
-        
-        <LayersControl.BaseLayer name="Topographic">
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          />
-        </LayersControl.BaseLayer>
-      </LayersControl>
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
       
       {/* Display PCI layer if activeLayer is pci */}
       {activeLayer === "pci" && roadAssets.map((asset) => {
@@ -185,7 +167,7 @@ export default function Map({
             pathOptions={{
               color: conditionColor,
               weight: 6,
-              opacity: 0.9,
+              opacity: 0.8,
               lineCap: "round", 
               lineJoin: "round"
             }}
