@@ -11,6 +11,8 @@ import {
 import L from "leaflet";
 import { RoadAsset, MoistureReading, getConditionState } from "@shared/schema";
 import { getConditionColor, getMoistureColor, getRelativeMoistureColor } from "@/lib/utils/color-utils";
+import MoistureRangeSlider from "@/components/MoistureRangeSlider";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Define the GeoJSON structure for TypeScript
 interface Coordinates {
@@ -345,134 +347,233 @@ export default function Map({
         </>
       )}
       
-      {/* Layer Toggle Control */}
+      {/* Layer Toggle Control with Animation */}
       <div className="leaflet-top leaflet-left" style={{ top: '80px' }}>
-        <div className="leaflet-control leaflet-bar bg-white p-2 shadow-md rounded-md">
+        <motion.div 
+          className="leaflet-control leaflet-bar bg-white p-2 shadow-md rounded-md overflow-hidden"
+          initial={{ opacity: 1 }}
+          animate={{ 
+            width: activeLayer === "moisture" ? "auto" : "auto",
+            height: "auto"
+          }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        >
           <div className="flex flex-col gap-2">
-            <button 
-              onClick={() => setActiveLayer("pci")} 
-              className={`px-2 py-1 text-xs rounded ${activeLayer === "pci" ? 'bg-primary text-white' : 'bg-gray-100'}`}
-            >
-              PCI View
-            </button>
-            <button 
-              onClick={() => setActiveLayer("moisture")} 
-              className={`px-2 py-1 text-xs rounded ${activeLayer === "moisture" ? 'bg-primary text-white' : 'bg-gray-100'}`}
-            >
-              Moisture View
-            </button>
+            <div className="flex gap-1 mb-1">
+              <motion.button 
+                onClick={() => setActiveLayer("pci")} 
+                className={`px-2 py-1 text-xs rounded flex-1 ${activeLayer === "pci" ? 'bg-primary text-white' : 'bg-gray-100'}`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                PCI View
+              </motion.button>
+              <motion.button 
+                onClick={() => setActiveLayer("moisture")} 
+                className={`px-2 py-1 text-xs rounded flex-1 ${activeLayer === "moisture" ? 'bg-primary text-white' : 'bg-gray-100'}`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Moisture View
+              </motion.button>
+            </div>
             
-            {/* Only show moisture options when in moisture view */}
-            {activeLayer === "moisture" && (
-              <>
-                <div className="h-px bg-gray-200 my-1"></div>
-                
-                <div className="text-xs font-medium mb-1">Moisture Range Mode:</div>
-                <div className="flex gap-1">
-                  <button 
-                    onClick={() => setMoistureRangeMode("local")} 
-                    className={`px-2 py-1 text-xs rounded flex-1 ${moistureRangeMode === "local" ? 'bg-primary text-white' : 'bg-gray-100'}`}
-                  >
-                    Local
-                  </button>
-                  <button 
-                    onClick={() => setMoistureRangeMode("global")} 
-                    className={`px-2 py-1 text-xs rounded flex-1 ${moistureRangeMode === "global" ? 'bg-primary text-white' : 'bg-gray-100'}`}
-                  >
-                    Global
-                  </button>
-                </div>
-                
-                {/* Show threshold settings button when in global mode */}
-                {moistureRangeMode === "global" && (
-                  <button 
-                    onClick={() => setShowThresholdSettings(!showThresholdSettings)} 
-                    className="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
-                  >
-                    {showThresholdSettings ? "Hide Thresholds" : "Set Thresholds"}
-                  </button>
-                )}
-              </>
-            )}
+            {/* Only show moisture options when in moisture view with animation */}
+            <AnimatePresence>
+              {activeLayer === "moisture" && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="h-px bg-gray-200 my-1"></div>
+                  
+                  <div className="text-xs font-medium mb-1">Moisture Range Mode:</div>
+                  <div className="flex gap-1">
+                    <motion.button 
+                      onClick={() => setMoistureRangeMode("local")} 
+                      className={`px-2 py-1 text-xs rounded flex-1 ${moistureRangeMode === "local" ? 'bg-primary text-white' : 'bg-gray-100'}`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      Local
+                    </motion.button>
+                    <motion.button 
+                      onClick={() => setMoistureRangeMode("global")} 
+                      className={`px-2 py-1 text-xs rounded flex-1 ${moistureRangeMode === "global" ? 'bg-primary text-white' : 'bg-gray-100'}`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      Global
+                    </motion.button>
+                  </div>
+                  
+                  {/* Show threshold settings button when in global mode with animation */}
+                  <AnimatePresence>
+                    {moistureRangeMode === "global" && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="mt-2"
+                      >
+                        <motion.button 
+                          onClick={() => setShowThresholdSettings(!showThresholdSettings)} 
+                          className="w-full px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center gap-1"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {showThresholdSettings ? (
+                            <>
+                              <span>Hide Thresholds</span>
+                              <span className="text-sm">↑</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Set Thresholds</span>
+                              <span className="text-sm">↓</span>
+                            </>
+                          )}
+                        </motion.button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
       </div>
       
-      {/* Global Threshold Settings Panel */}
-      {activeLayer === "moisture" && 
-       moistureRangeMode === "global" && 
-       showThresholdSettings && (
-        <div className="leaflet-bottom leaflet-left" style={{ bottom: '20px', left: '20px' }}>
-          <div className="leaflet-control leaflet-bar bg-white p-3 shadow-md rounded-md">
-            <div className="flex flex-col gap-2 min-w-[250px]">
-              <h3 className="text-sm font-medium">Global Moisture Thresholds</h3>
-              <div className="text-xs text-gray-500 mb-2">Set threshold values for the global range mode</div>
-              
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs">Low Threshold:</label>
-                  <input 
-                    type="number" 
-                    value={lowThreshold} 
-                    onChange={(e) => setLowThreshold(e.target.value)}
-                    className="w-20 text-xs p-1 border rounded" 
-                    min="0" 
-                    max={mediumThreshold}
-                    step="0.1"
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <label className="text-xs">Medium Threshold:</label>
-                  <input 
-                    type="number" 
-                    value={mediumThreshold} 
-                    onChange={(e) => setMediumThreshold(e.target.value)}
-                    className="w-20 text-xs p-1 border rounded" 
-                    min={lowThreshold} 
-                    max={highThreshold}
-                    step="0.1"
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <label className="text-xs">High Threshold:</label>
-                  <input 
-                    type="number" 
-                    value={highThreshold} 
-                    onChange={(e) => setHighThreshold(e.target.value)}
-                    className="w-20 text-xs p-1 border rounded" 
-                    min={mediumThreshold}
-                    step="0.1"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-between mt-2">
-                <button 
-                  onClick={() => setShowThresholdSettings(false)} 
-                  className="px-3 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200"
+      {/* Global Threshold Settings Panel with Animated Slider */}
+      <AnimatePresence>
+        {activeLayer === "moisture" && 
+         moistureRangeMode === "global" && 
+         showThresholdSettings && (
+          <div className="leaflet-bottom leaflet-left" style={{ bottom: '20px', left: '20px' }}>
+            <motion.div 
+              className="leaflet-control leaflet-bar bg-white p-3 shadow-md rounded-md"
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 50, scale: 0.9 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            >
+              <div className="flex flex-col gap-2 min-w-[350px]">
+                <motion.h3 
+                  className="text-sm font-medium"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
                 >
-                  Cancel
-                </button>
-                <button 
-                  onClick={updateThresholds} 
-                  className="px-3 py-1 text-xs rounded bg-primary text-white hover:bg-primary/90"
+                  Global Moisture Thresholds
+                </motion.h3>
+                <motion.div 
+                  className="text-xs text-gray-500 mb-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2 }}
                 >
-                  Apply
-                </button>
+                  Adjust thresholds by dragging the sliders below
+                </motion.div>
+                
+                {/* Import and use our new animated slider component */}
+                <motion.div 
+                  className="py-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <MoistureRangeSlider 
+                    thresholds={moistureThresholds}
+                    onChange={(newThresholds) => {
+                      setMoistureThresholds(newThresholds);
+                      
+                      // Update the input field values too
+                      setLowThreshold(newThresholds.low.toString());
+                      setMediumThreshold(newThresholds.medium.toString());
+                      setHighThreshold(newThresholds.high.toString());
+                    }}
+                    maxValue={40}
+                  />
+                </motion.div>
+                
+                {/* Keep manual input fields for precise adjustments */}
+                <motion.div 
+                  className="flex flex-col gap-2 mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs">Low Threshold:</label>
+                    <input 
+                      type="number" 
+                      value={lowThreshold} 
+                      onChange={(e) => setLowThreshold(e.target.value)}
+                      className="w-20 text-xs p-1 border rounded" 
+                      min="0" 
+                      max={mediumThreshold}
+                      step="0.1"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs">Medium Threshold:</label>
+                    <input 
+                      type="number" 
+                      value={mediumThreshold} 
+                      onChange={(e) => setMediumThreshold(e.target.value)}
+                      className="w-20 text-xs p-1 border rounded" 
+                      min={lowThreshold} 
+                      max={highThreshold}
+                      step="0.1"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs">High Threshold:</label>
+                    <input 
+                      type="number" 
+                      value={highThreshold} 
+                      onChange={(e) => setHighThreshold(e.target.value)}
+                      className="w-20 text-xs p-1 border rounded" 
+                      min={mediumThreshold}
+                      step="0.1"
+                    />
+                  </div>
+                </motion.div>
+                
+                <motion.div 
+                  className="flex justify-between mt-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <motion.button 
+                    onClick={() => setShowThresholdSettings(false)} 
+                    className="px-3 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Close
+                  </motion.button>
+                  <motion.button 
+                    onClick={updateThresholds} 
+                    className="px-3 py-1 text-xs rounded bg-primary text-white hover:bg-primary/90"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Apply
+                  </motion.button>
+                </motion.div>
               </div>
-              
-              <div className="flex justify-between mt-2 items-center">
-                <span className="text-xs font-medium" style={{ color: '#00CC00' }}>Low</span>
-                <span className="text-xs font-medium" style={{ color: '#FFCC00' }}>Medium</span>
-                <span className="text-xs font-medium" style={{ color: '#FF8C00' }}>High</span>
-                <span className="text-xs font-medium" style={{ color: '#E60000' }}>Very High</span>
-              </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
       
       <MapController roadAssets={roadAssets} />
       
