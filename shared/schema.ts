@@ -1,0 +1,170 @@
+import { pgTable, text, serial, integer, timestamp, doublePrecision, json, boolean } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+
+// User table
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  fullName: text("full_name").notNull(),
+  role: text("role").notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true,
+  fullName: true,
+  role: true,
+});
+
+// Road Asset table
+export const roadAssets = pgTable("road_assets", {
+  id: serial("id").primaryKey(),
+  assetId: text("asset_id").notNull().unique(), // e.g. RS-1024
+  name: text("name").notNull(), // e.g. Main St
+  location: text("location").notNull(), // e.g. Mile 0-2.4
+  length: doublePrecision("length").notNull(), // in miles
+  width: doublePrecision("width").notNull(), // in feet
+  surfaceType: text("surface_type").notNull(), // e.g. Asphalt, Concrete
+  condition: integer("condition").notNull(), // 0-100 PCI
+  lastInspection: timestamp("last_inspection").notNull(),
+  nextInspection: timestamp("next_inspection"),
+  geometry: json("geometry"), // GeoJSON for the road segment
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertRoadAssetSchema = createInsertSchema(roadAssets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Condition state descriptors
+export const conditionStates = {
+  GOOD: "good",
+  FAIR: "fair",
+  POOR: "poor",
+  CRITICAL: "critical",
+} as const;
+
+export type ConditionState = typeof conditionStates[keyof typeof conditionStates];
+
+// Helper function to convert numerical condition to state
+export function getConditionState(condition: number): ConditionState {
+  if (condition >= 80) return conditionStates.GOOD;
+  if (condition >= 60) return conditionStates.FAIR;
+  if (condition >= 40) return conditionStates.POOR;
+  return conditionStates.CRITICAL;
+}
+
+// Maintenance table
+export const maintenanceTypes = pgTable("maintenance_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description").notNull(),
+  lifespanExtension: integer("lifespan_extension").notNull(), // in years
+  conditionImprovement: integer("condition_improvement").notNull(), // points added to condition
+  costPerMile: doublePrecision("cost_per_mile").notNull(), // in dollars
+  applicableMinCondition: integer("applicable_min_condition"), // minimum condition score for this maintenance type
+  applicableMaxCondition: integer("applicable_max_condition"), // maximum condition score for this maintenance type
+});
+
+export const insertMaintenanceTypeSchema = createInsertSchema(maintenanceTypes).omit({
+  id: true,
+});
+
+// Maintenance Projects table
+export const maintenanceProjects = pgTable("maintenance_projects", {
+  id: serial("id").primaryKey(),
+  projectId: text("project_id").notNull().unique(), // e.g. PR-2023-042
+  roadAssetId: integer("road_asset_id").notNull(), // reference to road_assets.id
+  maintenanceTypeId: integer("maintenance_type_id").notNull(), // reference to maintenance_types.id
+  status: text("status").notNull(), // e.g. Planned, In Progress, Completed
+  scheduledDate: timestamp("scheduled_date"),
+  completedDate: timestamp("completed_date"),
+  cost: doublePrecision("cost"), // actual cost if available
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedBy: integer("updated_by"), // reference to users.id
+});
+
+export const insertMaintenanceProjectSchema = createInsertSchema(maintenanceProjects).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Policies for maintenance triggers based on condition
+export const policies = pgTable("policies", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description").notNull(),
+  surfaceType: text("surface_type").notNull(), // applies to which surface type
+  conditionThreshold: integer("condition_threshold").notNull(), // trigger when condition falls below this
+  maintenanceTypeId: integer("maintenance_type_id").notNull(), // what maintenance to apply
+  priority: integer("priority").notNull(), // 1 = highest
+  active: text("active").notNull().default("true"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertPolicySchema = createInsertSchema(policies);
+
+// Budget allocations
+export const budgetAllocations = pgTable("budget_allocations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(), // e.g. "FY 2023 Budget"
+  description: text("description"),
+  fiscalYear: integer("fiscal_year").notNull(),
+  totalBudget: doublePrecision("total_budget").notNull(), // in dollars
+  preventiveMaintenance: doublePrecision("preventive_maintenance").notNull(), // in dollars
+  minorRehabilitation: doublePrecision("minor_rehabilitation").notNull(), // in dollars
+  majorRehabilitation: doublePrecision("major_rehabilitation").notNull(), // in dollars
+  reconstruction: doublePrecision("reconstruction").notNull(), // in dollars
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdBy: integer("created_by"), // reference to users.id
+  active: text("active").notNull().default("false"),
+});
+
+export const insertBudgetAllocationSchema = createInsertSchema(budgetAllocations);
+
+// Audit logs
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  userId: integer("user_id"), // reference to users.id
+  username: text("username").notNull(),
+  action: text("action").notNull(),
+  details: text("details").notNull(),
+  ipAddress: text("ip_address"),
+  resourceType: text("resource_type"), // e.g. "road_asset", "maintenance_project"
+  resourceId: text("resource_id"), // id of the affected resource
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
+// Types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type RoadAsset = typeof roadAssets.$inferSelect;
+export type InsertRoadAsset = z.infer<typeof insertRoadAssetSchema>;
+
+export type MaintenanceType = typeof maintenanceTypes.$inferSelect;
+export type InsertMaintenanceType = z.infer<typeof insertMaintenanceTypeSchema>;
+
+export type MaintenanceProject = typeof maintenanceProjects.$inferSelect;
+export type InsertMaintenanceProject = z.infer<typeof insertMaintenanceProjectSchema>;
+
+export type Policy = typeof policies.$inferSelect;
+export type InsertPolicy = z.infer<typeof insertPolicySchema>;
+
+export type BudgetAllocation = typeof budgetAllocations.$inferSelect;
+export type InsertBudgetAllocation = z.infer<typeof insertBudgetAllocationSchema>;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
