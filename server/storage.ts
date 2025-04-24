@@ -5,7 +5,8 @@ import {
   maintenanceProjects, MaintenanceProject, InsertMaintenanceProject,
   policies, Policy, InsertPolicy,
   budgetAllocations, BudgetAllocation, InsertBudgetAllocation,
-  auditLogs, AuditLog, InsertAuditLog
+  auditLogs, AuditLog, InsertAuditLog,
+  moistureReadings, MoistureReading, InsertMoistureReading
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -53,6 +54,14 @@ export interface IStorage {
   updateBudgetAllocation(id: number, budget: Partial<InsertBudgetAllocation>): Promise<BudgetAllocation | undefined>;
   setBudgetAllocationActive(id: number): Promise<BudgetAllocation | undefined>;
   deleteBudgetAllocation(id: number): Promise<boolean>;
+  
+  // Moisture reading operations
+  getMoistureReadings(roadAssetId: number): Promise<MoistureReading[]>;
+  getMoistureReading(id: number): Promise<MoistureReading | undefined>;
+  createMoistureReading(reading: InsertMoistureReading): Promise<MoistureReading>;
+  updateMoistureReading(id: number, reading: Partial<InsertMoistureReading>): Promise<MoistureReading | undefined>;
+  deleteMoistureReading(id: number): Promise<boolean>;
+  deleteMoistureReadingsByRoadAsset(roadAssetId: number): Promise<boolean>;
   
   // Audit log operations
   getAuditLogs(): Promise<AuditLog[]>;

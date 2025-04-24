@@ -47,6 +47,30 @@ export const insertRoadAssetSchema = createInsertSchema(roadAssets).omit({
   updatedAt: true,
 });
 
+// Moisture Reading table - stores individual moisture readings at specific coordinates
+export const moistureReadings = pgTable("moisture_readings", {
+  id: serial("id").primaryKey(),
+  roadAssetId: integer("road_asset_id").notNull().references(() => roadAssets.id, { onDelete: 'cascade' }),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  moistureValue: doublePrecision("moisture_value").notNull(), // moisture level in percentage
+  readingDate: timestamp("reading_date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertMoistureReadingSchema = createInsertSchema(moistureReadings).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Define relations
+export const moistureReadingsRelations = relations(moistureReadings, ({ one }) => ({
+  roadAsset: one(roadAssets, {
+    fields: [moistureReadings.roadAssetId],
+    references: [roadAssets.id],
+  }),
+}));
+
 // Condition state descriptors
 export const conditionStates = {
   GOOD: "good",
@@ -173,6 +197,7 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
 export const roadAssetsRelations = relations(roadAssets, ({ many }) => ({
   maintenanceProjects: many(maintenanceProjects),
   rainfallHistory: many(rainfallHistory),
+  moistureReadings: many(moistureReadings),
 }));
 
 export const rainfallHistoryRelations = relations(rainfallHistory, ({ one }) => ({
@@ -256,3 +281,6 @@ export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 
 export type RainfallHistory = typeof rainfallHistory.$inferSelect;
 export type InsertRainfallHistory = z.infer<typeof insertRainfallHistorySchema>;
+
+export type MoistureReading = typeof moistureReadings.$inferSelect;
+export type InsertMoistureReading = z.infer<typeof insertMoistureReadingSchema>;
