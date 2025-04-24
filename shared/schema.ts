@@ -34,6 +34,9 @@ export const roadAssets = pgTable("road_assets", {
   lastInspection: timestamp("last_inspection").notNull(),
   nextInspection: timestamp("next_inspection"),
   geometry: json("geometry"), // GeoJSON for the road segment
+  weatherStationId: text("weather_station_id"), // ID of the nearest weather station
+  weatherStationName: text("weather_station_name"), // Name of the nearest weather station
+  lastRainfallUpdate: timestamp("last_rainfall_update"), // When rainfall data was last updated
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -133,6 +136,22 @@ export const budgetAllocations = pgTable("budget_allocations", {
 export const insertBudgetAllocationSchema = createInsertSchema(budgetAllocations);
 
 // Audit logs
+// Rainfall history for each road asset
+export const rainfallHistory = pgTable("rainfall_history", {
+  id: serial("id").primaryKey(),
+  roadAssetId: integer("road_asset_id").notNull(), // reference to road_assets.id
+  month: text("month").notNull(), // Format: "YYYY-MM"
+  rainfallInches: doublePrecision("rainfall_inches").notNull(), // rainfall in inches
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow()
+});
+
+export const insertRainfallHistorySchema = createInsertSchema(rainfallHistory).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
@@ -153,6 +172,14 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
 // Define relationships between tables
 export const roadAssetsRelations = relations(roadAssets, ({ many }) => ({
   maintenanceProjects: many(maintenanceProjects),
+  rainfallHistory: many(rainfallHistory),
+}));
+
+export const rainfallHistoryRelations = relations(rainfallHistory, ({ one }) => ({
+  roadAsset: one(roadAssets, {
+    fields: [rainfallHistory.roadAssetId],
+    references: [roadAssets.id],
+  }),
 }));
 
 export const maintenanceTypesRelations = relations(maintenanceTypes, ({ many }) => ({
@@ -226,3 +253,6 @@ export type InsertBudgetAllocation = z.infer<typeof insertBudgetAllocationSchema
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export type RainfallHistory = typeof rainfallHistory.$inferSelect;
+export type InsertRainfallHistory = z.infer<typeof insertRainfallHistorySchema>;
