@@ -1,8 +1,14 @@
 import { useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, LayersControl } from "react-leaflet";
 import L from "leaflet";
 import { RoadAsset, getConditionState } from "@shared/schema";
 import { getConditionColor } from "@/lib/utils/color-utils";
+
+// Define the GeoJSON structure for TypeScript
+interface Coordinates {
+  type: string;
+  coordinates: [number, number][];
+}
 
 interface MapProps {
   roadAssets: RoadAsset[];
@@ -20,8 +26,9 @@ function MapController({ roadAssets }: { roadAssets: RoadAsset[] }) {
       const bounds = new L.LatLngBounds([]);
       
       roadAssets.forEach(asset => {
-        if (asset.geometry && asset.geometry.coordinates) {
-          asset.geometry.coordinates.forEach(coord => {
+        if (asset.geometry && typeof asset.geometry === 'object' && 'coordinates' in asset.geometry) {
+          const coordinates = asset.geometry.coordinates as [number, number][];
+          coordinates.forEach(coord => {
             bounds.extend([coord[1], coord[0]]);
           });
         }
@@ -52,6 +59,18 @@ export default function Map({
     }
   };
 
+  // Function to safely get coordinates from asset
+  const getCoordinates = (asset: RoadAsset): [number, number][] => {
+    if (asset.geometry && 
+        typeof asset.geometry === 'object' && 
+        'coordinates' in asset.geometry && 
+        Array.isArray(asset.geometry.coordinates)) {
+      return (asset.geometry.coordinates as [number, number][])
+        .map(coord => [coord[1], coord[0]] as [number, number]);
+    }
+    return [];
+  };
+
   return (
     <MapContainer 
       className={`${height} w-full rounded-lg`} 
@@ -59,42 +78,98 @@ export default function Map({
       zoom={zoom} 
       scrollWheelZoom={true}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+      <LayersControl position="topright">
+        {/* Base Maps */}
+        <LayersControl.BaseLayer checked name="OpenStreetMap">
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+        </LayersControl.BaseLayer>
+        
+        <LayersControl.BaseLayer name="Satellite">
+          <TileLayer
+            attribution='&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+        </LayersControl.BaseLayer>
+        
+        <LayersControl.BaseLayer name="Topographic">
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          />
+        </LayersControl.BaseLayer>
+        
+        {/* Overlay for Road Conditions */}
+        <LayersControl.Overlay checked name="Road Conditions">
+          <div>
+            {roadAssets.map((asset) => {
+              const coordinates = getCoordinates(asset);
+              if (coordinates.length === 0) return null;
+              
+              const conditionColor = getConditionColor(asset.condition);
+              
+              return (
+                <Polyline
+                  key={asset.id}
+                  positions={coordinates}
+                  pathOptions={{
+                    color: conditionColor,
+                    weight: 7,
+                    opacity: 0.8
+                  }}
+                  eventHandlers={{
+                    click: () => handleAssetClick(asset)
+                  }}
+                />
+              );
+            })}
+          </div>
+        </LayersControl.Overlay>
+        
+        {/* Overlay for Traffic Data (placeholder) */}
+        <LayersControl.Overlay name="Traffic Volume">
+          <div>
+            {roadAssets.map((asset) => {
+              const coordinates = getCoordinates(asset);
+              if (coordinates.length === 0) return null;
+              
+              // This would normally use actual traffic data
+              // Just for visualization, we're using random transparency
+              const randomOpacity = Math.random() * 0.6 + 0.2;
+              
+              return (
+                <Polyline
+                  key={`traffic-${asset.id}`}
+                  positions={coordinates}
+                  pathOptions={{
+                    color: "#3b82f6", // Blue
+                    weight: 8,
+                    opacity: randomOpacity
+                  }}
+                />
+              );
+            })}
+          </div>
+        </LayersControl.Overlay>
+      </LayersControl>
       
       <MapController roadAssets={roadAssets} />
       
-      {roadAssets.map((asset) => {
-        if (!asset.geometry || !asset.geometry.coordinates) return null;
-        
-        const conditionColor = getConditionColor(asset.condition);
-        const coordinates = asset.geometry.coordinates.map(coord => [coord[1], coord[0]] as [number, number]);
-        
-        return (
-          <Polyline
-            key={asset.id}
-            positions={coordinates}
-            pathOptions={{
-              color: conditionColor,
-              weight: 5,
-              opacity: 0.7
-            }}
-            eventHandlers={{
-              click: () => handleAssetClick(asset)
-            }}
-          />
-        );
-      })}
-      
-      {selectedAsset && (
+      {selectedAsset && selectedAsset.geometry && 
+        typeof selectedAsset.geometry === 'object' && 
+        'coordinates' in selectedAsset.geometry && 
+        Array.isArray(selectedAsset.geometry.coordinates) && 
+        selectedAsset.geometry.coordinates.length > 0 && (
         <Popup
           position={[
-            selectedAsset.geometry.coordinates[0][1],
-            selectedAsset.geometry.coordinates[0][0]
+            (selectedAsset.geometry.coordinates[0][1] as number),
+            (selectedAsset.geometry.coordinates[0][0] as number)
           ]}
-          onClose={() => setSelectedAsset(null)}
+          eventHandlers={{
+            popupclose: () => setSelectedAsset(null)
+          }}
         >
           <div className="p-2">
             <h3 className="font-medium text-sm">{selectedAsset.name}</h3>

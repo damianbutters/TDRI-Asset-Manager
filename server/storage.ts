@@ -162,10 +162,11 @@ export class MemStorage implements IStorage {
     // Create some sample road assets
     const now = new Date();
     
+    // Main Street - Good condition
     this.createRoadAsset({
       assetId: "RS-1024",
-      name: "Main St",
-      location: "Mile 0-2.4",
+      name: "Main Street",
+      location: "Downtown",
       length: 2.4,
       width: 24,
       surfaceType: "Asphalt",
@@ -175,16 +176,20 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.5, 40.0],
-          [-74.48, 40.02]
+          [-74.501, 40.002],
+          [-74.500, 40.004],
+          [-74.498, 40.008],
+          [-74.497, 40.012],
+          [-74.496, 40.018]
         ]
       },
     });
     
+    // Oak Avenue - Fair condition
     this.createRoadAsset({
       assetId: "RS-0872",
       name: "Oak Avenue",
-      location: "Mile 0-1.2",
+      location: "Westside",
       length: 1.2,
       width: 22,
       surfaceType: "Asphalt",
@@ -194,16 +199,20 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.52, 40.01],
-          [-74.51, 40.03]
+          [-74.508, 40.010],
+          [-74.506, 40.012],
+          [-74.504, 40.014],
+          [-74.502, 40.015],
+          [-74.498, 40.016]
         ]
       },
     });
     
+    // River Road - Poor condition 
     this.createRoadAsset({
       assetId: "RS-1543",
       name: "River Road",
-      location: "Mile 3.2-5.8",
+      location: "Riverside District",
       length: 2.6,
       width: 20,
       surfaceType: "Asphalt",
@@ -213,16 +222,21 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.48, 40.05],
-          [-74.46, 40.06]
+          [-74.490, 39.996],
+          [-74.488, 39.998],
+          [-74.486, 40.000],
+          [-74.484, 40.002],
+          [-74.482, 40.003],
+          [-74.480, 40.004]
         ]
       },
     });
     
+    // Commerce Way - Critical condition
     this.createRoadAsset({
       assetId: "RS-0932",
       name: "Commerce Way",
-      location: "Mile 0-3.1",
+      location: "Industrial District",
       length: 3.1,
       width: 26,
       surfaceType: "Concrete",
@@ -232,16 +246,21 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.53, 40.03],
-          [-74.51, 40.05]
+          [-74.510, 40.025],
+          [-74.508, 40.026],
+          [-74.505, 40.027],
+          [-74.502, 40.028],
+          [-74.498, 40.029],
+          [-74.495, 40.030]
         ]
       },
     });
     
+    // Highland Drive - Good condition
     this.createRoadAsset({
       assetId: "RS-1128",
       name: "Highland Drive",
-      location: "Mile 2.4-4.8",
+      location: "Eastside",
       length: 2.4,
       width: 24,
       surfaceType: "Asphalt",
@@ -251,8 +270,36 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.47, 40.02],
-          [-74.45, 40.04]
+          [-74.492, 40.012],
+          [-74.490, 40.014],
+          [-74.488, 40.016],
+          [-74.486, 40.018]
+        ]
+      },
+    });
+    
+    // Maple Boulevard - Fair condition (forms a loop)
+    this.createRoadAsset({
+      assetId: "RS-3392",
+      name: "Maple Boulevard",
+      location: "Midtown",
+      length: 1.5,
+      width: 26,
+      surfaceType: "Asphalt",
+      condition: 72,
+      lastInspection: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 8),
+      nextInspection: new Date(now.getFullYear() + 1, now.getMonth(), now.getDate() - 8),
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-74.496, 40.006],
+          [-74.494, 40.007],
+          [-74.492, 40.008],
+          [-74.490, 40.008],
+          [-74.490, 40.006],
+          [-74.492, 40.004],
+          [-74.495, 40.004],
+          [-74.496, 40.006]
         ]
       },
     });
