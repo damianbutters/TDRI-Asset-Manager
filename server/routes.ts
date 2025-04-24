@@ -9,7 +9,8 @@ import {
   insertMaintenanceTypeSchema, 
   insertMaintenanceProjectSchema,
   insertPolicySchema,
-  insertBudgetAllocationSchema 
+  insertBudgetAllocationSchema,
+  insertMoistureReadingSchema
 } from "@shared/schema";
 import { weatherService } from "./weather-service";
 

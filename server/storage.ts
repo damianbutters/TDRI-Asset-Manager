@@ -76,6 +76,7 @@ export class MemStorage implements IStorage {
   private policies: Map<number, Policy>;
   private budgetAllocations: Map<number, BudgetAllocation>;
   private auditLogs: Map<number, AuditLog>;
+  private moistureReadings: Map<number, MoistureReading>;
   
   private userIdCounter: number;
   private roadAssetIdCounter: number;
@@ -84,6 +85,7 @@ export class MemStorage implements IStorage {
   private policyIdCounter: number;
   private budgetAllocationIdCounter: number;
   private auditLogIdCounter: number;
+  private moistureReadingIdCounter: number;
   
   constructor() {
     this.users = new Map();
@@ -93,6 +95,7 @@ export class MemStorage implements IStorage {
     this.policies = new Map();
     this.budgetAllocations = new Map();
     this.auditLogs = new Map();
+    this.moistureReadings = new Map();
     
     this.userIdCounter = 1;
     this.roadAssetIdCounter = 1;
@@ -101,6 +104,7 @@ export class MemStorage implements IStorage {
     this.policyIdCounter = 1;
     this.budgetAllocationIdCounter = 1;
     this.auditLogIdCounter = 1;
+    this.moistureReadingIdCounter = 1;
     
     this.initializeData();
   }
@@ -600,6 +604,56 @@ export class MemStorage implements IStorage {
     return this.budgetAllocations.delete(id);
   }
   
+  // Moisture reading operations
+  async getMoistureReadings(roadAssetId: number): Promise<MoistureReading[]> {
+    return Array.from(this.moistureReadings.values())
+      .filter(reading => reading.roadAssetId === roadAssetId)
+      .sort((a, b) => b.readingDate.getTime() - a.readingDate.getTime());
+  }
+  
+  async getMoistureReading(id: number): Promise<MoistureReading | undefined> {
+    return this.moistureReadings.get(id);
+  }
+  
+  async createMoistureReading(reading: InsertMoistureReading): Promise<MoistureReading> {
+    const id = this.moistureReadingIdCounter++;
+    const newReading: MoistureReading = {
+      ...reading,
+      id,
+      createdAt: new Date()
+    };
+    this.moistureReadings.set(id, newReading);
+    return newReading;
+  }
+  
+  async updateMoistureReading(id: number, reading: Partial<InsertMoistureReading>): Promise<MoistureReading | undefined> {
+    const existingReading = this.moistureReadings.get(id);
+    if (!existingReading) return undefined;
+    
+    const updatedReading: MoistureReading = {
+      ...existingReading,
+      ...reading
+    };
+    
+    this.moistureReadings.set(id, updatedReading);
+    return updatedReading;
+  }
+  
+  async deleteMoistureReading(id: number): Promise<boolean> {
+    return this.moistureReadings.delete(id);
+  }
+  
+  async deleteMoistureReadingsByRoadAsset(roadAssetId: number): Promise<boolean> {
+    let deleted = false;
+    for (const [id, reading] of this.moistureReadings.entries()) {
+      if (reading.roadAssetId === roadAssetId) {
+        this.moistureReadings.delete(id);
+        deleted = true;
+      }
+    }
+    return deleted;
+  }
+
   async getAuditLogs(): Promise<AuditLog[]> {
     return Array.from(this.auditLogs.values()).sort((a, b) => 
       b.timestamp.getTime() - a.timestamp.getTime()
@@ -821,6 +875,54 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount > 0;
   }
   
+  // Moisture reading methods
+  async getMoistureReadings(roadAssetId: number): Promise<MoistureReading[]> {
+    return await db
+      .select()
+      .from(moistureReadings)
+      .where(eq(moistureReadings.roadAssetId, roadAssetId))
+      .orderBy(desc(moistureReadings.readingDate));
+  }
+
+  async getMoistureReading(id: number): Promise<MoistureReading | undefined> {
+    const [reading] = await db
+      .select()
+      .from(moistureReadings)
+      .where(eq(moistureReadings.id, id));
+    return reading;
+  }
+
+  async createMoistureReading(reading: InsertMoistureReading): Promise<MoistureReading> {
+    const [newReading] = await db
+      .insert(moistureReadings)
+      .values(reading)
+      .returning();
+    return newReading;
+  }
+
+  async updateMoistureReading(id: number, reading: Partial<InsertMoistureReading>): Promise<MoistureReading | undefined> {
+    const [updatedReading] = await db
+      .update(moistureReadings)
+      .set(reading)
+      .where(eq(moistureReadings.id, id))
+      .returning();
+    return updatedReading;
+  }
+
+  async deleteMoistureReading(id: number): Promise<boolean> {
+    const result = await db
+      .delete(moistureReadings)
+      .where(eq(moistureReadings.id, id));
+    return result.rowCount > 0;
+  }
+
+  async deleteMoistureReadingsByRoadAsset(roadAssetId: number): Promise<boolean> {
+    const result = await db
+      .delete(moistureReadings)
+      .where(eq(moistureReadings.roadAssetId, roadAssetId));
+    return result.rowCount > 0;
+  }
+
   // Audit log methods
   async getAuditLogs(): Promise<AuditLog[]> {
     return await db.select().from(auditLogs).orderBy(desc(auditLogs.timestamp));
