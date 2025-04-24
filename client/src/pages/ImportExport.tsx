@@ -96,9 +96,19 @@ export default function ImportExport() {
     "assetId", "maintenanceType", "scheduledDate", "status", "cost", "notes"
   ];
   
+  // Template fields with examples for moisture data
   const moistureDataFields = [
     "longitude", "latitude", "moisture", "readingDate", "roadAssetId"
   ];
+  
+  // Example data to show in the template
+  const moistureDataExample = {
+    longitude: -77.4518,
+    latitude: 37.6307,
+    moisture: 42.5,
+    readingDate: new Date().toISOString(),
+    roadAssetId: "RS-1001"
+  };
 
   return (
     <div className="p-6">
@@ -164,6 +174,7 @@ export default function ImportExport() {
                     <CSVImport 
                       endpoint="/api/import/moisture-data" 
                       templateFields={moistureDataFields}
+                      templateExample={moistureDataExample}
                       onImportComplete={handleImportComplete}
                     />
                     <div className="mt-4 bg-blue-50 p-4 rounded-md">
@@ -173,7 +184,7 @@ export default function ImportExport() {
                         <li>Moisture values should be percentages from 0-100</li>
                         <li>The roadAssetId field is optional - if provided, readings will be associated with that road</li>
                         <li>Readings without a roadAssetId will be matched to the nearest road segment</li>
-                        <li>Date format should be YYYY-MM-DD</li>
+                        <li>Date format should be in ISO format (YYYY-MM-DDTHH:MM:SS) or other standard datetime format</li>
                       </ul>
                     </div>
                   </TabsContent>

@@ -12,12 +12,14 @@ interface CSVImportProps {
   endpoint: string;
   templateFields: string[];
   onImportComplete?: (data: any) => void;
+  templateExample?: Record<string, any>; // Optional example data for the template
 }
 
 export default function CSVImport({
   endpoint,
   templateFields,
-  onImportComplete
+  onImportComplete,
+  templateExample
 }: CSVImportProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -173,10 +175,26 @@ export default function CSVImport({
   };
 
   const downloadTemplate = () => {
+    // Prepare data for the template
+    let templateData: any[] = [];
+    
+    // If example data is provided, use it for the template
+    if (templateExample) {
+      // Create a row with the example data
+      const exampleRow: Record<string, any> = {};
+      templateFields.forEach(field => {
+        exampleRow[field] = templateExample[field] !== undefined ? templateExample[field] : "";
+      });
+      templateData.push(exampleRow);
+    } else {
+      // Otherwise, create an empty row
+      templateData.push(Object.fromEntries(templateFields.map(field => [field, ""])));
+    }
+    
     // Create a CSV string with the template fields
-    const csvContent = Papa.unparse({
-      fields: templateFields,
-      data: [templateFields.map(() => "")]
+    const csvContent = Papa.unparse(templateData, { 
+      header: true,
+      skipEmptyLines: false 
     });
     
     // Create a Blob with the CSV content
@@ -268,7 +286,8 @@ export default function CSVImport({
               <ul className="list-disc pl-5 text-sm">
                 <li>Use the download template button to get the correct format</li>
                 <li>Make sure your CSV file has headers that match the template</li>
-                <li>Dates should be in YYYY-MM-DD format</li>
+                <li>Dates should be in standard format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)</li>
+                <li>Datetime fields support full timestamps (e.g., 2025-04-24T14:30:00)</li>
                 <li>Numeric fields should not include currency symbols or commas</li>
                 <li>Large files will be automatically processed in chunks</li>
                 <li>The import process may take several minutes for very large datasets</li>
