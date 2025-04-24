@@ -8,8 +8,8 @@ async function seed() {
   
   try {
     // Check if data already exists
-    const userCount = await db.select({ count: { value: db.fn.count() } }).from(users);
-    if (userCount[0].count.value > 0) {
+    const userCount = await db.select().from(users);
+    if (userCount.length > 0) {
       console.log('Database already seeded. Skipping...');
       return;
     }
