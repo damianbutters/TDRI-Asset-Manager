@@ -7,10 +7,11 @@ import {
   Popup, 
   useMap, 
   LayersControl,
-  Circle
+  Circle,
+  CircleMarker
 } from "react-leaflet";
 import L from "leaflet";
-import { RoadAsset, getConditionState } from "@shared/schema";
+import { RoadAsset, MoistureReading, getConditionState } from "@shared/schema";
 import { getConditionColor, getMoistureColor } from "@/lib/utils/color-utils";
 
 // Define the GeoJSON structure for TypeScript
@@ -26,6 +27,7 @@ interface MapProps {
   zoom?: number;
   onAssetClick?: (asset: RoadAsset) => void;
   initialLayer?: "pci" | "moisture";
+  moistureReadings?: Record<number, MoistureReading[]>;
 }
 
 function MapController({ roadAssets }: { roadAssets: RoadAsset[] }) {
@@ -59,7 +61,8 @@ export default function Map({
   center = [40.7650, -73.9800], // Center on Midtown Manhattan
   zoom = 13, // Higher zoom to better see streets
   onAssetClick,
-  initialLayer = "pci"
+  initialLayer = "pci",
+  moistureReadings = {}
 }: MapProps) {
   const [selectedAsset, setSelectedAsset] = useState<RoadAsset | null>(null);
   const [activeLayer, setActiveLayer] = useState<"pci" | "moisture">(initialLayer);
@@ -174,6 +177,43 @@ export default function Map({
               />
             );
           })}
+          
+          {/* Render all the individual moisture reading markers */}
+          {Object.entries(moistureReadings).map(([roadAssetId, readings]) => (
+            readings.map((reading) => {
+              const readingColor = getMoistureColor(reading.moistureValue);
+              return (
+                <CircleMarker
+                  key={`moisture-point-${reading.id}`}
+                  center={[reading.latitude, reading.longitude]}
+                  radius={5}
+                  pathOptions={{
+                    color: readingColor,
+                    fillColor: readingColor,
+                    fillOpacity: 0.8,
+                    weight: 1,
+                  }}
+                >
+                  <Popup>
+                    <div className="p-2">
+                      <h3 className="font-medium text-sm">Moisture Reading</h3>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <p className="text-xs">
+                          <span className="font-medium">Value:</span> {reading.moistureValue.toFixed(2)}%
+                        </p>
+                        <p className="text-xs">
+                          <span className="font-medium">Date:</span> {new Date(reading.readingDate).toLocaleDateString()}
+                        </p>
+                        <p className="text-xs">
+                          <span className="font-medium">Coordinates:</span> {reading.latitude.toFixed(5)}, {reading.longitude.toFixed(5)}
+                        </p>
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })
+          ))}
         </div>
       )}
       
