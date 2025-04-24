@@ -1,10 +1,89 @@
-import type { Express, Request, Response } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { createServer } from "http";
+import express, { Express, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { zfd } from "zod-form-data";
-import { insertRoadAssetSchema, insertMaintenanceTypeSchema, insertMaintenanceProjectSchema, insertPolicySchema, insertBudgetAllocationSchema, insertAuditLogSchema } from "@shared/schema";
+import { storage } from "./storage";
+import * as schema from "@shared/schema";
 
+/**
+ * Simulates a reverse geocoding service to convert coordinates to road names
+ * In a production app, this would use a real geocoding API
+ */ 
+function simulateReverseGeocoding(longitude: number, latitude: number): string {
+  // Define regions for different parts of Mechanicsville
+  const mechanicsvilleRegions = [
+    { name: "Main Street", minLong: -77.38, maxLong: -77.36, minLat: 37.605, maxLat: 37.615 },
+    { name: "Atlee Road", minLong: -77.39, maxLong: -77.37, minLat: 37.615, maxLat: 37.625 },
+    { name: "Old Church Road", minLong: -77.37, maxLong: -77.35, minLat: 37.615, maxLat: 37.625 },
+    { name: "Mechanicsville Turnpike", minLong: -77.40, maxLong: -77.36, minLat: 37.595, maxLat: 37.605 },
+    { name: "Rural Point Road", minLong: -77.38, maxLong: -77.35, minLat: 37.625, maxLat: 37.635 },
+    { name: "Pole Green Road", minLong: -77.41, maxLong: -77.38, minLat: 37.625, maxLat: 37.645 },
+    { name: "Shady Grove Road", minLong: -77.42, maxLong: -77.40, minLat: 37.615, maxLat: 37.635 },
+    { name: "Bell Creek Road", minLong: -77.41, maxLong: -77.39, minLat: 37.595, maxLat: 37.615 }
+  ];
+  
+  // For Pennsylvania coordinates (around -79.94, 40.36)
+  const pennsylvaniaRegions = [
+    { name: "Forbes Avenue", minLong: -80.00, maxLong: -79.94, minLat: 40.35, maxLat: 40.38 },
+    { name: "Fifth Avenue", minLong: -79.96, maxLong: -79.90, minLat: 40.36, maxLat: 40.39 },
+    { name: "Penn Avenue", minLong: -79.95, maxLong: -79.91, minLat: 40.34, maxLat: 40.37 },
+    { name: "Bigelow Boulevard", minLong: -79.97, maxLong: -79.93, minLat: 40.37, maxLat: 40.40 },
+    { name: "Centre Avenue", minLong: -79.98, maxLong: -79.94, minLat: 40.34, maxLat: 40.37 },
+    { name: "Craig Street", minLong: -79.95, maxLong: -79.93, minLat: 40.36, maxLat: 40.39 }
+  ];
+  
+  // Combine all regions
+  const allRegions = [...mechanicsvilleRegions, ...pennsylvaniaRegions];
+  
+  // First try to find a matching region
+  for (const region of allRegions) {
+    if (
+      longitude >= region.minLong && 
+      longitude <= region.maxLong && 
+      latitude >= region.minLat && 
+      latitude <= region.maxLat
+    ) {
+      return region.name;
+    }
+  }
+  
+  // If no specific region matched, determine if it's closer to Mechanicsville or Pittsburgh
+  const mechanicsvilleCenterLong = -77.373;
+  const mechanicsvilleCenterLat = 37.608;
+  
+  const pittsburghCenterLong = -79.947;
+  const pittsburghCenterLat = 40.368;
+  
+  const distToMechanicsville = Math.sqrt(
+    Math.pow(longitude - mechanicsvilleCenterLong, 2) + 
+    Math.pow(latitude - mechanicsvilleCenterLat, 2)
+  );
+  
+  const distToPittsburgh = Math.sqrt(
+    Math.pow(longitude - pittsburghCenterLong, 2) + 
+    Math.pow(latitude - pittsburghCenterLat, 2)
+  );
+  
+  // Use the closest city to generate a road name
+  if (distToMechanicsville < distToPittsburgh) {
+    const streetNumber = Math.floor(1000 + Math.random() * 8000);
+    const streetNames = ["Atlee", "Battlefield", "Cedar", "Dogwood", "Elm", "Foxridge", "Georgetown", "Hickory"];
+    const streetTypes = ["Road", "Avenue", "Street", "Lane", "Drive", "Boulevard", "Way"];
+    
+    const randomStreet = streetNames[Math.floor(Math.random() * streetNames.length)];
+    const randomType = streetTypes[Math.floor(Math.random() * streetTypes.length)];
+    
+    return `${randomStreet} ${randomType} (Mechanicsville)`;
+  } else {
+    const streetNumber = Math.floor(1000 + Math.random() * 8000);
+    const streetNames = ["Allegheny", "Butler", "Carnegie", "Duquesne", "Etna", "Frick", "Grant", "Hamilton"];
+    const streetTypes = ["Street", "Avenue", "Road", "Way", "Boulevard", "Drive", "Lane"];
+    
+    const randomStreet = streetNames[Math.floor(Math.random() * streetNames.length)];
+    const randomType = streetTypes[Math.floor(Math.random() * streetTypes.length)];
+    
+    return `${randomStreet} ${randomType} (Pittsburgh)`;
+  }
+}
 export async function registerRoutes(app: Express): Promise<Server> {
   // Road Assets
   app.get("/api/road-assets", async (req: Request, res: Response) => {
@@ -769,6 +848,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             let closestAsset = null;
             let minDistance = Number.MAX_VALUE;
             
+            // Define maximum distance threshold - any road further than this will be considered a new road
+            // For lat/long, a small value like 0.005 represents roughly 500m
+            const MAX_DISTANCE_THRESHOLD = 0.005;
+            
             for (const asset of allAssets) {
               if (asset.geometry?.type === "LineString" && Array.isArray(asset.geometry.coordinates)) {
                 // Calculate distance to each point in the line and find the minimum
@@ -792,9 +875,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             
-            if (closestAsset) {
+            // Log the minimum distance found for diagnostic purposes
+            console.log(`MOISTURE IMPORT DIAGNOSTIC: Minimum distance to existing road: ${minDistance}`);
+            
+            // Only consider the asset a match if it's within our distance threshold
+            if (closestAsset && minDistance < MAX_DISTANCE_THRESHOLD) {
+              console.log(`MOISTURE IMPORT DIAGNOSTIC: Found nearby road asset: ${closestAsset.name} (ID: ${closestAsset.id}) at distance ${minDistance}`);
               assetToUpdate = closestAsset;
             } else {
+              // Either no asset was found or the closest one was too far away
               // No road assets found nearby - create a new one
               console.log(`MOISTURE IMPORT DIAGNOSTIC: No matching road asset found, creating new road asset for coordinates: ${longitude}, ${latitude}`);
               
@@ -803,10 +892,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`MOISTURE IMPORT DIAGNOSTIC: Generated new asset ID: ${newAssetId}`);
               
               try {
+                // Simulate geocoding to get a road name based on coordinates
+                // In a production app, this would use a real geocoding service API
+                const roadName = simulateReverseGeocoding(longitude, latitude);
+                console.log(`MOISTURE IMPORT DIAGNOSTIC: Determined road name from coordinates: "${roadName}"`);
+                
                 // Create a new road asset with these coordinates
                 const newAssetData = {
                   assetId: newAssetId,
-                  name: `Road at ${longitude.toFixed(4)}, ${latitude.toFixed(4)}`,
+                  name: roadName,
                   location: `${longitude.toFixed(6)}, ${latitude.toFixed(6)}`,
                   length: 0.1, // Default length
                   width: 6.0, // Default width
