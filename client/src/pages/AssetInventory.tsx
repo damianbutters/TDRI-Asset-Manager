@@ -38,6 +38,7 @@ import {
   exportRoadwayAssets
 } from "@/lib/asset-inventory-service";
 import { insertAssetTypeSchema, insertRoadwayAssetSchema } from "@shared/schema";
+import { queryClient } from "@/lib/queryClient";
 
 const assetTypeFormSchema = insertAssetTypeSchema.extend({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -98,30 +99,34 @@ export default function AssetInventory() {
         title: "Asset type created",
         description: "The asset type has been created successfully.",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/asset-types"] });
       setIsCreateDialogOpen(false);
+      createForm.reset();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: `Failed to create asset type: ${error.message}`,
+        title: "Error creating asset type",
+        description: error.message || "An error occurred while creating the asset type.",
         variant: "destructive",
       });
     },
   });
   
   const updateAssetTypeMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => updateAssetType(id, data),
+    mutationFn: updateAssetType,
     onSuccess: () => {
       toast({
         title: "Asset type updated",
         description: "The asset type has been updated successfully.",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/asset-types"] });
       setIsEditDialogOpen(false);
+      editForm.reset();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: `Failed to update asset type: ${error.message}`,
+        title: "Error updating asset type",
+        description: error.message || "An error occurred while updating the asset type.",
         variant: "destructive",
       });
     },
@@ -134,68 +139,53 @@ export default function AssetInventory() {
         title: "Asset type deleted",
         description: "The asset type has been deleted successfully.",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/asset-types"] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: `Failed to delete asset type: ${error.message}`,
+        title: "Error deleting asset type",
+        description: error.message || "An error occurred while deleting the asset type.",
         variant: "destructive",
       });
     },
   });
   
-  // Asset mutations
   const createRoadwayAssetMutation = useMutation({
-    mutationFn: (data: any) => {
-      // Format the geometry data
-      if (coordinates.lat && coordinates.lng) {
-        data.geometry = {
-          type: "Point",
-          coordinates: [coordinates.lng, coordinates.lat]
-        };
-      }
-      return createRoadwayAsset(data);
-    },
+    mutationFn: createRoadwayAsset,
     onSuccess: () => {
       toast({
         title: "Asset created",
         description: "The asset has been created successfully.",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
       setIsCreateAssetDialogOpen(false);
+      createAssetForm.reset();
       setCoordinates({});
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: `Failed to create asset: ${error.message}`,
+        title: "Error creating asset",
+        description: error.message || "An error occurred while creating the asset.",
         variant: "destructive",
       });
     },
   });
   
   const updateRoadwayAssetMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => {
-      // Update geometry if coordinates changed
-      if (coordinates.lat && coordinates.lng) {
-        data.geometry = {
-          type: "Point",
-          coordinates: [coordinates.lng, coordinates.lat]
-        };
-      }
-      return updateRoadwayAsset(id, data);
-    },
+    mutationFn: updateRoadwayAsset,
     onSuccess: () => {
       toast({
         title: "Asset updated",
         description: "The asset has been updated successfully.",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
       setIsEditAssetDialogOpen(false);
-      setCoordinates({});
+      editAssetForm.reset();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: `Failed to update asset: ${error.message}`,
+        title: "Error updating asset",
+        description: error.message || "An error occurred while updating the asset.",
         variant: "destructive",
       });
     },
@@ -208,30 +198,32 @@ export default function AssetInventory() {
         title: "Asset deleted",
         description: "The asset has been deleted successfully.",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: `Failed to delete asset: ${error.message}`,
+        title: "Error deleting asset",
+        description: error.message || "An error occurred while deleting the asset.",
         variant: "destructive",
       });
     },
   });
   
-  const importAssetsMutation = useMutation({
+  const importRoadwayAssetsMutation = useMutation({
     mutationFn: (file: File) => importRoadwayAssets(file),
     onSuccess: (data) => {
       toast({
-        title: "Import successful",
+        title: "Assets imported",
         description: `Successfully imported ${data.count} assets.`,
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
       setIsImportDialogOpen(false);
       setImportFile(null);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: "Import failed",
-        description: `Failed to import assets: ${error.message}`,
+        title: "Error importing assets",
+        description: error.message || "An error occurred while importing assets.",
         variant: "destructive",
       });
     },
@@ -244,8 +236,8 @@ export default function AssetInventory() {
       name: "",
       description: "",
       category: "",
-      conditionRatingScale: "1-10",
-      conditionRatingType: "numeric",
+      conditionRatingScale: "0-100",
+      conditionRatingType: "Numeric",
       inspectionFrequencyMonths: 12,
       active: true,
     },
@@ -257,8 +249,8 @@ export default function AssetInventory() {
       name: "",
       description: "",
       category: "",
-      conditionRatingScale: "1-10",
-      conditionRatingType: "numeric",
+      conditionRatingScale: "0-100",
+      conditionRatingType: "Numeric",
       inspectionFrequencyMonths: 12,
       active: true,
     },
@@ -271,11 +263,8 @@ export default function AssetInventory() {
       assetId: "",
       description: "",
       location: "",
-      assetTypeId: undefined,
       condition: 100,
       active: true,
-      installationDate: undefined,
-      lastInspection: undefined,
     },
   });
   
@@ -286,33 +275,67 @@ export default function AssetInventory() {
       assetId: "",
       description: "",
       location: "",
-      assetTypeId: undefined,
       condition: 100,
       active: true,
-      installationDate: undefined,
-      lastInspection: undefined,
     },
   });
   
-  // Submit handlers
-  const onCreateSubmit = (data: z.infer<typeof assetTypeFormSchema>) => {
-    createAssetTypeMutation.mutate(data);
+  // Form Submit Handlers
+  const onCreateSubmit = (values: z.infer<typeof assetTypeFormSchema>) => {
+    createAssetTypeMutation.mutate(values);
   };
   
-  const onEditSubmit = (data: z.infer<typeof assetTypeFormSchema>) => {
+  const onEditSubmit = (values: z.infer<typeof assetTypeFormSchema>) => {
     if (selectedAssetType) {
-      updateAssetTypeMutation.mutate({ id: selectedAssetType.id, data });
+      updateAssetTypeMutation.mutate({
+        id: selectedAssetType.id,
+        ...values,
+      });
     }
   };
   
-  // Delete handler
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this asset type?")) {
-      deleteAssetTypeMutation.mutate(id);
+  const onCreateAssetSubmit = (values: z.infer<typeof assetFormSchema>) => {
+    // Add coordinates to geometry if provided
+    const assetData = { ...values };
+    if (coordinates.lat && coordinates.lng) {
+      assetData.geometry = { 
+        type: "Point", 
+        coordinates: [coordinates.lng, coordinates.lat] 
+      };
+    }
+    createRoadwayAssetMutation.mutate(assetData);
+  };
+  
+  const onEditAssetSubmit = (values: z.infer<typeof assetFormSchema>) => {
+    if (selectedRoadwayAsset) {
+      // Add coordinates to geometry if they were updated
+      const assetData = { ...values };
+      if (coordinates.lat && coordinates.lng) {
+        assetData.geometry = { 
+          type: "Point", 
+          coordinates: [coordinates.lng, coordinates.lat] 
+        };
+      }
+      updateRoadwayAssetMutation.mutate({
+        id: selectedRoadwayAsset.id,
+        ...assetData,
+      });
     }
   };
   
-  // Edit handler
+  const onImportSubmit = () => {
+    if (importFile) {
+      importRoadwayAssetsMutation.mutate(importFile);
+    } else {
+      toast({
+        title: "No file selected",
+        description: "Please select a file to import.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Handlers
   const handleEdit = (assetType: any) => {
     setSelectedAssetType(assetType);
     editForm.reset({
@@ -327,60 +350,136 @@ export default function AssetInventory() {
     setIsEditDialogOpen(true);
   };
   
-  // Compute categories for filter
-  const categories = assetTypesQuery.data ? 
-    [...new Set(assetTypesQuery.data.map((type) => type.category))] : 
-    [];
+  const handleEditAsset = (asset: any) => {
+    setSelectedRoadwayAsset(asset);
+    
+    // Extract coordinates from geometry if available
+    if (asset.geometry && asset.geometry.coordinates) {
+      setCoordinates({
+        lng: asset.geometry.coordinates[0], 
+        lat: asset.geometry.coordinates[1]
+      });
+    } else {
+      setCoordinates({});
+    }
+    
+    editAssetForm.reset({
+      name: asset.name,
+      assetId: asset.assetId,
+      description: asset.description || "",
+      location: asset.location,
+      assetTypeId: asset.assetTypeId,
+      condition: asset.condition,
+      active: asset.active,
+      installationDate: asset.installationDate ? new Date(asset.installationDate) : undefined,
+      lastInspection: asset.lastInspection ? new Date(asset.lastInspection) : undefined,
+    });
+    setIsEditAssetDialogOpen(true);
+  };
   
-  // Filter asset types by category
-  const filteredAssetTypes = assetTypesQuery.data ? 
-    (selectedCategory && selectedCategory !== "all" ? 
-      assetTypesQuery.data.filter((type) => type.category === selectedCategory) : 
-      assetTypesQuery.data) : 
-    [];
+  const handleDelete = (id: number) => {
+    if (confirm("Are you sure you want to delete this asset type?")) {
+      deleteAssetTypeMutation.mutate(id);
+    }
+  };
   
-  // Define asset type columns
-  const assetTypeColumns = [
+  const handleDeleteAsset = (id: number) => {
+    if (confirm("Are you sure you want to delete this asset?")) {
+      deleteRoadwayAssetMutation.mutate(id);
+    }
+  };
+  
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setImportFile(e.target.files[0]);
+    }
+  };
+  
+  const handleExport = async () => {
+    try {
+      const data = await exportRoadwayAssets();
+      // Create a download link
+      const blob = new Blob([data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('hidden', '');
+      a.setAttribute('href', url);
+      a.setAttribute('download', 'roadway-assets.csv');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (error: any) {
+      toast({
+        title: "Error exporting assets",
+        description: error.message || "An error occurred while exporting assets.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Computed properties
+  const categories = assetTypesQuery.data 
+    ? Array.from(new Set(assetTypesQuery.data.map(type => type.category))).sort()
+    : [];
+    
+  const filteredAssetTypes = assetTypesQuery.data
+    ? assetTypesQuery.data.filter(type => 
+        selectedCategory === "all" || type.category === selectedCategory
+      )
+    : [];
+  
+  const filteredAssets = roadwayAssetsQuery.data
+    ? roadwayAssetsQuery.data.filter(asset => {
+        // Filter by asset type
+        const typeMatch = selectedAssetTypeFilter === "all" || 
+                         asset.assetTypeId === parseInt(selectedAssetTypeFilter);
+        
+        // Filter by search query
+        const searchMatch = !assetSearchQuery || 
+                           asset.name.toLowerCase().includes(assetSearchQuery.toLowerCase()) ||
+                           asset.assetId.toLowerCase().includes(assetSearchQuery.toLowerCase()) ||
+                           asset.location.toLowerCase().includes(assetSearchQuery.toLowerCase());
+        
+        return typeMatch && searchMatch;
+      })
+    : [];
+  
+  // Column definitions
+  const columns = [
     {
       accessorKey: "name",
       header: "Name",
-    },
-    {
-      accessorKey: "description",
-      header: "Description",
     },
     {
       accessorKey: "category",
       header: "Category",
     },
     {
-      accessorKey: "conditionRatingScale",
-      header: "Rating Scale",
-    },
-    {
-      accessorKey: "inspectionFrequencyMonths",
-      header: "Inspection Frequency (Months)",
+      accessorKey: "description",
+      header: "Description",
     },
     {
       accessorKey: "active",
-      header: "Active",
-      cell: ({ row }: any) => (
-        <div>{row.original.active ? "Yes" : "No"}</div>
+      header: "Status",
+      cell: ({ row }: { row: any }) => (
+        <Badge variant={row.original.active ? "default" : "secondary"}>
+          {row.original.active ? "Active" : "Inactive"}
+        </Badge>
       ),
     },
     {
       id: "actions",
-      cell: ({ row }: any) => (
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
+      cell: ({ row }: { row: any }) => (
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
             size="icon"
             onClick={() => handleEdit(row.original)}
           >
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
+          <Button 
+            variant="ghost" 
             size="icon"
             onClick={() => handleDelete(row.original.id)}
           >
@@ -391,24 +490,74 @@ export default function AssetInventory() {
     },
   ];
   
-  return (
-    <div className="container py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Asset Inventory Management</h1>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <FileDown className="mr-2 h-4 w-4" />
-            Export
+  const assetColumns = [
+    {
+      accessorKey: "assetId",
+      header: "ID",
+    },
+    {
+      accessorKey: "name",
+      header: "Name",
+    },
+    {
+      accessorKey: "location",
+      header: "Location",
+    },
+    {
+      accessorKey: "condition",
+      header: "Condition",
+      cell: ({ row }: { row: any }) => (
+        <div className="flex items-center">
+          <span className={cn(
+            "font-medium",
+            row.original.condition > 70 ? "text-green-600" :
+            row.original.condition > 40 ? "text-yellow-600" : 
+            "text-red-600"
+          )}>
+            {row.original.condition}
+          </span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "assetType",
+      header: "Type",
+      cell: ({ row }: { row: any }) => {
+        const assetType = assetTypesQuery.data?.find(
+          type => type.id === row.original.assetTypeId
+        );
+        return assetType ? assetType.name : 'Unknown';
+      },
+    },
+    {
+      id: "actions",
+      cell: ({ row }: { row: any }) => (
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => handleEditAsset(row.original)}
+          >
+            <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="outline">
-            <FileUp className="mr-2 h-4 w-4" />
-            Import
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => handleDeleteAsset(row.original.id)}
+          >
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
-      </div>
+      ),
+    },
+  ];
+  
+  return (
+    <div className="container py-6">
+      <h1 className="text-3xl font-bold mb-6">Asset Inventory</h1>
       
       <Tabs defaultValue="types" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full sm:w-[400px] grid-cols-2">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="types">Asset Types</TabsTrigger>
           <TabsTrigger value="assets">Assets</TabsTrigger>
         </TabsList>
@@ -420,21 +569,21 @@ export default function AssetInventory() {
                 <div>
                   <CardTitle>Asset Types</CardTitle>
                   <CardDescription>
-                    Manage the different types of assets in your inventory
+                    View and manage your asset types
                   </CardDescription>
                 </div>
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                   <DialogTrigger asChild>
                     <Button>
                       <PlusCircle className="mr-2 h-4 w-4" />
-                      Add Asset Type
+                      Add Type
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Create Asset Type</DialogTitle>
+                      <DialogTitle>Add New Asset Type</DialogTitle>
                       <DialogDescription>
-                        Add a new asset type to the inventory system
+                        Define a new type of asset for your inventory
                       </DialogDescription>
                     </DialogHeader>
                     <Form {...createForm}>
@@ -454,12 +603,12 @@ export default function AssetInventory() {
                         />
                         <FormField
                           control={createForm.control}
-                          name="description"
+                          name="category"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Description</FormLabel>
+                              <FormLabel>Category</FormLabel>
                               <FormControl>
-                                <Textarea placeholder="Description of the asset type" {...field} />
+                                <Input placeholder="Road Furniture" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -467,39 +616,28 @@ export default function AssetInventory() {
                         />
                         <FormField
                           control={createForm.control}
-                          name="category"
+                          name="description"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Category</FormLabel>
+                              <FormLabel>Description</FormLabel>
                               <FormControl>
-                                <Input placeholder="Signage" {...field} />
+                                <Textarea placeholder="Regulatory or informational road signage" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
+                        
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={createForm.control}
                             name="conditionRatingScale"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Rating Scale</FormLabel>
-                                <Select
-                                  onValueChange={field.onChange}
-                                  defaultValue={field.value}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select scale" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="1-10">1-10</SelectItem>
-                                    <SelectItem value="1-5">1-5</SelectItem>
-                                    <SelectItem value="0-100">0-100</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                <FormLabel>Condition Rating Scale</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="0-100" {...field} />
+                                </FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -510,18 +648,18 @@ export default function AssetInventory() {
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Rating Type</FormLabel>
-                                <Select
-                                  onValueChange={field.onChange}
+                                <Select 
+                                  onValueChange={field.onChange} 
                                   defaultValue={field.value}
                                 >
                                   <FormControl>
                                     <SelectTrigger>
-                                      <SelectValue placeholder="Select type" />
+                                      <SelectValue placeholder="Select rating type" />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="numeric">Numeric</SelectItem>
-                                    <SelectItem value="descriptive">Descriptive</SelectItem>
+                                    <SelectItem value="Numeric">Numeric</SelectItem>
+                                    <SelectItem value="Categorical">Categorical</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -529,24 +667,27 @@ export default function AssetInventory() {
                             )}
                           />
                         </div>
+                        
                         <FormField
                           control={createForm.control}
                           name="inspectionFrequencyMonths"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Inspection Frequency (Months)</FormLabel>
+                              <FormLabel>Inspection Frequency (months)</FormLabel>
                               <FormControl>
                                 <Input 
                                   type="number" 
                                   min="1" 
-                                  {...field} 
-                                  onChange={e => field.onChange(parseInt(e.target.value) || 0)} 
+                                  max="60" 
+                                  {...field}
+                                  onChange={e => field.onChange(parseInt(e.target.value) || 12)}
                                 />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
+                        
                         <FormField
                           control={createForm.control}
                           name="active"
@@ -561,15 +702,16 @@ export default function AssetInventory() {
                               <div className="space-y-1 leading-none">
                                 <FormLabel>Active</FormLabel>
                                 <FormDescription>
-                                  If checked, this asset type will be available for selection
+                                  Asset type is currently in use
                                 </FormDescription>
                               </div>
                             </FormItem>
                           )}
                         />
+                        
                         <DialogFooter>
                           <Button type="submit" disabled={createAssetTypeMutation.isPending}>
-                            {createAssetTypeMutation.isPending ? "Creating..." : "Create"}
+                            {createAssetTypeMutation.isPending ? "Creating..." : "Create Type"}
                           </Button>
                         </DialogFooter>
                       </form>
@@ -580,7 +722,7 @@ export default function AssetInventory() {
             </CardHeader>
             <CardContent>
               <div className="mb-4">
-                <Select value={selectedCategory || "all"} onValueChange={(value) => setSelectedCategory(value)}>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger className="w-[280px]">
                     <SelectValue placeholder="Filter by Category" />
                   </SelectTrigger>
@@ -594,16 +736,14 @@ export default function AssetInventory() {
                   </SelectContent>
                 </Select>
               </div>
+              
               {assetTypesQuery.isLoading ? (
-                <div className="flex justify-center py-8">Loading asset types...</div>
-              ) : assetTypesQuery.isError ? (
-                <div className="text-red-500 py-8">
-                  Error loading asset types: {assetTypesQuery.error.message}
-                </div>
+                <p>Loading asset types...</p>
               ) : (
                 <DataTable
-                  columns={assetTypeColumns}
+                  columns={columns}
                   data={filteredAssetTypes}
+                  searchField="name"
                 />
               )}
             </CardContent>
@@ -613,315 +753,237 @@ export default function AssetInventory() {
         <TabsContent value="assets" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Assets</CardTitle>
-              <CardDescription>
-                View and manage your assets
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex gap-2">
-                  <Select value={selectedAssetTypeFilter || "all"} onValueChange={(value) => setSelectedAssetTypeFilter(value)}>
-                    <SelectTrigger className="w-[280px]">
-                      <SelectValue placeholder="Filter by Asset Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Asset Types</SelectItem>
-                      {assetTypesQuery.data?.map((type) => (
-                        <SelectItem key={type.id} value={String(type.id)}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Input 
-                    placeholder="Search assets..." 
-                    value={assetSearchQuery}
-                    onChange={(e) => setAssetSearchQuery(e.target.value)}
-                    className="w-[280px]"
-                  />
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Assets</CardTitle>
+                  <CardDescription>
+                    View and manage your assets
+                  </CardDescription>
                 </div>
-                
-                <Dialog open={isCreateAssetDialogOpen} onOpenChange={setIsCreateAssetDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Add Asset
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-3xl">
-                    <DialogHeader>
-                      <DialogTitle>Add New Asset</DialogTitle>
-                      <DialogDescription>
-                        Add a new asset to your inventory
-                      </DialogDescription>
-                    </DialogHeader>
-                    <Form {...createAssetForm}>
-                      <form onSubmit={createAssetForm.handleSubmit(onCreateAssetSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField
-                            control={createAssetForm.control}
-                            name="name"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Name</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Main St. Sign #4" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
+                <div className="flex gap-2">
+                  <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <FileUp className="mr-2 h-4 w-4" />
+                        Import
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Import Assets</DialogTitle>
+                        <DialogDescription>
+                          Upload a CSV file containing asset data
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="rounded-md border border-dashed p-8 text-center">
+                          <Input 
+                            type="file" 
+                            accept=".csv" 
+                            onChange={handleImportFile}
+                            className="mx-auto"
                           />
-                          <FormField
-                            control={createAssetForm.control}
-                            name="assetId"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Asset ID</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="SIGN-0042" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                          <p className="mt-2 text-sm text-gray-500">CSV file should include headers and all required fields</p>
                         </div>
-                        
-                        <FormField
-                          control={createAssetForm.control}
-                          name="assetTypeId"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Asset Type</FormLabel>
-                              <Select
-                                onValueChange={(value) => field.onChange(parseInt(value))}
-                                defaultValue={field.value ? String(field.value) : undefined}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select asset type" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {assetTypesQuery.data?.filter(type => type.active).map((type) => (
-                                    <SelectItem key={type.id} value={String(type.id)}>
-                                      {type.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <FormField
-                          control={createAssetForm.control}
-                          name="description"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Description</FormLabel>
-                              <FormControl>
-                                <Textarea placeholder="Description of the asset" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField
-                            control={createAssetForm.control}
-                            name="location"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Location</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="123 Main St" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={createAssetForm.control}
-                            name="condition"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Condition</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    {...field}
-                                    onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField
-                            control={createAssetForm.control}
-                            name="installationDate"
-                            render={({ field }) => (
-                              <FormItem className="flex flex-col">
-                                <FormLabel>Installation Date</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <FormControl>
-                                      <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                          "pl-3 text-left font-normal",
-                                          !field.value && "text-muted-foreground"
-                                        )}
-                                      >
-                                        {field.value ? (
-                                          format(field.value, "PPP")
-                                        ) : (
-                                          <span>Pick a date</span>
-                                        )}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                      </Button>
-                                    </FormControl>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                      mode="single"
-                                      selected={field.value}
-                                      onSelect={field.onChange}
-                                      disabled={(date) =>
-                                        date > new Date() || date < new Date("1900-01-01")
-                                      }
-                                      initialFocus
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={createAssetForm.control}
-                            name="lastInspection"
-                            render={({ field }) => (
-                              <FormItem className="flex flex-col">
-                                <FormLabel>Last Inspection Date</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <FormControl>
-                                      <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                          "pl-3 text-left font-normal",
-                                          !field.value && "text-muted-foreground"
-                                        )}
-                                      >
-                                        {field.value ? (
-                                          format(field.value, "PPP")
-                                        ) : (
-                                          <span>Pick a date</span>
-                                        )}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                      </Button>
-                                    </FormControl>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                      mode="single"
-                                      selected={field.value}
-                                      onSelect={field.onChange}
-                                      disabled={(date) =>
-                                        date > new Date() || date < new Date("1900-01-01")
-                                      }
-                                      initialFocus
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        
-                        <FormField
-                          control={createAssetForm.control}
-                          name="geometry"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Coordinates (Latitude, Longitude)</FormLabel>
-                              <div className="flex gap-2">
-                                <FormControl>
-                                  <Input 
-                                    placeholder="Latitude" 
-                                    type="number"
-                                    value={coordinates.lat || ''}
-                                    onChange={(e) => setCoordinates({...coordinates, lat: parseFloat(e.target.value)})}
-                                    step="0.000001"
-                                  />
-                                </FormControl>
-                                <FormControl>
-                                  <Input 
-                                    placeholder="Longitude" 
-                                    type="number"
-                                    value={coordinates.lng || ''}
-                                    onChange={(e) => setCoordinates({...coordinates, lng: parseFloat(e.target.value)})}
-                                    step="0.000001"
-                                  />
-                                </FormControl>
-                              </div>
-                              <FormDescription>
-                                Enter the geographic coordinates or use the map to select a location
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <FormField
-                          control={createAssetForm.control}
-                          name="active"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                              <div className="space-y-1 leading-none">
-                                <FormLabel>Active</FormLabel>
-                                <FormDescription>
-                                  If checked, this asset will be active in the system
-                                </FormDescription>
-                              </div>
-                            </FormItem>
-                          )}
-                        />
                         
                         <DialogFooter>
-                          <Button type="submit" disabled={createRoadwayAssetMutation.isPending}>
-                            {createRoadwayAssetMutation.isPending ? "Creating..." : "Create Asset"}
+                          <Button 
+                            onClick={onImportSubmit} 
+                            disabled={!importFile || importRoadwayAssetsMutation.isPending}
+                          >
+                            {importRoadwayAssetsMutation.isPending ? "Importing..." : "Import Assets"}
                           </Button>
                         </DialogFooter>
-                      </form>
-                    </Form>
-                  </DialogContent>
-                </Dialog>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  
+                  <Button variant="outline" onClick={handleExport}>
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                  
+                  <Dialog open={isCreateAssetDialogOpen} onOpenChange={setIsCreateAssetDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add Asset
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl">
+                      <DialogHeader>
+                        <DialogTitle>Add New Asset</DialogTitle>
+                        <DialogDescription>
+                          Add a new asset to your inventory
+                        </DialogDescription>
+                      </DialogHeader>
+                      <Form {...createAssetForm}>
+                        <form onSubmit={createAssetForm.handleSubmit(onCreateAssetSubmit)} className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                              control={createAssetForm.control}
+                              name="name"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Name</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Main St. Sign #4" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={createAssetForm.control}
+                              name="assetId"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Asset ID</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="SIGN-0042" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          
+                          <FormField
+                            control={createAssetForm.control}
+                            name="assetTypeId"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Asset Type</FormLabel>
+                                <Select
+                                  onValueChange={(value) => field.onChange(parseInt(value))}
+                                  defaultValue={field.value ? String(field.value) : undefined}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select asset type" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {assetTypesQuery.data?.filter(type => type.active).map((type) => (
+                                      <SelectItem key={type.id} value={String(type.id)}>
+                                        {type.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={createAssetForm.control}
+                            name="description"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Description</FormLabel>
+                                <FormControl>
+                                  <Textarea placeholder="Description of the asset" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                              control={createAssetForm.control}
+                              name="location"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Location</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="123 Main St" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={createAssetForm.control}
+                              name="condition"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Condition</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      {...field}
+                                      onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          
+                          <FormField
+                            control={createAssetForm.control}
+                            name="active"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel>Active</FormLabel>
+                                  <FormDescription>
+                                    Asset is currently in service
+                                  </FormDescription>
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <DialogFooter>
+                            <Button type="submit" disabled={createRoadwayAssetMutation.isPending}>
+                              {createRoadwayAssetMutation.isPending ? "Creating..." : "Create Asset"}
+                            </Button>
+                          </DialogFooter>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4 flex items-center gap-4">
+                <Select value={selectedAssetTypeFilter} onValueChange={setSelectedAssetTypeFilter}>
+                  <SelectTrigger className="w-[280px]">
+                    <SelectValue placeholder="Filter by Asset Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Asset Types</SelectItem>
+                    {assetTypesQuery.data?.map((type) => (
+                      <SelectItem key={type.id} value={String(type.id)}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Input 
+                  placeholder="Search assets..." 
+                  value={assetSearchQuery}
+                  onChange={(e) => setAssetSearchQuery(e.target.value)}
+                  className="w-[280px]"
+                />
               </div>
               
               {roadwayAssetsQuery.isLoading ? (
-                <div className="flex justify-center py-8">Loading assets...</div>
-              ) : roadwayAssetsQuery.isError ? (
-                <div className="text-red-500 py-8">
-                  Error loading assets: {roadwayAssetsQuery.error.message}
-                </div>
+                <p>Loading assets...</p>
               ) : (
                 <DataTable
                   columns={assetColumns}
@@ -934,17 +996,18 @@ export default function AssetInventory() {
         </TabsContent>
       </Tabs>
       
-      {/* Edit Dialog */}
+      {/* Edit Asset Type Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Asset Type</DialogTitle>
             <DialogDescription>
-              Modify the selected asset type
+              Update the details of this asset type
             </DialogDescription>
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              {/* Form fields similar to create dialog */}
               <FormField
                 control={editForm.control}
                 name="name"
@@ -952,20 +1015,7 @@ export default function AssetInventory() {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Traffic Sign" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Description of the asset type" {...field} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -978,34 +1028,36 @@ export default function AssetInventory() {
                   <FormItem>
                     <FormLabel>Category</FormLabel>
                     <FormControl>
-                      <Input placeholder="Signage" {...field} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={editForm.control}
                   name="conditionRatingScale"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Rating Scale</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select scale" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="1-10">1-10</SelectItem>
-                          <SelectItem value="1-5">1-5</SelectItem>
-                          <SelectItem value="0-100">0-100</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Condition Rating Scale</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1016,18 +1068,18 @@ export default function AssetInventory() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Rating Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
+                      <Select 
+                        onValueChange={field.onChange} 
                         defaultValue={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select type" />
+                            <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="numeric">Numeric</SelectItem>
-                          <SelectItem value="descriptive">Descriptive</SelectItem>
+                          <SelectItem value="Numeric">Numeric</SelectItem>
+                          <SelectItem value="Categorical">Categorical</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -1035,24 +1087,27 @@ export default function AssetInventory() {
                   )}
                 />
               </div>
+              
               <FormField
                 control={editForm.control}
                 name="inspectionFrequencyMonths"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Inspection Frequency (Months)</FormLabel>
+                    <FormLabel>Inspection Frequency (months)</FormLabel>
                     <FormControl>
                       <Input 
                         type="number" 
                         min="1" 
-                        {...field} 
-                        onChange={e => field.onChange(parseInt(e.target.value) || 0)} 
+                        max="60" 
+                        {...field}
+                        onChange={e => field.onChange(parseInt(e.target.value) || 12)}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              
               <FormField
                 control={editForm.control}
                 name="active"
@@ -1067,15 +1122,165 @@ export default function AssetInventory() {
                     <div className="space-y-1 leading-none">
                       <FormLabel>Active</FormLabel>
                       <FormDescription>
-                        If checked, this asset type will be available for selection
+                        Asset type is currently in use
                       </FormDescription>
                     </div>
                   </FormItem>
                 )}
               />
+              
               <DialogFooter>
                 <Button type="submit" disabled={updateAssetTypeMutation.isPending}>
-                  {updateAssetTypeMutation.isPending ? "Updating..." : "Update"}
+                  {updateAssetTypeMutation.isPending ? "Updating..." : "Update Type"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Edit Asset Dialog */}
+      <Dialog open={isEditAssetDialogOpen} onOpenChange={setIsEditAssetDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Asset</DialogTitle>
+            <DialogDescription>
+              Update the details of this asset
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editAssetForm}>
+            <form onSubmit={editAssetForm.handleSubmit(onEditAssetSubmit)} className="space-y-4">
+              {/* Form fields similar to create dialog */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editAssetForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editAssetForm.control}
+                  name="assetId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Asset ID</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <FormField
+                control={editAssetForm.control}
+                name="assetTypeId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Asset Type</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(parseInt(value))}
+                      defaultValue={field.value ? String(field.value) : undefined}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {assetTypesQuery.data?.filter(type => type.active).map((type) => (
+                          <SelectItem key={type.id} value={String(type.id)}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editAssetForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editAssetForm.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editAssetForm.control}
+                  name="condition"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Condition</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          {...field}
+                          onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <FormField
+                control={editAssetForm.control}
+                name="active"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Active</FormLabel>
+                      <FormDescription>
+                        Asset is currently in service
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              <DialogFooter>
+                <Button type="submit" disabled={updateRoadwayAssetMutation.isPending}>
+                  {updateRoadwayAssetMutation.isPending ? "Updating..." : "Update Asset"}
                 </Button>
               </DialogFooter>
             </form>
