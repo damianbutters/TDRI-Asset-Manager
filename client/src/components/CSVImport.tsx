@@ -330,7 +330,8 @@ export default function CSVImport({
             <AlertDescription>
               <ul className="list-disc pl-5 text-sm">
                 <li>Use the download template button to get the correct format</li>
-                <li>Make sure your CSV file has headers that match the template</li>
+                <li>CSV files with or without header rows are supported (headers are automatically detected)</li>
+                <li>If using headers, make sure they match the expected field names (e.g., "latitude", "longitude")</li>
                 <li>Dates should be in standard format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)</li>
                 <li>Datetime fields support full timestamps (e.g., 2025-04-24T14:30:00)</li>
                 <li>Numeric fields should not include currency symbols or commas</li>

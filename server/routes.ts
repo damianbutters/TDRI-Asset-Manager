@@ -332,18 +332,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Parse CSV data and create road assets
       const lines = csvData.trim().split('\n');
-      const headers = lines[0].split(',');
+      
+      // Extract headers from the first line
+      const headers = lines[0].split(',').map(header => header.trim().toLowerCase());
+      
+      // Check if the first row is a header row by looking for expected column names
+      const isFirstRowHeader = headers.some(header => 
+        ['assetid', 'name', 'location', 'surfacetype', 'condition'].includes(header)
+      );
+      
+      // Determine which row to start processing from (skip header row if present)
+      const startRow = isFirstRowHeader ? 1 : 0;
       
       let importedCount = 0;
       let errorCount = 0;
+      let errorDetails: Array<{ row: number, message: string }> = [];
       
-      for (let i = 1; i < lines.length; i++) {
+      for (let i = startRow; i < lines.length; i++) {
         try {
           const values = lines[i].split(',');
           const assetData: any = {};
           
+          // Store what we found in the row for better error messages
+          const rowData: Record<string, string> = {};
+          
           headers.forEach((header, index) => {
             const value = values[index]?.trim();
+            if (!value) return;
+            
+            // Store what we found for better error reporting
+            rowData[header.toLowerCase()] = value;
             
             switch (header.toLowerCase()) {
               case 'assetid':
@@ -368,20 +386,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 assetData.condition = parseInt(value);
                 break;
               case 'lastinspection':
-                assetData.lastInspection = new Date(value);
+                try {
+                  const date = new Date(value);
+                  if (isNaN(date.getTime())) {
+                    throw new Error(`Invalid date format: "${value}". Try using a standard format like YYYY-MM-DD`);
+                  }
+                  assetData.lastInspection = date;
+                } catch (err) {
+                  throw new Error(`Failed to parse lastInspection date: "${value}"`);
+                }
                 break;
               case 'nextinspection':
-                assetData.nextInspection = new Date(value);
+                if (value) {
+                  try {
+                    const date = new Date(value);
+                    if (isNaN(date.getTime())) {
+                      throw new Error(`Invalid date format: "${value}". Try using a standard format like YYYY-MM-DD`);
+                    }
+                    assetData.nextInspection = date;
+                  } catch (err) {
+                    throw new Error(`Failed to parse nextInspection date: "${value}"`);
+                  }
+                }
                 break;
             }
           });
           
-          // Create a simplified geometry
+          // Validate required fields
+          if (!assetData.assetId) {
+            throw new Error(`Missing required field: assetId`);
+          }
+          
+          if (!assetData.name) {
+            throw new Error(`Missing required field: name`);
+          }
+          
+          if (assetData.condition === undefined || isNaN(assetData.condition)) {
+            const foundValue = rowData['condition'] || 'missing';
+            throw new Error(`Missing or invalid condition value: "${foundValue}" (must be a numeric value between 0-100)`);
+          }
+          
+          if (assetData.condition < 0 || assetData.condition > 100) {
+            throw new Error(`Condition value out of range: ${assetData.condition} (must be between 0-100)`);
+          }
+          
+          // Create a simplified geometry (for Mechanicsville, VA area)
           assetData.geometry = {
             type: "LineString",
             coordinates: [
-              [-74.5 + Math.random() * 0.1, 40 + Math.random() * 0.1],
-              [-74.5 + Math.random() * 0.1, 40 + Math.random() * 0.1]
+              [-77.34 + Math.random() * 0.01, 37.6 + Math.random() * 0.01],
+              [-77.34 + Math.random() * 0.01, 37.6 + Math.random() * 0.01]
             ]
           };
           
@@ -392,6 +446,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (error) {
           console.error(`Error importing row ${i}:`, error);
           errorCount++;
+          
+          // Adjust row number for error display to account for 1-based counting that users expect
+          const displayRowNumber = i + 1;
+          
+          errorDetails.push({
+            row: displayRowNumber,
+            message: error instanceof Error ? error.message : "Unknown error processing row"
+          });
         }
       }
       
@@ -408,14 +470,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ 
         success: true, 
-        message: `Successfully imported ${importedCount} road assets. Errors: ${errorCount}.` 
+        message: `Successfully imported ${importedCount} road assets. Errors: ${errorCount}.`,
+        errors: errorDetails.map(err => ({
+          message: `Row ${err.row}: ${err.message}`
+        }))
       });
     } catch (error) {
       console.error("Error importing road assets:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ 
+          success: false,
+          message: "Validation error", 
+          errors: error.errors.map(err => ({
+            message: `${err.path.join('.')} - ${err.message}`
+          }))
+        });
       }
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ 
+        success: false,
+        message: error instanceof Error ? error.message : "Internal server error",
+        errors: [{
+          message: error instanceof Error ? error.message : "An unexpected error occurred"
+        }]
+      });
     }
   });
 
@@ -430,14 +507,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Parse CSV data with moisture readings
       const lines = csvData.trim().split('\n');
-      const headers = lines[0].split(',');
+      
+      // Extract headers from the first line
+      const headers = lines[0].split(',').map(header => header.trim().toLowerCase());
+      
+      // Check if the first row is a header row by looking for expected column names
+      const isFirstRowHeader = headers.some(header => 
+        ['longitude', 'latitude', 'moisture', 'readingdate', 'roadassetid'].includes(header)
+      );
+      
+      // Determine which row to start processing from (skip header row if present)
+      const startRow = isFirstRowHeader ? 1 : 0;
       
       let importedCount = 0;
       let errorCount = 0;
       let updatedAssets = new Set<number>();
       let errorDetails: Array<{ row: number, message: string }> = [];
       
-      for (let i = 1; i < lines.length; i++) {
+      // Loop through data rows (skipping header if present)
+      for (let i = startRow; i < lines.length; i++) {
         try {
           const values = lines[i].split(',');
           
@@ -623,8 +711,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (error) {
           console.error(`Error importing moisture data row ${i}:`, error);
           errorCount++;
+          // Adjust row number for error display to account for 1-based counting that users expect
+          // and potentially skipped header row
+          const displayRowNumber = i + 1;
+          
           errorDetails.push({
-            row: i,
+            row: displayRowNumber,
             message: error instanceof Error ? error.message : "Unknown error processing row"
           });
         }
