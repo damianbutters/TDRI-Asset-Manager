@@ -34,6 +34,7 @@ export default function MapView() {
   const [selectedAsset, setSelectedAsset] = useState<RoadAsset | null>(null);
   const [isAssetDialogOpen, setIsAssetDialogOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"pci" | "moisture">("pci");
   
   // Fetch road assets
   const { data: roadAssets = [], isLoading } = useQuery<RoadAsset[]>({
@@ -118,34 +119,69 @@ export default function MapView() {
         <TabsContent value="condition">
           <Card className="mb-6">
             <CardHeader className="p-4 border-b border-gray-200">
-              <CardTitle>Road Condition Map</CardTitle>
-              <CardDescription>
-                Visual representation of road conditions color-coded by PCI
-              </CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Road Condition Map</CardTitle>
+                  <CardDescription>
+                    Visual representation of road conditions and moisture levels
+                  </CardDescription>
+                </div>
+                <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "pci" | "moisture")} className="mt-2">
+                  <TabsList className="grid w-[260px] grid-cols-2">
+                    <TabsTrigger value="pci">PCI Condition</TabsTrigger>
+                    <TabsTrigger value="moisture">Moisture Levels</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center gap-3">
-                <div className="text-sm">Legend:</div>
-                <div className="flex items-center">
-                  <span className="w-3 h-3 rounded-full bg-[#107C10] mr-1"></span>
-                  <span className="text-xs">Good (80-100)</span>
+              {viewMode === "pci" ? (
+                <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center gap-3">
+                  <div className="text-sm">PCI Legend:</div>
+                  <div className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#107C10] mr-1"></span>
+                    <span className="text-xs">Good (80-100)</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#FFB900] mr-1"></span>
+                    <span className="text-xs">Fair (60-79)</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#D83B01] mr-1"></span>
+                    <span className="text-xs">Poor (40-59)</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#A80000] mr-1"></span>
+                    <span className="text-xs">Critical (0-39)</span>
+                  </div>
+                  <div className="ml-auto text-xs text-neutral-textSecondary">
+                    {filteredAssets.length} {filteredAssets.length === 1 ? 'asset' : 'assets'} shown
+                  </div>
                 </div>
-                <div className="flex items-center">
-                  <span className="w-3 h-3 rounded-full bg-[#FFB900] mr-1"></span>
-                  <span className="text-xs">Fair (60-79)</span>
+              ) : (
+                <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center gap-3">
+                  <div className="text-sm">Moisture Legend:</div>
+                  <div className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#0E6AC7] mr-1"></span>
+                    <span className="text-xs">Very Wet (25%+)</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#2088EF] mr-1"></span>
+                    <span className="text-xs">Wet (15-25%)</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#69B5FF] mr-1"></span>
+                    <span className="text-xs">Moderate (8-15%)</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#C7E4FF] mr-1"></span>
+                    <span className="text-xs">Dry (0-8%)</span>
+                  </div>
+                  <div className="ml-auto text-xs text-neutral-textSecondary">
+                    {filteredAssets.filter(asset => asset.moistureLevel !== null).length} assets with moisture data
+                  </div>
                 </div>
-                <div className="flex items-center">
-                  <span className="w-3 h-3 rounded-full bg-[#D83B01] mr-1"></span>
-                  <span className="text-xs">Poor (40-59)</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-3 h-3 rounded-full bg-[#A80000] mr-1"></span>
-                  <span className="text-xs">Critical (0-39)</span>
-                </div>
-                <div className="ml-auto text-xs text-neutral-textSecondary">
-                  {filteredAssets.length} {filteredAssets.length === 1 ? 'asset' : 'assets'} shown
-                </div>
-              </div>
+              )}
               <div className="h-[calc(100vh-300px)] min-h-[400px]">
                 {isLoading ? (
                   <div className="h-full flex items-center justify-center">
@@ -157,6 +193,7 @@ export default function MapView() {
                     height="h-full" 
                     center={getMapCenter()}
                     onAssetClick={handleAssetClick}
+                    initialLayer={viewMode === "pci" ? "pci" : "moisture"}
                   />
                 )}
               </div>
@@ -306,6 +343,34 @@ export default function MapView() {
                           ></div>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium">Moisture Level</h3>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div>
+                        {selectedAsset.moistureLevel !== null ? (
+                          <>
+                            <p className="text-xs text-neutral-textSecondary">Current Moisture</p>
+                            <div className="flex items-center">
+                              <Badge className="bg-blue-500 hover:bg-blue-600">
+                                {selectedAsset.moistureLevel.toFixed(1)}%
+                              </Badge>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-xs text-neutral-textSecondary">No moisture data available</p>
+                        )}
+                      </div>
+                      {selectedAsset.moistureLevel !== null && (
+                        <div>
+                          <p className="text-xs text-neutral-textSecondary">Last Reading</p>
+                          <p className="text-xs">
+                            {selectedAsset.lastMoistureReading ? format(new Date(selectedAsset.lastMoistureReading), "MM/dd/yyyy") : "N/A"}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   

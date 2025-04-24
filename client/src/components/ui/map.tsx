@@ -1,8 +1,17 @@
 import { useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, LayersControl } from "react-leaflet";
+import { 
+  MapContainer, 
+  TileLayer, 
+  Polyline, 
+  Marker, 
+  Popup, 
+  useMap, 
+  LayersControl,
+  Circle
+} from "react-leaflet";
 import L from "leaflet";
 import { RoadAsset, getConditionState } from "@shared/schema";
-import { getConditionColor } from "@/lib/utils/color-utils";
+import { getConditionColor, getMoistureColor } from "@/lib/utils/color-utils";
 
 // Define the GeoJSON structure for TypeScript
 interface Coordinates {
@@ -16,6 +25,7 @@ interface MapProps {
   center?: [number, number];
   zoom?: number;
   onAssetClick?: (asset: RoadAsset) => void;
+  initialLayer?: "pci" | "moisture";
 }
 
 function MapController({ roadAssets }: { roadAssets: RoadAsset[] }) {
@@ -48,7 +58,8 @@ export default function Map({
   height = "h-80", 
   center = [40.7650, -73.9800], // Center on Midtown Manhattan
   zoom = 13, // Higher zoom to better see streets
-  onAssetClick 
+  onAssetClick,
+  initialLayer = "pci"
 }: MapProps) {
   const [selectedAsset, setSelectedAsset] = useState<RoadAsset | null>(null);
   
@@ -102,7 +113,7 @@ export default function Map({
         </LayersControl.BaseLayer>
         
         {/* Overlay for Road Conditions */}
-        <LayersControl.Overlay checked name="Road Conditions">
+        <LayersControl.Overlay checked={initialLayer === "pci"} name="Road Conditions (PCI)">
           <div>
             {roadAssets.map((asset) => {
               const coordinates = getCoordinates(asset);
@@ -120,6 +131,36 @@ export default function Map({
                     opacity: 0.9,     // Higher opacity for better visibility
                     lineCap: "round", // Rounded line ends
                     lineJoin: "round" // Rounded corners
+                  }}
+                  eventHandlers={{
+                    click: () => handleAssetClick(asset)
+                  }}
+                />
+              );
+            })}
+          </div>
+        </LayersControl.Overlay>
+        
+        {/* Overlay for Moisture Levels */}
+        <LayersControl.Overlay checked={initialLayer === "moisture"} name="Moisture Levels">
+          <div>
+            {roadAssets.map((asset) => {
+              const coordinates = getCoordinates(asset);
+              if (coordinates.length === 0) return null;
+              
+              // Calculate the average coordinate for centering moisture indicators
+              const moistureColor = getMoistureColor(asset.moistureLevel);
+              
+              return (
+                <Polyline
+                  key={`moisture-${asset.id}`}
+                  positions={coordinates}
+                  pathOptions={{
+                    color: moistureColor,
+                    weight: 6,
+                    opacity: 0.8,
+                    lineCap: "round", 
+                    lineJoin: "round"
                   }}
                   eventHandlers={{
                     click: () => handleAssetClick(asset)
@@ -178,15 +219,25 @@ export default function Map({
           <div className="p-2">
             <h3 className="font-medium text-sm">{selectedAsset.name}</h3>
             <p className="text-xs text-gray-600">{selectedAsset.location}</p>
-            <p className="text-xs">
-              Condition: {getConditionState(selectedAsset.condition).toUpperCase()} ({selectedAsset.condition}/100)
-            </p>
-            <p className="text-xs">
-              Last Inspection: {new Date(selectedAsset.lastInspection).toLocaleDateString()}
-            </p>
+            <div className="flex flex-col gap-1 mt-1">
+              <p className="text-xs">
+                <span className="font-medium">Condition:</span> {getConditionState(selectedAsset.condition).toUpperCase()} ({selectedAsset.condition}/100)
+              </p>
+              <p className="text-xs">
+                <span className="font-medium">Moisture:</span> {selectedAsset.moistureLevel !== null ? `${selectedAsset.moistureLevel.toFixed(1)}%` : 'Not measured'}
+              </p>
+              <p className="text-xs">
+                <span className="font-medium">Last Inspection:</span> {new Date(selectedAsset.lastInspection).toLocaleDateString()}
+              </p>
+              {selectedAsset.lastMoistureReading && (
+                <p className="text-xs">
+                  <span className="font-medium">Last Moisture Reading:</span> {new Date(selectedAsset.lastMoistureReading).toLocaleDateString()}
+                </p>
+              )}
+            </div>
             <button 
               onClick={() => onAssetClick && onAssetClick(selectedAsset)}
-              className="text-xs text-primary hover:text-secondary mt-1"
+              className="text-xs text-primary hover:text-secondary mt-2"
             >
               View Details
             </button>

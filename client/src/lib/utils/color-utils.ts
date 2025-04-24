@@ -8,6 +8,24 @@ export function getConditionColor(condition: number): string {
   return "#A80000"; // Critical - red
 }
 
+// Get color based on moisture level
+export function getMoistureColor(moisture: number | null): string {
+  if (moisture === null) return "#CCCCCC"; // Gray for no data
+  if (moisture > 25) return "#0E6AC7"; // Very wet - dark blue
+  if (moisture > 15) return "#2088EF"; // Wet - medium blue
+  if (moisture > 8) return "#69B5FF";  // Moderate - light blue
+  return "#C7E4FF";                    // Dry - very light blue
+}
+
+// Get moisture badge color class based on moisture level
+export function getMoistureBadgeColor(moisture: number | null): string {
+  if (moisture === null) return "bg-gray-100 text-gray-800";
+  if (moisture > 25) return "bg-blue-700 text-white";
+  if (moisture > 15) return "bg-blue-500 text-white";
+  if (moisture > 8) return "bg-blue-300 text-blue-900";
+  return "bg-blue-100 text-blue-800";
+}
+
 // Get badge color class based on condition state
 export function getConditionBadgeColor(conditionState: ConditionState): string {
   switch (conditionState) {
