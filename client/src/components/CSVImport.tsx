@@ -101,10 +101,13 @@ export default function CSVImport({
               
               try {
                 // Send the current chunk to the server
+                // Keep the original structure of the CSV, preserving column positions
+                const csvContent = Papa.unparse(chunk);
+                
                 const response = await apiRequest(
                   "POST",
                   endpoint,
-                  { csvData: Papa.unparse([Object.keys(chunk[0]), ...chunk.map(Object.values)]) }
+                  { csvData: csvContent }
                 );
                 
                 const chunkResult = await response.json();

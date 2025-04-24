@@ -101,10 +101,10 @@ export default function ImportExport() {
     "longitude", "latitude", "moisture", "readingDate", "roadAssetId"
   ];
   
-  // Example data to show in the template
+  // Example data to show in the template (using Mechanicsville, VA coordinates)
   const moistureDataExample = {
-    longitude: -77.4518,
-    latitude: 37.6307,
+    longitude: -77.3733,
+    latitude: 37.6089,
     moisture: 42.5,
     readingDate: "2024-9-3T04:18:59 GMT+0000 (Coordinated Universal Time).000",
     roadAssetId: "RS-1001"

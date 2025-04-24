@@ -331,15 +331,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { csvData } = schema.parse(req.body);
       
       // Parse CSV data and create road assets
+      // Split by new lines first
       const lines = csvData.trim().split('\n');
       
+      // Skip empty lines
+      const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+      
+      if (nonEmptyLines.length === 0) {
+        throw new Error("CSV file is empty");
+      }
+      
+      // Process the first line to extract headers
+      // Split by commas, but be careful with quoted values that might contain commas
+      const extractValues = (line: string): string[] => {
+        const values: string[] = [];
+        let inQuotes = false;
+        let currentValue = "";
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          
+          if (char === '"') {
+            // Toggle quote state
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            // End of value
+            values.push(currentValue.trim());
+            currentValue = "";
+          } else {
+            // Part of value
+            currentValue += char;
+          }
+        }
+        
+        // Add the last value
+        values.push(currentValue.trim());
+        
+        return values;
+      };
+      
       // Extract headers from the first line
-      const headers = lines[0].split(',').map(header => header.trim().toLowerCase());
+      const headers = extractValues(nonEmptyLines[0]).map(header => header.trim().toLowerCase());
       
       // Check if the first row is a header row by looking for expected column names
       const isFirstRowHeader = headers.some(header => 
         ['assetid', 'name', 'location', 'surfacetype', 'condition'].includes(header)
       );
+      
+      console.log("Road asset import headers:", headers);
+      console.log("Is first row header:", isFirstRowHeader);
       
       // Determine which row to start processing from (skip header row if present)
       const startRow = isFirstRowHeader ? 1 : 0;
@@ -348,9 +388,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let errorCount = 0;
       let errorDetails: Array<{ row: number, message: string }> = [];
       
-      for (let i = startRow; i < lines.length; i++) {
+      for (let i = startRow; i < nonEmptyLines.length; i++) {
         try {
-          const values = lines[i].split(',');
+          // For data rows, use the same careful splitting 
+          const values = extractValues(nonEmptyLines[i]);
+          
+          console.log(`Road asset row ${i} values:`, values);
+          
           const assetData: any = {};
           
           // Store what we found in the row for better error messages
@@ -505,16 +549,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { csvData } = schema.parse(req.body);
       
-      // Parse CSV data with moisture readings
+      // Parse CSV data with moisture readings - handle potential double quotes and comma escaping
+      // Split by new lines first
       const lines = csvData.trim().split('\n');
       
+      // Skip empty lines
+      const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+      
+      if (nonEmptyLines.length === 0) {
+        throw new Error("CSV file is empty");
+      }
+      
+      // Process the first line to extract headers
+      // Split by commas, but be careful with quoted values that might contain commas
+      const extractValues = (line: string): string[] => {
+        const values: string[] = [];
+        let inQuotes = false;
+        let currentValue = "";
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          
+          if (char === '"') {
+            // Toggle quote state
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            // End of value
+            values.push(currentValue.trim());
+            currentValue = "";
+          } else {
+            // Part of value
+            currentValue += char;
+          }
+        }
+        
+        // Add the last value
+        values.push(currentValue.trim());
+        
+        return values;
+      };
+      
       // Extract headers from the first line
-      const headers = lines[0].split(',').map(header => header.trim().toLowerCase());
+      const headers = extractValues(nonEmptyLines[0]).map(header => header.trim().toLowerCase());
       
       // Check if the first row is a header row by looking for expected column names
       const isFirstRowHeader = headers.some(header => 
         ['longitude', 'latitude', 'moisture', 'readingdate', 'roadassetid'].includes(header)
       );
+      
+      console.log("Headers:", headers);
+      console.log("Is first row header:", isFirstRowHeader);
       
       // Determine which row to start processing from (skip header row if present)
       const startRow = isFirstRowHeader ? 1 : 0;
@@ -525,9 +609,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let errorDetails: Array<{ row: number, message: string }> = [];
       
       // Loop through data rows (skipping header if present)
-      for (let i = startRow; i < lines.length; i++) {
+      for (let i = startRow; i < nonEmptyLines.length; i++) {
         try {
-          const values = lines[i].split(',');
+          // For data rows, use the same careful splitting
+          const values = extractValues(nonEmptyLines[i]);
+          
+          console.log(`Row ${i} values:`, values);
           
           // Extract data from the CSV line
           let longitude: number | undefined;
@@ -626,9 +713,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error(`Missing or invalid longitude value: "${foundValue}" (must be a numeric value)`);
           }
           
+          // Validate longitude range (-180 to 180 degrees)
+          if (longitude < -180 || longitude > 180) {
+            throw new Error(`Longitude value out of range: ${longitude} (must be between -180 and 180 degrees)`);
+          }
+          
           if (latitude === undefined || isNaN(latitude)) {
             const foundValue = rowData['latitude'] || 'missing';
             throw new Error(`Missing or invalid latitude value: "${foundValue}" (must be a numeric value)`);
+          }
+          
+          // Validate latitude range (-90 to 90 degrees)
+          if (latitude < -90 || latitude > 90) {
+            throw new Error(`Latitude value out of range: ${latitude} (must be between -90 and 90 degrees)`);
           }
           
           if (moisture === undefined || isNaN(moisture)) {
