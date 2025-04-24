@@ -79,7 +79,9 @@ export default function RoadAssets() {
       width: undefined,
       surfaceType: "",
       condition: undefined,
+      moistureLevel: undefined,
       lastInspection: new Date().toISOString().split('T')[0],
+      lastMoistureReading: new Date().toISOString().split('T')[0],
       nextInspection: ""
     },
   });
@@ -93,6 +95,11 @@ export default function RoadAssets() {
       if (values.nextInspection) {
         nextInspection = new Date(values.nextInspection).toISOString();
       }
+      
+      let lastMoistureReading = undefined;
+      if (values.lastMoistureReading) {
+        lastMoistureReading = new Date(values.lastMoistureReading).toISOString();
+      }
 
       // Generate random geometry for the new asset
       const geometry = {
@@ -105,6 +112,7 @@ export default function RoadAssets() {
         ...values,
         lastInspection,
         nextInspection,
+        lastMoistureReading,
         geometry
       });
       return res.json();
@@ -174,6 +182,33 @@ export default function RoadAssets() {
         return (
           <Badge className={badgeColor}>
             {state.charAt(0).toUpperCase() + state.slice(1)} ({condition})
+          </Badge>
+        );
+      }
+    },
+    {
+      accessorKey: "moistureLevel",
+      header: "Moisture (%)",
+      cell: ({ row }) => {
+        const moisture = row.getValue<number | null>("moistureLevel");
+        
+        if (moisture === null) {
+          return "N/A";
+        }
+        
+        // Different color badges based on moisture level
+        let badgeColor = "bg-blue-100 text-blue-800";
+        if (moisture > 25) {
+          badgeColor = "bg-blue-700 text-white";
+        } else if (moisture > 15) {
+          badgeColor = "bg-blue-500 text-white";
+        } else if (moisture > 8) {
+          badgeColor = "bg-blue-300 text-blue-900";
+        }
+        
+        return (
+          <Badge className={badgeColor}>
+            {moisture.toFixed(1)}%
           </Badge>
         );
       }
@@ -395,6 +430,22 @@ export default function RoadAssets() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="moistureLevel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Moisture Level (%)</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" max="100" step="0.1" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Pavement Moisture Content
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -423,6 +474,19 @@ export default function RoadAssets() {
                   )}
                 />
               </div>
+              <FormField
+                control={form.control}
+                name="lastMoistureReading"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Last Moisture Reading</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <DialogFooter>
                 <Button 
                   type="button" 
@@ -506,6 +570,39 @@ export default function RoadAssets() {
                             style={{ width: `${selectedAsset.condition}%` }}
                           ></div>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium">Moisture Data</h3>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div>
+                        <p className="text-xs text-neutral-textSecondary">Moisture Level</p>
+                        <div className="flex items-center">
+                          {selectedAsset.moistureLevel !== null ? (
+                            <Badge 
+                              className={
+                                selectedAsset.moistureLevel > 25 ? "bg-blue-700 text-white" :
+                                selectedAsset.moistureLevel > 15 ? "bg-blue-500 text-white" :
+                                selectedAsset.moistureLevel > 8 ? "bg-blue-300 text-blue-900" :
+                                "bg-blue-100 text-blue-800"
+                              }
+                            >
+                              {selectedAsset.moistureLevel.toFixed(1)}%
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-500">Not measured</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-textSecondary">Last Reading</p>
+                        <p>
+                          {selectedAsset.lastMoistureReading
+                            ? format(new Date(selectedAsset.lastMoistureReading), "MM/dd/yyyy")
+                            : "Not recorded"}
+                        </p>
                       </div>
                     </div>
                   </div>
