@@ -58,9 +58,23 @@ export const moistureReadings = pgTable("moisture_readings", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertMoistureReadingSchema = createInsertSchema(moistureReadings).omit({
+// Create the initial schema
+const baseInsertMoistureReadingSchema = createInsertSchema(moistureReadings).omit({
   id: true,
   createdAt: true,
+});
+
+// Create a modified schema that accepts string dates and converts them to Date objects
+export const insertMoistureReadingSchema = baseInsertMoistureReadingSchema.extend({
+  readingDate: z.preprocess(
+    (arg) => {
+      if (typeof arg === 'string' || arg instanceof Date) {
+        return new Date(arg);
+      }
+      return arg;
+    },
+    z.date()
+  )
 });
 
 // Define relations

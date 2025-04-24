@@ -48,33 +48,6 @@ export default function MapView() {
   // Fetch moisture readings for all roads with moisture data
   const { data: allMoistureReadings = {} } = useQuery<Record<number, MoistureReading[]>>({
     queryKey: ['/api/moisture-readings'],
-    queryFn: async () => {
-      // Only fetch moisture readings for assets that have lastMoistureReading set
-      const assetsWithMoisture = roadAssets.filter(asset => asset.lastMoistureReading !== null);
-      
-      if (assetsWithMoisture.length === 0) return {};
-      
-      // Fetch moisture readings for each asset and build a record keyed by roadAssetId
-      const readingsMap: Record<number, MoistureReading[]> = {};
-      
-      await Promise.all(
-        assetsWithMoisture.map(async (asset) => {
-          try {
-            const response = await fetch(`/api/road-assets/${asset.id}/moisture-readings`);
-            if (response.ok) {
-              const readings = await response.json();
-              if (Array.isArray(readings) && readings.length > 0) {
-                readingsMap[asset.id] = readings;
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching moisture readings for asset ${asset.id}:`, error);
-          }
-        })
-      );
-      
-      return readingsMap;
-    },
     enabled: roadAssets.some(asset => asset.lastMoistureReading !== null),
   });
   

@@ -1132,6 +1132,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Moisture Readings Routes
+  app.get("/api/moisture-readings", async (req: Request, res: Response) => {
+    try {
+      // Get all road assets with moisture readings
+      const roadAssets = await storage.getRoadAssets();
+      const assetsWithMoisture = roadAssets.filter(asset => asset.lastMoistureReading !== null);
+      
+      // Create a response map of roadAssetId -> moisture readings
+      const responseMap: Record<number, any[]> = {};
+      
+      // Get moisture readings for each asset
+      await Promise.all(
+        assetsWithMoisture.map(async (asset) => {
+          const readings = await storage.getMoistureReadings(asset.id);
+          if (readings.length > 0) {
+            responseMap[asset.id] = readings;
+          }
+        })
+      );
+      
+      res.json(responseMap);
+    } catch (error) {
+      console.error("Error getting all moisture readings:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  
   app.get("/api/road-assets/:id/moisture-readings", async (req: Request, res: Response) => {
     try {
       const roadAssetId = parseInt(req.params.id);
