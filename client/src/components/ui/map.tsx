@@ -62,6 +62,12 @@ export default function Map({
   initialLayer = "pci"
 }: MapProps) {
   const [selectedAsset, setSelectedAsset] = useState<RoadAsset | null>(null);
+  const [activeLayer, setActiveLayer] = useState<"pci" | "moisture">(initialLayer);
+  
+  // Update activeLayer when initialLayer prop changes
+  useEffect(() => {
+    setActiveLayer(initialLayer);
+  }, [initialLayer]);
   
   const handleAssetClick = (asset: RoadAsset) => {
     setSelectedAsset(asset);
@@ -113,8 +119,8 @@ export default function Map({
         </LayersControl.BaseLayer>
       </LayersControl>
       
-      {/* Display PCI layer if initialLayer is pci */}
-      {initialLayer === "pci" && (
+      {/* Display PCI layer if activeLayer is pci */}
+      {activeLayer === "pci" && (
         <div>
           {roadAssets.map((asset) => {
             const coordinates = getCoordinates(asset);
@@ -142,8 +148,8 @@ export default function Map({
         </div>
       )}
       
-      {/* Display Moisture layer if initialLayer is moisture */}
-      {initialLayer === "moisture" && (
+      {/* Display Moisture layer if activeLayer is moisture */}
+      {activeLayer === "moisture" && (
         <div>
           {roadAssets.map((asset) => {
             const coordinates = getCoordinates(asset);
@@ -170,6 +176,26 @@ export default function Map({
           })}
         </div>
       )}
+      
+      {/* Layer Toggle Control */}
+      <div className="leaflet-top leaflet-left" style={{ top: '80px' }}>
+        <div className="leaflet-control leaflet-bar bg-white p-2 shadow-md rounded-md">
+          <div className="flex flex-col gap-2">
+            <button 
+              onClick={() => setActiveLayer("pci")} 
+              className={`px-2 py-1 text-xs rounded ${activeLayer === "pci" ? 'bg-primary text-white' : 'bg-gray-100'}`}
+            >
+              PCI View
+            </button>
+            <button 
+              onClick={() => setActiveLayer("moisture")} 
+              className={`px-2 py-1 text-xs rounded ${activeLayer === "moisture" ? 'bg-primary text-white' : 'bg-gray-100'}`}
+            >
+              Moisture View
+            </button>
+          </div>
+        </div>
+      </div>
       
       <MapController roadAssets={roadAssets} />
       
