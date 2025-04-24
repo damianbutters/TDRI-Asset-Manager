@@ -6,7 +6,11 @@ import {
   policies, Policy, InsertPolicy,
   budgetAllocations, BudgetAllocation, InsertBudgetAllocation,
   auditLogs, AuditLog, InsertAuditLog,
-  moistureReadings, MoistureReading, InsertMoistureReading
+  moistureReadings, MoistureReading, InsertMoistureReading,
+  assetTypes, AssetType, InsertAssetType,
+  roadwayAssets, RoadwayAsset, InsertRoadwayAsset,
+  assetInspections, AssetInspection, InsertAssetInspection,
+  assetMaintenanceRecords, AssetMaintenanceRecord, InsertAssetMaintenanceRecord
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -66,6 +70,37 @@ export interface IStorage {
   // Audit log operations
   getAuditLogs(): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  
+  // Asset Types operations
+  getAssetTypes(): Promise<AssetType[]>;
+  getAssetType(id: number): Promise<AssetType | undefined>;
+  createAssetType(type: InsertAssetType): Promise<AssetType>;
+  updateAssetType(id: number, type: Partial<InsertAssetType>): Promise<AssetType | undefined>;
+  deleteAssetType(id: number): Promise<boolean>;
+  
+  // Roadway Assets operations
+  getRoadwayAssets(): Promise<RoadwayAsset[]>;
+  getRoadwayAssetsByType(assetTypeId: number): Promise<RoadwayAsset[]>;
+  getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined>;
+  createRoadwayAsset(asset: InsertRoadwayAsset): Promise<RoadwayAsset>;
+  updateRoadwayAsset(id: number, asset: Partial<InsertRoadwayAsset>): Promise<RoadwayAsset | undefined>;
+  deleteRoadwayAsset(id: number): Promise<boolean>;
+  
+  // Asset Inspections operations
+  getAssetInspections(): Promise<AssetInspection[]>;
+  getAssetInspectionsByAssetId(roadwayAssetId: number): Promise<AssetInspection[]>;
+  getAssetInspection(id: number): Promise<AssetInspection | undefined>;
+  createAssetInspection(inspection: InsertAssetInspection): Promise<AssetInspection>;
+  updateAssetInspection(id: number, inspection: Partial<InsertAssetInspection>): Promise<AssetInspection | undefined>;
+  deleteAssetInspection(id: number): Promise<boolean>;
+  
+  // Asset Maintenance Records operations
+  getAssetMaintenanceRecords(): Promise<AssetMaintenanceRecord[]>;
+  getAssetMaintenanceRecordsByAssetId(roadwayAssetId: number): Promise<AssetMaintenanceRecord[]>;
+  getAssetMaintenanceRecord(id: number): Promise<AssetMaintenanceRecord | undefined>;
+  createAssetMaintenanceRecord(record: InsertAssetMaintenanceRecord): Promise<AssetMaintenanceRecord>;
+  updateAssetMaintenanceRecord(id: number, record: Partial<InsertAssetMaintenanceRecord>): Promise<AssetMaintenanceRecord | undefined>;
+  deleteAssetMaintenanceRecord(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -77,6 +112,10 @@ export class MemStorage implements IStorage {
   private budgetAllocations: Map<number, BudgetAllocation>;
   private auditLogs: Map<number, AuditLog>;
   private moistureReadings: Map<number, MoistureReading>;
+  private assetTypes: Map<number, AssetType>;
+  private roadwayAssets: Map<number, RoadwayAsset>;
+  private assetInspections: Map<number, AssetInspection>;
+  private assetMaintenanceRecords: Map<number, AssetMaintenanceRecord>;
   
   private userIdCounter: number;
   private roadAssetIdCounter: number;
@@ -86,6 +125,10 @@ export class MemStorage implements IStorage {
   private budgetAllocationIdCounter: number;
   private auditLogIdCounter: number;
   private moistureReadingIdCounter: number;
+  private assetTypeIdCounter: number;
+  private roadwayAssetIdCounter: number;
+  private assetInspectionIdCounter: number;
+  private assetMaintenanceRecordIdCounter: number;
   
   constructor() {
     this.users = new Map();
@@ -96,6 +139,10 @@ export class MemStorage implements IStorage {
     this.budgetAllocations = new Map();
     this.auditLogs = new Map();
     this.moistureReadings = new Map();
+    this.assetTypes = new Map();
+    this.roadwayAssets = new Map();
+    this.assetInspections = new Map();
+    this.assetMaintenanceRecords = new Map();
     
     this.userIdCounter = 1;
     this.roadAssetIdCounter = 1;
@@ -105,6 +152,10 @@ export class MemStorage implements IStorage {
     this.budgetAllocationIdCounter = 1;
     this.auditLogIdCounter = 1;
     this.moistureReadingIdCounter = 1;
+    this.assetTypeIdCounter = 1;
+    this.roadwayAssetIdCounter = 1;
+    this.assetInspectionIdCounter = 1;
+    this.assetMaintenanceRecordIdCounter = 1;
     
     this.initializeData();
   }

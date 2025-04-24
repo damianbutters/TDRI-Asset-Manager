@@ -10,7 +10,11 @@ import {
   insertMaintenanceProjectSchema,
   insertPolicySchema,
   insertBudgetAllocationSchema,
-  insertMoistureReadingSchema
+  insertMoistureReadingSchema,
+  insertAssetTypeSchema,
+  insertRoadwayAssetSchema,
+  insertAssetInspectionSchema,
+  insertAssetMaintenanceRecordSchema
 } from "@shared/schema";
 import { weatherService } from "./weather-service";
 
@@ -1331,6 +1335,433 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting moisture readings:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ===============================================================
+  // ASSET INVENTORY SYSTEM ENDPOINTS
+  // ===============================================================
+
+  // Asset Types
+  app.get("/api/asset-types", async (req: Request, res: Response) => {
+    try {
+      const assetTypes = await storage.getAssetTypes();
+      res.json(assetTypes);
+    } catch (error) {
+      console.error("Error getting asset types:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/asset-types/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID" });
+      }
+
+      const assetType = await storage.getAssetType(id);
+      if (!assetType) {
+        return res.status(404).json({ message: "Asset type not found" });
+      }
+
+      res.json(assetType);
+    } catch (error) {
+      console.error("Error getting asset type:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/asset-types", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertAssetTypeSchema.parse(req.body);
+      const assetType = await storage.createAssetType(validatedData);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Created asset type",
+        details: `Created asset type: ${assetType.name}`,
+        ipAddress: req.ip,
+        resourceType: "asset_type",
+        resourceId: assetType.id.toString(),
+      });
+
+      res.status(201).json(assetType);
+    } catch (error) {
+      console.error("Error creating asset type:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/asset-types/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID" });
+      }
+
+      const existingAssetType = await storage.getAssetType(id);
+      if (!existingAssetType) {
+        return res.status(404).json({ message: "Asset type not found" });
+      }
+
+      const validatedData = insertAssetTypeSchema.partial().parse(req.body);
+      const updatedAssetType = await storage.updateAssetType(id, validatedData);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Updated asset type",
+        details: `Updated asset type: ${existingAssetType.name}`,
+        ipAddress: req.ip,
+        resourceType: "asset_type",
+        resourceId: id.toString(),
+      });
+
+      res.json(updatedAssetType);
+    } catch (error) {
+      console.error("Error updating asset type:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Roadway Assets
+  app.get("/api/roadway-assets", async (req: Request, res: Response) => {
+    try {
+      const assets = await storage.getRoadwayAssets();
+      res.json(assets);
+    } catch (error) {
+      console.error("Error getting roadway assets:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/roadway-assets/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID" });
+      }
+
+      const asset = await storage.getRoadwayAsset(id);
+      if (!asset) {
+        return res.status(404).json({ message: "Roadway asset not found" });
+      }
+
+      res.json(asset);
+    } catch (error) {
+      console.error("Error getting roadway asset:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/roadway-assets", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertRoadwayAssetSchema.parse(req.body);
+      const asset = await storage.createRoadwayAsset(validatedData);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Created roadway asset",
+        details: `Created ${asset.assetId}: ${asset.name}`,
+        ipAddress: req.ip,
+        resourceType: "roadway_asset",
+        resourceId: asset.id.toString(),
+      });
+
+      res.status(201).json(asset);
+    } catch (error) {
+      console.error("Error creating roadway asset:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/roadway-assets/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID" });
+      }
+
+      const existingAsset = await storage.getRoadwayAsset(id);
+      if (!existingAsset) {
+        return res.status(404).json({ message: "Roadway asset not found" });
+      }
+
+      const validatedData = insertRoadwayAssetSchema.partial().parse(req.body);
+      const updatedAsset = await storage.updateRoadwayAsset(id, validatedData);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Updated roadway asset",
+        details: `Updated ${existingAsset.assetId}: ${existingAsset.name}`,
+        ipAddress: req.ip,
+        resourceType: "roadway_asset",
+        resourceId: id.toString(),
+      });
+
+      res.json(updatedAsset);
+    } catch (error) {
+      console.error("Error updating roadway asset:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/roadway-assets/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID" });
+      }
+
+      const existingAsset = await storage.getRoadwayAsset(id);
+      if (!existingAsset) {
+        return res.status(404).json({ message: "Roadway asset not found" });
+      }
+
+      await storage.deleteRoadwayAsset(id);
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Deleted roadway asset",
+        details: `Deleted ${existingAsset.assetId}: ${existingAsset.name}`,
+        ipAddress: req.ip,
+        resourceType: "roadway_asset",
+        resourceId: id.toString(),
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting roadway asset:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Asset Inspections
+  app.get("/api/asset-inspections", async (req: Request, res: Response) => {
+    try {
+      const inspections = await storage.getAssetInspections();
+      res.json(inspections);
+    } catch (error) {
+      console.error("Error getting asset inspections:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/roadway-assets/:assetId/inspections", async (req: Request, res: Response) => {
+    try {
+      const assetId = parseInt(req.params.assetId);
+      if (isNaN(assetId)) {
+        return res.status(400).json({ message: "Invalid asset ID" });
+      }
+
+      const inspections = await storage.getAssetInspectionsByAssetId(assetId);
+      res.json(inspections);
+    } catch (error) {
+      console.error("Error getting inspections for asset:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/asset-inspections", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertAssetInspectionSchema.parse(req.body);
+      const inspection = await storage.createAssetInspection(validatedData);
+
+      // Update the asset's condition and last inspection date
+      const asset = await storage.getRoadwayAsset(inspection.roadwayAssetId);
+      if (asset) {
+        await storage.updateRoadwayAsset(asset.id, {
+          condition: inspection.condition,
+          lastInspection: inspection.inspectionDate,
+        });
+      }
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Created asset inspection",
+        details: `Inspected asset ID ${inspection.roadwayAssetId}, condition: ${inspection.condition}`,
+        ipAddress: req.ip,
+        resourceType: "asset_inspection",
+        resourceId: inspection.id.toString(),
+      });
+
+      res.status(201).json(inspection);
+    } catch (error) {
+      console.error("Error creating asset inspection:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Asset Maintenance Records
+  app.get("/api/asset-maintenance-records", async (req: Request, res: Response) => {
+    try {
+      const records = await storage.getAssetMaintenanceRecords();
+      res.json(records);
+    } catch (error) {
+      console.error("Error getting asset maintenance records:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/roadway-assets/:assetId/maintenance", async (req: Request, res: Response) => {
+    try {
+      const assetId = parseInt(req.params.assetId);
+      if (isNaN(assetId)) {
+        return res.status(400).json({ message: "Invalid asset ID" });
+      }
+
+      const records = await storage.getAssetMaintenanceRecordsByAssetId(assetId);
+      res.json(records);
+    } catch (error) {
+      console.error("Error getting maintenance records for asset:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/asset-maintenance-records", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertAssetMaintenanceRecordSchema.parse(req.body);
+      const record = await storage.createAssetMaintenanceRecord(validatedData);
+
+      // Update the asset's condition and last maintenance date if afterCondition is provided
+      if (record.afterCondition) {
+        const asset = await storage.getRoadwayAsset(record.roadwayAssetId);
+        if (asset) {
+          await storage.updateRoadwayAsset(asset.id, {
+            condition: record.afterCondition,
+            lastMaintenanceDate: record.maintenanceDate,
+          });
+        }
+      }
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Created asset maintenance record",
+        details: `Maintenance performed on asset ID ${record.roadwayAssetId}`,
+        ipAddress: req.ip,
+        resourceType: "asset_maintenance_record",
+        resourceId: record.id.toString(),
+      });
+
+      res.status(201).json(record);
+    } catch (error) {
+      console.error("Error creating asset maintenance record:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Import/Export Endpoints
+  app.post("/api/import/roadway-assets", async (req: Request, res: Response) => {
+    try {
+      // Expect an array of assets in the request body
+      const assets = z.array(insertRoadwayAssetSchema).parse(req.body);
+      const results = [];
+
+      for (const asset of assets) {
+        try {
+          const createdAsset = await storage.createRoadwayAsset(asset);
+          results.push({
+            success: true,
+            assetId: createdAsset.assetId,
+            id: createdAsset.id
+          });
+        } catch (err) {
+          results.push({
+            success: false,
+            assetId: asset.assetId,
+            error: err instanceof Error ? err.message : String(err)
+          });
+        }
+      }
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Imported roadway assets",
+        details: `Imported ${results.filter(r => r.success).length} assets. Failed: ${results.filter(r => !r.success).length}`,
+        ipAddress: req.ip,
+        resourceType: "roadway_asset",
+        resourceId: "batch-import",
+      });
+
+      res.status(200).json({
+        totalProcessed: assets.length,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results
+      });
+    } catch (error) {
+      console.error("Error importing roadway assets:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/export/roadway-assets", async (req: Request, res: Response) => {
+    try {
+      let assets;
+      
+      // Filter by asset type if specified
+      if (req.query.assetTypeId) {
+        const assetTypeId = parseInt(req.query.assetTypeId as string);
+        if (isNaN(assetTypeId)) {
+          return res.status(400).json({ message: "Invalid asset type ID" });
+        }
+        assets = await storage.getRoadwayAssetsByType(assetTypeId);
+      } else {
+        assets = await storage.getRoadwayAssets();
+      }
+
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Exported roadway assets",
+        details: `Exported ${assets.length} assets`,
+        ipAddress: req.ip,
+        resourceType: "roadway_asset",
+        resourceId: "batch-export",
+      });
+
+      res.json(assets);
+    } catch (error) {
+      console.error("Error exporting roadway assets:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
