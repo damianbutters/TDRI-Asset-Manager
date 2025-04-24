@@ -334,17 +334,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Split by new lines first
       const lines = csvData.trim().split('\n');
       
-      // Skip empty lines and lines that contain only commas (which represents empty cells)
-      const nonEmptyLines = lines.filter(line => {
-        const trimmed = line.trim();
-        // Skip empty lines
-        if (trimmed.length === 0) return false;
-        
-        // Skip lines with only commas (empty cells)
-        if (trimmed.replace(/,/g, "").trim().length === 0) return false;
-        
-        return true;
-      });
+      // Skip empty lines
+      const nonEmptyLines = lines.filter(line => line.trim().length > 0);
       
       if (nonEmptyLines.length === 0) {
         throw new Error("CSV file is empty");
@@ -553,16 +544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/import/moisture-data", async (req: Request, res: Response) => {
     try {
       const schema = zfd.formData({
-      // Skip empty lines and lines that contain only commas (which represents empty cells)
-      const nonEmptyLines = lines.filter(line => {
-        const trimmed = line.trim();
-        // Skip empty lines
-        if (trimmed.length === 0) return false;
-        
-        // Skip lines with only commas (empty cells)
-        if (trimmed.replace(/,/g, "").trim().length === 0) return false;
-        
-        return true;
+        csvData: zfd.text(),
       });
       
       const { csvData } = schema.parse(req.body);
@@ -806,7 +788,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             
-            assetToUpdate = closestAsset || allAssets[0]; // Fallback to first asset if no geometry
+            if (closestAsset) {
+              assetToUpdate = closestAsset;
+            } else {
+              // No road assets found nearby - create a new one
+              console.log(`Creating new road asset for coordinates: ${longitude}, ${latitude}`);
+              
+              // Generate a new asset ID based on coordinates
+              const newAssetId = `RS-${Math.floor(1000 + Math.random() * 9000)}`;
+              
+              // Create a new road asset with these coordinates
+              const newAsset = await storage.createRoadAsset({
+                assetId: newAssetId,
+                name: `Road at ${longitude.toFixed(4)}, ${latitude.toFixed(4)}`,
+                location: `${longitude.toFixed(6)}, ${latitude.toFixed(6)}`,
+                length: 0.1, // Default length
+                width: 6.0, // Default width
+                surfaceType: "Unknown",
+                condition: 80, // Default good condition
+                lastInspection: new Date(),
+                geometry: {
+                  type: "LineString",
+                  coordinates: [
+                    [longitude, latitude],
+                    [longitude + 0.001, latitude + 0.001]
+                  ]
+                }
+              });
+              
+              assetToUpdate = newAsset;
+            }
           }
           
           // Update the moisture data for the road asset
