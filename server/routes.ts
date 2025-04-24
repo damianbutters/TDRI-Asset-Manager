@@ -419,6 +419,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Moisture Data Import
+  app.post("/api/import/moisture-data", async (req: Request, res: Response) => {
+    try {
+      const schema = zfd.formData({
+        csvData: zfd.text(),
+      });
+      
+      const { csvData } = schema.parse(req.body);
+      
+      // Parse CSV data with moisture readings
+      const lines = csvData.trim().split('\n');
+      const headers = lines[0].split(',');
+      
+      let importedCount = 0;
+      let errorCount = 0;
+      let updatedAssets = new Set<number>();
+      
+      for (let i = 1; i < lines.length; i++) {
+        try {
+          const values = lines[i].split(',');
+          
+          // Extract data from the CSV line
+          let longitude: number | undefined;
+          let latitude: number | undefined;
+          let moisture: number | undefined;
+          let readingDate: Date | undefined;
+          let roadAssetId: string | undefined;
+          
+          headers.forEach((header, index) => {
+            const value = values[index]?.trim();
+            if (!value) return;
+            
+            switch (header.toLowerCase()) {
+              case 'longitude':
+                longitude = parseFloat(value);
+                break;
+              case 'latitude':
+                latitude = parseFloat(value);
+                break;
+              case 'moisture':
+                moisture = parseFloat(value);
+                break;
+              case 'readingdate':
+                readingDate = new Date(value);
+                break;
+              case 'roadassetid':
+                roadAssetId = value;
+                break;
+            }
+          });
+          
+          // Validate required fields
+          if (longitude === undefined || isNaN(longitude) || 
+              latitude === undefined || isNaN(latitude) || 
+              moisture === undefined || isNaN(moisture)) {
+            throw new Error("Missing or invalid required fields (longitude, latitude, moisture)");
+          }
+          
+          // If no date is provided, use current date
+          if (!readingDate || isNaN(readingDate.getTime())) {
+            readingDate = new Date();
+          }
+          
+          // Find the road asset to update, either by ID or by proximity
+          let assetToUpdate;
+          
+          if (roadAssetId) {
+            // If road asset ID is provided, find that specific asset
+            assetToUpdate = await storage.getRoadAssetByAssetId(roadAssetId);
+            if (!assetToUpdate) {
+              throw new Error(`Road asset with ID ${roadAssetId} not found`);
+            }
+          } else {
+            // Otherwise, find the nearest road asset by coordinates
+            // For now, we'll just get all assets and find the closest one
+            const allAssets = await storage.getRoadAssets();
+            if (allAssets.length === 0) {
+              throw new Error("No road assets found to update with moisture data");
+            }
+            
+            // Find the closest asset based on the coordinates in the geometry
+            // This is a simplified approach - in a production app, this would use proper geospatial calculations
+            let closestAsset = null;
+            let minDistance = Number.MAX_VALUE;
+            
+            for (const asset of allAssets) {
+              if (asset.geometry?.type === "LineString" && Array.isArray(asset.geometry.coordinates)) {
+                // Calculate distance to each point in the line and find the minimum
+                for (const point of asset.geometry.coordinates) {
+                  if (Array.isArray(point) && point.length >= 2) {
+                    const assetLong = point[0];
+                    const assetLat = point[1];
+                    
+                    // Simple Euclidean distance calculation (not accurate for geographic coordinates but works for demo)
+                    const distance = Math.sqrt(
+                      Math.pow(longitude - assetLong, 2) + 
+                      Math.pow(latitude - assetLat, 2)
+                    );
+                    
+                    if (distance < minDistance) {
+                      minDistance = distance;
+                      closestAsset = asset;
+                    }
+                  }
+                }
+              }
+            }
+            
+            assetToUpdate = closestAsset || allAssets[0]; // Fallback to first asset if no geometry
+          }
+          
+          // Update the moisture data for the road asset
+          if (assetToUpdate) {
+            const updatedAsset = await storage.updateRoadAsset(assetToUpdate.id, {
+              moistureLevel: moisture,
+              lastMoistureReading: readingDate
+            });
+            
+            if (updatedAsset) {
+              importedCount++;
+              updatedAssets.add(assetToUpdate.id);
+            } else {
+              throw new Error(`Failed to update road asset with ID ${assetToUpdate.id}`);
+            }
+          }
+        } catch (error) {
+          console.error(`Error importing moisture data row ${i}:`, error);
+          errorCount++;
+        }
+      }
+      
+      // Log the action
+      await storage.createAuditLog({
+        userId: 1,
+        username: "admin",
+        action: "Imported moisture data",
+        details: `Updated ${updatedAssets.size} road assets with ${importedCount} moisture readings. Errors: ${errorCount}`,
+        ipAddress: req.ip,
+        resourceType: "road_asset",
+        resourceId: "moisture-import",
+      });
+      
+      res.json({ 
+        success: true, 
+        message: `Successfully imported ${importedCount} moisture readings, updating ${updatedAssets.size} road assets. Errors: ${errorCount}.` 
+      });
+    } catch (error) {
+      console.error("Error importing moisture data:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
