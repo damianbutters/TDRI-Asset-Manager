@@ -75,6 +75,10 @@ export default function DeteriorationModels() {
   const [mlProjectionData, setMlProjectionData] = useState<any[]>([]);
   const [comparisonData, setComparisonData] = useState<any[]>([]);
   
+  // Multiple asset selection for comparison
+  const [selectedAssetsForComparison, setSelectedAssetsForComparison] = useState<string[]>([]);
+  const [assetComparisonData, setAssetComparisonData] = useState<any[]>([]);
+  
   // Global deterioration forecast data (for all assets)
   const [forecastData, setForecastData] = useState<any[]>([]);
   const [mlForecastData, setMlForecastData] = useState<any[]>([]);
@@ -115,6 +119,78 @@ export default function DeteriorationModels() {
   };
 
   // Generate ML projections for individual asset
+  // Generate predictions for multiple assets
+  const generateMultiAssetComparison = async () => {
+    if (selectedAssetsForComparison.length === 0) return;
+    
+    setIsLoading(true);
+    try {
+      const selectedRoadAssets = roadAssets.filter(asset => 
+        selectedAssetsForComparison.includes(asset.id.toString())
+      );
+      
+      // Create comparison data for each asset
+      const comparisonResults = await Promise.all(
+        selectedRoadAssets.map(async (asset) => {
+          // ML params include moisture data
+          const mlParams: MLPredictionParams = {
+            initialCondition: asset.condition,
+            ageInYears: 0,
+            surfaceType: asset.surfaceType,
+            trafficLevel: 'medium', // Default to medium for comparison
+            climateImpact: 'medium', // Default to medium for comparison
+            moistureLevel: asset.moistureLevel
+          };
+          
+          // Traditional params
+          const traditionalParams: DeteriorationParameters = {
+            initialCondition: asset.condition,
+            ageInYears: 0,
+            surfaceType: asset.surfaceType,
+            trafficLevel: 'medium',
+            climateImpact: 'medium'
+          };
+          
+          // Get predictions
+          const mlProjection = await projectConditionWithAI(mlParams, 10);
+          const traditionalProjection = projectCondition(traditionalParams, 10);
+          
+          // Return the asset with both predictions at year 5 and year 10
+          return {
+            id: asset.id,
+            name: asset.name,
+            assetId: asset.assetId,
+            initialCondition: asset.condition,
+            surfaceType: asset.surfaceType,
+            moistureLevel: asset.moistureLevel,
+            traditionalYear5: traditionalProjection[5].condition,
+            mlYear5: mlProjection[5].condition,
+            traditionalYear10: traditionalProjection[10].condition,
+            mlYear10: mlProjection[10].condition,
+            mlImprovement: (
+              ((mlProjection[10].condition - traditionalProjection[10].condition) / 
+                traditionalProjection[10].condition) * 100
+            ).toFixed(1)
+          };
+        })
+      );
+      
+      setAssetComparisonData(comparisonResults);
+    } catch (error) {
+      console.error("Failed to generate multi-asset comparison:", error);
+      setNeedsApiKey(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Effect to run comparison when selected assets change
+  useEffect(() => {
+    if (useAI && selectedAssetsForComparison.length > 0) {
+      generateMultiAssetComparison();
+    }
+  }, [selectedAssetsForComparison, useAI]);
+
   const generateMlProjection = async () => {
     if (!selectedAsset) return;
     
@@ -448,13 +524,202 @@ export default function DeteriorationModels() {
               </Card>
             ) : (
               <>
-                {/* Model Comparison Card */}
+                {/* Road Asset Selection Card */}
                 <Card>
                   <CardHeader className="p-4 border-b border-gray-200">
-                    <CardTitle>Model Comparison</CardTitle>
+                    <CardTitle>Road Asset Selection</CardTitle>
+                    <CardDescription>Select roads to compare traditional vs. ML-based deterioration predictions</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Select by Road Name</h3>
+                        <div className="border rounded-md p-3 bg-white max-h-[200px] overflow-y-auto">
+                          {roadAssets.map(asset => (
+                            <div key={asset.id} className="flex items-center mb-2">
+                              <input
+                                type="checkbox"
+                                id={`asset-${asset.id}`}
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                checked={selectedAssetsForComparison.includes(asset.id.toString())}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedAssetsForComparison([...selectedAssetsForComparison, asset.id.toString()]);
+                                  } else {
+                                    setSelectedAssetsForComparison(
+                                      selectedAssetsForComparison.filter(id => id !== asset.id.toString())
+                                    );
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`asset-${asset.id}`} className="ml-2 block text-sm">
+                                {asset.name} ({asset.assetId})
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Quick Actions</h3>
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => setSelectedAssetsForComparison(
+                                roadAssets
+                                  .filter(a => a.surfaceType === 'Asphalt')
+                                  .map(a => a.id.toString())
+                              )}
+                            >
+                              Select Asphalt Roads
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setSelectedAssetsForComparison(
+                                roadAssets
+                                  .filter(a => a.surfaceType === 'Concrete')
+                                  .map(a => a.id.toString())
+                              )}
+                            >
+                              Select Concrete Roads
+                            </Button>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => setSelectedAssetsForComparison(
+                                roadAssets
+                                  .filter(a => a.condition < 60)
+                                  .map(a => a.id.toString())
+                              )}
+                            >
+                              Select Poor Condition
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setSelectedAssetsForComparison([])}
+                            >
+                              Clear Selection
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">
+                          {selectedAssetsForComparison.length} road{selectedAssetsForComparison.length !== 1 ? 's' : ''} selected
+                        </span>
+                        <Button 
+                          disabled={!useAI || selectedAssetsForComparison.length === 0} 
+                          onClick={generateMultiAssetComparison}
+                        >
+                          Generate Comparison
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Model Comparison Results */}
+                {selectedAssetsForComparison.length > 0 && (
+                  <Card>
+                    <CardHeader className="p-4 border-b border-gray-200">
+                      <CardTitle>Multi-Asset Deterioration Analysis</CardTitle>
+                      <CardDescription>Comparison of deterioration predictions across selected roads</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                      {assetComparisonData.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-sm">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-left font-medium py-2">Road Name</th>
+                                <th className="text-left font-medium py-2">Current PCI</th>
+                                <th className="text-left font-medium py-2">Surface Type</th>
+                                <th className="text-left font-medium py-2">Moisture Level</th>
+                                <th className="text-center font-medium py-2 bg-blue-50" colSpan={2}>5-Year Prediction</th>
+                                <th className="text-center font-medium py-2 bg-purple-50" colSpan={2}>10-Year Prediction</th>
+                                <th className="text-center font-medium py-2">ML Improvement</th>
+                              </tr>
+                              <tr className="border-b">
+                                <th className="text-left font-medium py-2"></th>
+                                <th className="text-left font-medium py-2"></th>
+                                <th className="text-left font-medium py-2"></th>
+                                <th className="text-left font-medium py-2"></th>
+                                <th className="text-center font-medium py-2 bg-blue-50">Traditional</th>
+                                <th className="text-center font-medium py-2 bg-blue-50">ML Model</th>
+                                <th className="text-center font-medium py-2 bg-purple-50">Traditional</th>
+                                <th className="text-center font-medium py-2 bg-purple-50">ML Model</th>
+                                <th className="text-center font-medium py-2">%</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {assetComparisonData.map((asset) => (
+                                <tr key={asset.id}>
+                                  <td className="py-2">{asset.name}</td>
+                                  <td className="py-2">{asset.initialCondition.toFixed(1)}</td>
+                                  <td className="py-2">{asset.surfaceType}</td>
+                                  <td className="py-2">{asset.moistureLevel !== null ? `${asset.moistureLevel}%` : 'N/A'}</td>
+                                  <td className="py-2 text-center bg-blue-50">{asset.traditionalYear5.toFixed(1)}</td>
+                                  <td className="py-2 text-center bg-blue-50 font-medium">{asset.mlYear5.toFixed(1)}</td>
+                                  <td className="py-2 text-center bg-purple-50">{asset.traditionalYear10.toFixed(1)}</td>
+                                  <td className="py-2 text-center bg-purple-50 font-medium">{asset.mlYear10.toFixed(1)}</td>
+                                  <td className={`py-2 text-center font-medium ${parseFloat(asset.mlImprovement) > 0 ? 'text-green-600' : parseFloat(asset.mlImprovement) < 0 ? 'text-red-600' : ''}`}>
+                                    {asset.mlImprovement}%
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="h-[200px] flex items-center justify-center">
+                          <p className="text-neutral-textSecondary">
+                            {!useAI
+                              ? "Enable AI mode to generate model comparisons"
+                              : "Select roads and click 'Generate Comparison' to see results"}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                    <CardFooter className="bg-gray-50 p-4 border-t border-gray-200">
+                      <div className="text-sm text-neutral-textSecondary">
+                        <p>This analysis compares the traditional and machine learning deterioration models for the selected roads, showing how moisture data influences predictions.</p>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                )}
+
+                {/* Model Comparison Chart */}
+                <Card>
+                  <CardHeader className="p-4 border-b border-gray-200">
+                    <CardTitle>Single Asset Model Comparison</CardTitle>
                     <CardDescription>Compare traditional vs. machine learning deterioration models</CardDescription>
                   </CardHeader>
                   <CardContent className="p-6">
+                    <div className="mb-4">
+                      <Label htmlFor="singleAssetCompare">Select a single road for detailed comparison</Label>
+                      <Select
+                        value={selectedAssetId}
+                        onValueChange={setSelectedAssetId}
+                      >
+                        <SelectTrigger id="singleAssetCompare" className="w-full mt-1">
+                          <SelectValue placeholder="Select a road asset" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roadAssets.map((asset) => (
+                            <SelectItem key={asset.id} value={asset.id.toString()}>
+                              {asset.name} ({asset.assetId})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  
                     {selectedAsset && comparisonData.length > 0 ? (
                       <div className="h-[400px]">
                         <ResponsiveContainer width="100%" height="100%">
