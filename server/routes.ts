@@ -605,6 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let importedCount = 0;
       let errorCount = 0;
+      let newAssetsCreated = 0;
       let updatedAssets = new Set<number>();
       let errorDetails: Array<{ row: number, message: string }> = [];
       
@@ -817,6 +818,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               
               assetToUpdate = newAsset;
+              // Increment the counter for new assets created
+              newAssetsCreated++;
             }
           }
           
@@ -848,12 +851,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Calculate existing assets (total minus new ones)
+      const existingAssetsUpdated = updatedAssets.size - newAssetsCreated;
+      
       // Log the action
       await storage.createAuditLog({
         userId: 1,
         username: "admin",
         action: "Imported moisture data",
-        details: `Updated ${updatedAssets.size} road assets with ${importedCount} moisture readings. Errors: ${errorCount}`,
+        details: `Created ${newAssetsCreated} new road assets and updated ${existingAssetsUpdated} existing assets with ${importedCount} moisture readings. Errors: ${errorCount}`,
         ipAddress: req.ip,
         resourceType: "road_asset",
         resourceId: "moisture-import",
@@ -861,7 +867,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ 
         success: true, 
-        message: `Successfully imported ${importedCount} moisture readings, updating ${updatedAssets.size} road assets. Errors: ${errorCount}.`,
+        message: `Successfully imported ${importedCount} moisture readings, creating ${newAssetsCreated} new road assets and updating ${existingAssetsUpdated} existing assets. Errors: ${errorCount}.`,
         errors: errorDetails.map(err => ({
           message: `Row ${err.row}: ${err.message}`
         }))
