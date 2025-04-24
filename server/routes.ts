@@ -757,9 +757,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Otherwise, find the nearest road asset by coordinates
             // For now, we'll just get all assets and find the closest one
             const allAssets = await storage.getRoadAssets();
-            if (allAssets.length === 0) {
-              throw new Error("No road assets found to update with moisture data");
-            }
+            
+            // Diagnostic logging
+            console.log(`MOISTURE IMPORT DIAGNOSTIC: Processing coordinates ${longitude}, ${latitude} with moisture ${moisture}`);
+            console.log(`MOISTURE IMPORT DIAGNOSTIC: Found ${allAssets.length} existing road assets`);
+            
+            // Allow import to proceed even if no assets exist - we'll create a new one
             
             // Find the closest asset based on the coordinates in the geometry
             // This is a simplified approach - in a production app, this would use proper geospatial calculations
@@ -793,31 +796,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
               assetToUpdate = closestAsset;
             } else {
               // No road assets found nearby - create a new one
-              console.log(`Creating new road asset for coordinates: ${longitude}, ${latitude}`);
+              console.log(`MOISTURE IMPORT DIAGNOSTIC: No matching road asset found, creating new road asset for coordinates: ${longitude}, ${latitude}`);
               
               // Generate a new asset ID based on coordinates
               const newAssetId = `RS-${Math.floor(1000 + Math.random() * 9000)}`;
+              console.log(`MOISTURE IMPORT DIAGNOSTIC: Generated new asset ID: ${newAssetId}`);
               
-              // Create a new road asset with these coordinates
-              const newAsset = await storage.createRoadAsset({
-                assetId: newAssetId,
-                name: `Road at ${longitude.toFixed(4)}, ${latitude.toFixed(4)}`,
-                location: `${longitude.toFixed(6)}, ${latitude.toFixed(6)}`,
-                length: 0.1, // Default length
-                width: 6.0, // Default width
-                surfaceType: "Unknown",
-                condition: 80, // Default good condition
-                lastInspection: new Date(),
-                geometry: {
-                  type: "LineString",
-                  coordinates: [
-                    [longitude, latitude],
-                    [longitude + 0.001, latitude + 0.001]
-                  ]
-                }
-              });
-              
-              assetToUpdate = newAsset;
+              try {
+                // Create a new road asset with these coordinates
+                const newAssetData = {
+                  assetId: newAssetId,
+                  name: `Road at ${longitude.toFixed(4)}, ${latitude.toFixed(4)}`,
+                  location: `${longitude.toFixed(6)}, ${latitude.toFixed(6)}`,
+                  length: 0.1, // Default length
+                  width: 6.0, // Default width
+                  surfaceType: "Unknown",
+                  condition: 80, // Default good condition
+                  lastInspection: new Date(),
+                  geometry: {
+                    type: "LineString",
+                    coordinates: [
+                      [longitude, latitude],
+                      [longitude + 0.001, latitude + 0.001]
+                    ]
+                  }
+                };
+                
+                console.log(`MOISTURE IMPORT DIAGNOSTIC: Attempting to create new asset with data:`, newAssetData);
+                const newAsset = await storage.createRoadAsset(newAssetData);
+                console.log(`MOISTURE IMPORT DIAGNOSTIC: Successfully created new road asset with ID: ${newAsset.id}`);
+                
+                assetToUpdate = newAsset;
+              } catch (createError) {
+                console.error(`MOISTURE IMPORT DIAGNOSTIC: Failed to create new road asset:`, createError);
+                throw new Error(`Failed to create new road asset: ${createError instanceof Error ? createError.message : "Unknown error"}`);
+              }
               // Increment the counter for new assets created
               newAssetsCreated++;
             }
