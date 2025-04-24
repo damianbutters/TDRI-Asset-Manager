@@ -10,7 +10,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { RoadAsset, MoistureReading, getConditionState } from "@shared/schema";
-import { getConditionColor, getMoistureColor } from "@/lib/utils/color-utils";
+import { getConditionColor, getMoistureColor, getRelativeMoistureColor } from "@/lib/utils/color-utils";
 
 // Define the GeoJSON structure for TypeScript
 interface Coordinates {
@@ -57,45 +57,69 @@ function MapController({ roadAssets }: { roadAssets: RoadAsset[] }) {
 function MoistureReadingsLayer({ readings }: { readings: Record<number, MoistureReading[]> }) {
   console.log("Moisture readings in layer:", readings);
   
-  // Flatten all readings into a single array
-  const allReadings = Object.values(readings).flat();
-  console.log("All flattened readings:", allReadings);
-  
+  // Process each road's readings with its own min/max scale
   return (
     <>
-      {allReadings.map(reading => {
-        console.log("Rendering reading:", reading);
-        const readingColor = getMoistureColor(reading.moistureValue);
-        return (
-          <CircleMarker
-            key={`moisture-point-${reading.id}`}
-            center={[reading.latitude, reading.longitude]}
-            radius={5}
-            pathOptions={{
-              color: readingColor,
-              fillColor: readingColor,
-              fillOpacity: 0.8,
-              weight: 1,
-            }}
-          >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-medium text-sm">Moisture Reading</h3>
-                <div className="flex flex-col gap-1 mt-1">
-                  <p className="text-xs">
-                    <span className="font-medium">Value:</span> {reading.moistureValue.toFixed(2)}%
-                  </p>
-                  <p className="text-xs">
-                    <span className="font-medium">Date:</span> {new Date(reading.readingDate).toLocaleDateString()}
-                  </p>
-                  <p className="text-xs">
-                    <span className="font-medium">Coordinates:</span> {reading.latitude.toFixed(5)}, {reading.longitude.toFixed(5)}
-                  </p>
+      {Object.entries(readings).map(([roadAssetId, roadReadings]) => {
+        // Calculate min and max moisture values for this road
+        const moistureValues = roadReadings.map(r => r.moistureValue);
+        const minMoisture = Math.min(...moistureValues);
+        const maxMoisture = Math.max(...moistureValues);
+        
+        console.log(`Road ${roadAssetId} moisture range: ${minMoisture} to ${maxMoisture}`);
+        
+        return roadReadings.map(reading => {
+          console.log("Rendering reading:", reading);
+          
+          // Use the relative color scale based on this road's min/max values
+          const readingColor = getRelativeMoistureColor(
+            reading.moistureValue, 
+            minMoisture, 
+            maxMoisture
+          );
+          
+          // Additional info for popup
+          const percentOfRange = maxMoisture === minMoisture 
+            ? 0 
+            : ((reading.moistureValue - minMoisture) / (maxMoisture - minMoisture) * 100).toFixed(1);
+          
+          return (
+            <CircleMarker
+              key={`moisture-point-${reading.id}`}
+              center={[reading.latitude, reading.longitude]}
+              radius={5}
+              pathOptions={{
+                color: readingColor,
+                fillColor: readingColor,
+                fillOpacity: 0.8,
+                weight: 1,
+              }}
+            >
+              <Popup>
+                <div className="p-2">
+                  <h3 className="font-medium text-sm">Moisture Reading</h3>
+                  <div className="flex flex-col gap-1 mt-1">
+                    <p className="text-xs">
+                      <span className="font-medium">Value:</span> {reading.moistureValue.toFixed(2)}%
+                    </p>
+                    <p className="text-xs">
+                      <span className="font-medium">Range:</span> {minMoisture.toFixed(2)}% - {maxMoisture.toFixed(2)}%
+                    </p>
+                    <p className="text-xs">
+                      <span className="font-medium">Relative:</span> {percentOfRange}% of range
+                    </p>
+                    <p className="text-xs">
+                      <span className="font-medium">Date:</span> {new Date(reading.readingDate).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs">
+                      <span className="font-medium">Coordinates:</span> {reading.latitude.toFixed(5)}, {reading.longitude.toFixed(5)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </Popup>
-          </CircleMarker>
-        );
+              </Popup>
+            </CircleMarker>
+          );
+        });
       })}
     </>
   );
@@ -203,6 +227,7 @@ export default function Map({
             const coordinates = getCoordinates(asset);
             if (coordinates.length === 0) return null;
             
+            // Use the traffic light color scale for roads too
             const moistureColor = getMoistureColor(asset.moistureLevel);
             
             return (

@@ -8,22 +8,43 @@ export function getConditionColor(condition: number): string {
   return "#A80000"; // Critical - red
 }
 
-// Get color based on moisture level
+// Get color based on moisture level with absolute scale
 export function getMoistureColor(moisture: number | null): string {
   if (moisture === null) return "#CCCCCC"; // Gray for no data
-  if (moisture > 25) return "#0E6AC7"; // Very wet - dark blue
-  if (moisture > 15) return "#2088EF"; // Wet - medium blue
-  if (moisture > 8) return "#69B5FF";  // Moderate - light blue
-  return "#C7E4FF";                    // Dry - very light blue
+  if (moisture > 25) return "#E60000"; // Very wet - red
+  if (moisture > 15) return "#FF8C00"; // Wet - orange
+  if (moisture > 8) return "#FFCC00";  // Moderate - yellow
+  return "#00CC00";                    // Dry - green
+}
+
+// Get color based on moisture level relative to road's min/max moisture
+export function getRelativeMoistureColor(
+  moisture: number | null,
+  minMoisture: number,
+  maxMoisture: number
+): string {
+  if (moisture === null) return "#CCCCCC"; // Gray for no data
+  
+  // Normalize moisture value to 0-1 range based on road's min/max
+  const range = maxMoisture - minMoisture;
+  if (range === 0) return "#00CC00"; // If all readings are the same, return green
+  
+  const normalizedValue = (moisture - minMoisture) / range;
+  
+  // Traffic light scale: Green (low moisture) to Red (high moisture)
+  if (normalizedValue > 0.75) return "#E60000"; // Red (highest quarter)
+  if (normalizedValue > 0.5) return "#FF8C00";  // Orange (third quarter)
+  if (normalizedValue > 0.25) return "#FFCC00"; // Yellow (second quarter)
+  return "#00CC00"; // Green (lowest quarter)
 }
 
 // Get moisture badge color class based on moisture level
 export function getMoistureBadgeColor(moisture: number | null): string {
   if (moisture === null) return "bg-gray-100 text-gray-800";
-  if (moisture > 25) return "bg-blue-700 text-white";
-  if (moisture > 15) return "bg-blue-500 text-white";
-  if (moisture > 8) return "bg-blue-300 text-blue-900";
-  return "bg-blue-100 text-blue-800";
+  if (moisture > 25) return "bg-red-600 text-white";
+  if (moisture > 15) return "bg-orange-500 text-white";
+  if (moisture > 8) return "bg-yellow-400 text-yellow-900";
+  return "bg-green-500 text-white";
 }
 
 // Get badge color class based on condition state
