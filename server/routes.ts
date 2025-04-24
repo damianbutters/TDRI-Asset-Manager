@@ -435,6 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let importedCount = 0;
       let errorCount = 0;
       let updatedAssets = new Set<number>();
+      let errorDetails: Array<{ row: number, message: string }> = [];
       
       for (let i = 1; i < lines.length; i++) {
         try {
@@ -547,6 +548,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (error) {
           console.error(`Error importing moisture data row ${i}:`, error);
           errorCount++;
+          errorDetails.push({
+            row: i,
+            message: error instanceof Error ? error.message : "Unknown error processing row"
+          });
         }
       }
       
@@ -563,14 +568,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ 
         success: true, 
-        message: `Successfully imported ${importedCount} moisture readings, updating ${updatedAssets.size} road assets. Errors: ${errorCount}.` 
+        message: `Successfully imported ${importedCount} moisture readings, updating ${updatedAssets.size} road assets. Errors: ${errorCount}.`,
+        errors: errorDetails.map(err => ({
+          message: `Row ${err.row}: ${err.message}`
+        }))
       });
     } catch (error) {
       console.error("Error importing moisture data:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ 
+          success: false,
+          message: "Validation error", 
+          errors: error.errors.map(err => ({
+            message: `${err.path.join('.')} - ${err.message}`
+          }))
+        });
       }
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ 
+        success: false,
+        message: error instanceof Error ? error.message : "Internal server error",
+        errors: [{
+          message: error instanceof Error ? error.message : "An unexpected error occurred"
+        }]
+      });
     }
   });
 

@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
 import { apiRequest } from "@/lib/queryClient";
@@ -26,6 +27,7 @@ export default function CSVImport({
   const [progress, setProgress] = useState(0);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string>('');
+  const [errorDetails, setErrorDetails] = useState<string[]>([]);
   const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,11 +116,27 @@ export default function CSVImport({
                   
                   if (importedMatch) successCount += parseInt(importedMatch[1]);
                   if (errorsMatch) errorCount += parseInt(errorsMatch[1]);
+                  
+                  // If there are errors in the response, add them to error details
+                  if (chunkResult.errors && Array.isArray(chunkResult.errors)) {
+                    setErrorDetails(prev => [...prev, ...chunkResult.errors.map((err: any) => 
+                      `Rows ${currentChunkStart}-${currentChunkEnd}: ${err.message || JSON.stringify(err)}`
+                    )]);
+                  }
+                } else if (chunkResult.message) {
+                  // If the request wasn't successful but returned a message
+                  setErrorDetails(prev => [...prev, 
+                    `Rows ${currentChunkStart}-${currentChunkEnd}: ${chunkResult.message}`
+                  ]);
+                  errorCount += chunk.length;
                 }
                 
                 processedRows += chunk.length;
               } catch (error) {
                 console.error(`Error uploading CSV chunk (rows ${i+1}-${i+chunkSize}):`, error);
+                setErrorDetails(prev => [...prev, 
+                  `Rows ${currentChunkStart}-${currentChunkEnd}: ${error instanceof Error ? error.message : "Unknown error"}`
+                ]);
                 errorCount += chunk.length;
               }
             }
@@ -278,6 +296,27 @@ export default function CSVImport({
                 {processingStatus || "Uploading and processing..."}
               </p>
             </div>
+          )}
+          
+          {errorDetails.length > 0 && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertTitle className="flex items-center">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Import Errors ({errorDetails.length})
+              </AlertTitle>
+              <AlertDescription>
+                <div className="mt-2 max-h-[200px] overflow-y-auto text-sm">
+                  <ul className="list-disc pl-5 space-y-1">
+                    {errorDetails.map((error, i) => (
+                      <li key={i}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="mt-2 text-xs">
+                  Review these errors and fix the issues in your CSV file before trying again.
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
           
           <Alert>
