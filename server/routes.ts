@@ -463,7 +463,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 moisture = parseFloat(value);
                 break;
               case 'readingdate':
-                readingDate = new Date(value);
+                // Handle a variety of date formats using a more robust parsing approach
+                try {
+                  // Try standard Date constructor first
+                  const parsedDate = new Date(value);
+                  
+                  // Check if the date is valid
+                  if (!isNaN(parsedDate.getTime())) {
+                    readingDate = parsedDate;
+                  } else {
+                    // Handle formats like "2024-9-3T04:18:59 GMT+0000 (Coordinated Universal Time).000"
+                    // by removing the timezone name in parentheses and handling non-standard separators
+                    const cleanedValue = value
+                      .replace(/\(.*\)/g, '') // Remove anything in parentheses
+                      .replace(/\.(\d+)$/, 'Z') // Replace trailing milliseconds with Z
+                      .trim();
+                      
+                    readingDate = new Date(cleanedValue);
+                    
+                    // If still invalid, try one more approach with manual parsing
+                    if (isNaN(readingDate.getTime())) {
+                      // Try to match various date formats with regex
+                      const dateRegex = /(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})[T ]?(\d{1,2})?:?(\d{1,2})?:?(\d{1,2})?/;
+                      const match = value.match(dateRegex);
+                      
+                      if (match) {
+                        const [_, year, month, day, hour = '0', minute = '0', second = '0'] = match;
+                        readingDate = new Date(
+                          parseInt(year), 
+                          parseInt(month) - 1, // JS months are 0-indexed
+                          parseInt(day),
+                          parseInt(hour),
+                          parseInt(minute),
+                          parseInt(second)
+                        );
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error("Error parsing date:", value, err);
+                  // If all parsing attempts fail, default to current date
+                  readingDate = new Date();
+                }
                 break;
               case 'roadassetid':
                 roadAssetId = value;

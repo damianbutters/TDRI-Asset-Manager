@@ -106,7 +106,7 @@ export default function ImportExport() {
     longitude: -77.4518,
     latitude: 37.6307,
     moisture: 42.5,
-    readingDate: new Date().toISOString(),
+    readingDate: "2024-9-3T04:18:59 GMT+0000 (Coordinated Universal Time).000",
     roadAssetId: "RS-1001"
   };
 
@@ -184,7 +184,14 @@ export default function ImportExport() {
                         <li>Moisture values should be percentages from 0-100</li>
                         <li>The roadAssetId field is optional - if provided, readings will be associated with that road</li>
                         <li>Readings without a roadAssetId will be matched to the nearest road segment</li>
-                        <li>Date format should be in ISO format (YYYY-MM-DDTHH:MM:SS) or other standard datetime format</li>
+                        <li>Supports flexible date formats including:
+                          <ul className="list-disc pl-5 mt-1">
+                            <li>ISO format: <code className="text-xs bg-gray-100 px-1 rounded">2025-04-24T14:30:00</code></li>
+                            <li>With timezone: <code className="text-xs bg-gray-100 px-1 rounded">2024-9-3T04:18:59 GMT+0000</code></li>
+                            <li>With milliseconds: <code className="text-xs bg-gray-100 px-1 rounded">2024-9-3T04:18:59.000</code></li>
+                            <li>Full format: <code className="text-xs bg-gray-100 px-1 rounded">2024-9-3T04:18:59 GMT+0000 (Coordinated Universal Time).000</code></li>
+                          </ul>
+                        </li>
                       </ul>
                     </div>
                   </TabsContent>
