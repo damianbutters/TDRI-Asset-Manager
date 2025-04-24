@@ -7,6 +7,8 @@ import {
   budgetAllocations, BudgetAllocation, InsertBudgetAllocation,
   auditLogs, AuditLog, InsertAuditLog
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -156,7 +158,7 @@ export class MemStorage implements IStorage {
       majorRehabilitation: 5300000,
       reconstruction: 4800000,
       createdBy: 1,
-      active: true
+      active: "true"
     });
     
     // Create some sample road assets
@@ -325,27 +327,27 @@ export class MemStorage implements IStorage {
       conditionThreshold: 75,
       maintenanceTypeId: 1,
       priority: 1,
-      active: true
+      active: "true"
     });
     
     this.createPolicy({
-      name: "Minor Rehabilitation for Asphalt",
-      description: "Apply minor rehabilitation for asphalt roads",
+      name: "Surface Treatment for Asphalt",
+      description: "Apply surface treatment for asphalt roads",
       surfaceType: "Asphalt",
       conditionThreshold: 60,
       maintenanceTypeId: 2,
       priority: 2,
-      active: true
+      active: "true"
     });
     
     this.createPolicy({
-      name: "Major Rehabilitation for Asphalt",
-      description: "Apply major rehabilitation for asphalt roads",
+      name: "Mill & Overlay for Asphalt",
+      description: "Apply mill & overlay for asphalt roads",
       surfaceType: "Asphalt",
       conditionThreshold: 45,
       maintenanceTypeId: 3,
       priority: 3,
-      active: true
+      active: "true"
     });
     
     this.createPolicy({
@@ -355,50 +357,27 @@ export class MemStorage implements IStorage {
       conditionThreshold: 30,
       maintenanceTypeId: 4,
       priority: 4,
-      active: true
+      active: "true"
     });
     
-    // Add some audit logs
+    // Create audit logs
     this.createAuditLog({
       userId: 1,
       username: "admin",
-      action: "Updated asset condition",
-      details: "RS-1024: Condition updated from 82 to 87",
-      ipAddress: "192.168.1.45",
-      resourceType: "road_asset",
-      resourceId: "1"
-    });
-    
-    this.createAuditLog({
-      userId: 1,
-      username: "admin",
-      action: "Created maintenance project",
-      details: "PR-2023-042: Mill & Overlay for River Road (Mile 3.2-5.8)",
-      ipAddress: "192.168.1.22",
-      resourceType: "maintenance_project",
-      resourceId: "1"
-    });
-    
-    this.createAuditLog({
-      userId: 1,
-      username: "admin",
-      action: "Modified budget allocation",
-      details: "Reallocated $1.2M from Reconstruction to Preventive Maintenance",
-      ipAddress: "192.168.1.45",
-      resourceType: "budget_allocation",
-      resourceId: "1"
+      action: "SYSTEM_INITIALIZATION",
+      details: "System initialized with default data",
+      ipAddress: "127.0.0.1",
+      resourceType: "SYSTEM",
+      resourceId: "0"
     });
   }
   
-  // User methods
   async getUser(id: number): Promise<User | undefined> {
     return this.users.get(id);
   }
   
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    return Array.from(this.users.values()).find(u => u.username === username);
   }
   
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -408,7 +387,6 @@ export class MemStorage implements IStorage {
     return user;
   }
   
-  // Road asset methods
   async getRoadAssets(): Promise<RoadAsset[]> {
     return Array.from(this.roadAssets.values());
   }
@@ -418,9 +396,7 @@ export class MemStorage implements IStorage {
   }
   
   async getRoadAssetByAssetId(assetId: string): Promise<RoadAsset | undefined> {
-    return Array.from(this.roadAssets.values()).find(
-      (asset) => asset.assetId === assetId,
-    );
+    return Array.from(this.roadAssets.values()).find(a => a.assetId === assetId);
   }
   
   async createRoadAsset(asset: InsertRoadAsset): Promise<RoadAsset> {
@@ -428,9 +404,9 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const roadAsset: RoadAsset = { 
       ...asset, 
-      id, 
-      createdAt: now, 
-      updatedAt: now 
+      id,
+      createdAt: now,
+      updatedAt: now
     };
     this.roadAssets.set(id, roadAsset);
     return roadAsset;
@@ -454,7 +430,6 @@ export class MemStorage implements IStorage {
     return this.roadAssets.delete(id);
   }
   
-  // Maintenance type methods
   async getMaintenanceTypes(): Promise<MaintenanceType[]> {
     return Array.from(this.maintenanceTypes.values());
   }
@@ -487,7 +462,6 @@ export class MemStorage implements IStorage {
     return this.maintenanceTypes.delete(id);
   }
   
-  // Maintenance project methods
   async getMaintenanceProjects(): Promise<MaintenanceProject[]> {
     return Array.from(this.maintenanceProjects.values());
   }
@@ -498,11 +472,10 @@ export class MemStorage implements IStorage {
   
   async createMaintenanceProject(project: InsertMaintenanceProject): Promise<MaintenanceProject> {
     const id = this.maintenanceProjectIdCounter++;
-    const now = new Date();
     const maintenanceProject: MaintenanceProject = { 
       ...project, 
-      id, 
-      createdAt: now
+      id,
+      createdAt: new Date()
     };
     this.maintenanceProjects.set(id, maintenanceProject);
     return maintenanceProject;
@@ -525,7 +498,6 @@ export class MemStorage implements IStorage {
     return this.maintenanceProjects.delete(id);
   }
   
-  // Policy methods
   async getPolicies(): Promise<Policy[]> {
     return Array.from(this.policies.values());
   }
@@ -539,9 +511,9 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const newPolicy: Policy = { 
       ...policy, 
-      id, 
-      createdAt: now, 
-      updatedAt: now 
+      id,
+      createdAt: now,
+      updatedAt: now
     };
     this.policies.set(id, newPolicy);
     return newPolicy;
@@ -565,7 +537,6 @@ export class MemStorage implements IStorage {
     return this.policies.delete(id);
   }
   
-  // Budget allocation methods
   async getBudgetAllocations(): Promise<BudgetAllocation[]> {
     return Array.from(this.budgetAllocations.values());
   }
@@ -575,18 +546,15 @@ export class MemStorage implements IStorage {
   }
   
   async getActiveBudgetAllocation(): Promise<BudgetAllocation | undefined> {
-    return Array.from(this.budgetAllocations.values()).find(
-      (budget) => budget.active
-    );
+    return Array.from(this.budgetAllocations.values()).find(b => b.active === "true");
   }
   
   async createBudgetAllocation(budget: InsertBudgetAllocation): Promise<BudgetAllocation> {
     const id = this.budgetAllocationIdCounter++;
-    const now = new Date();
     const budgetAllocation: BudgetAllocation = { 
       ...budget, 
-      id, 
-      createdAt: now
+      id,
+      createdAt: new Date()
     };
     this.budgetAllocations.set(id, budgetAllocation);
     return budgetAllocation;
@@ -606,16 +574,16 @@ export class MemStorage implements IStorage {
   }
   
   async setBudgetAllocationActive(id: number): Promise<BudgetAllocation | undefined> {
-    // Set all budgets to inactive
+    // First, set all allocations to inactive
     for (const budget of this.budgetAllocations.values()) {
-      budget.active = false;
+      budget.active = "false";
     }
     
-    // Set the specified budget to active
+    // Then set the specified one to active
     const budget = this.budgetAllocations.get(id);
     if (!budget) return undefined;
     
-    budget.active = true;
+    budget.active = "true";
     return budget;
   }
   
@@ -623,7 +591,6 @@ export class MemStorage implements IStorage {
     return this.budgetAllocations.delete(id);
   }
   
-  // Audit log methods
   async getAuditLogs(): Promise<AuditLog[]> {
     return Array.from(this.auditLogs.values()).sort((a, b) => 
       b.timestamp.getTime() - a.timestamp.getTime()
@@ -632,11 +599,10 @@ export class MemStorage implements IStorage {
   
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
     const id = this.auditLogIdCounter++;
-    const now = new Date();
     const auditLog: AuditLog = { 
       ...log, 
-      id, 
-      timestamp: now
+      id,
+      timestamp: new Date()
     };
     this.auditLogs.set(id, auditLog);
     return auditLog;
@@ -860,5 +826,5 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Export an instance of DatabaseStorage
+// Export a database storage instance
 export const storage = new DatabaseStorage();
