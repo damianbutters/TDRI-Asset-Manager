@@ -95,6 +95,10 @@ export default function ImportExport() {
   const maintenanceFields = [
     "assetId", "maintenanceType", "scheduledDate", "status", "cost", "notes"
   ];
+  
+  const moistureDataFields = [
+    "longitude", "latitude", "moisture", "readingDate", "roadAssetId"
+  ];
 
   return (
     <div className="p-6">
@@ -129,6 +133,7 @@ export default function ImportExport() {
                     <TabsTrigger value="roadAssets">Road Assets</TabsTrigger>
                     <TabsTrigger value="inspections">Inspections</TabsTrigger>
                     <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+                    <TabsTrigger value="moisture">Moisture Data</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="roadAssets">
@@ -153,6 +158,24 @@ export default function ImportExport() {
                       templateFields={maintenanceFields}
                       onImportComplete={handleImportComplete}
                     />
+                  </TabsContent>
+                  
+                  <TabsContent value="moisture">
+                    <CSVImport 
+                      endpoint="/api/import/moisture-data" 
+                      templateFields={moistureDataFields}
+                      onImportComplete={handleImportComplete}
+                    />
+                    <div className="mt-4 bg-blue-50 p-4 rounded-md">
+                      <h3 className="text-sm font-medium mb-2">Moisture Data Import Guidelines</h3>
+                      <ul className="list-disc pl-5 text-sm space-y-1 text-neutral-textSecondary">
+                        <li>Latitude and longitude should be in decimal degrees (e.g., 37.7749, -122.4194)</li>
+                        <li>Moisture values should be percentages from 0-100</li>
+                        <li>The roadAssetId field is optional - if provided, readings will be associated with that road</li>
+                        <li>Readings without a roadAssetId will be matched to the nearest road segment</li>
+                        <li>Date format should be YYYY-MM-DD</li>
+                      </ul>
+                    </div>
                   </TabsContent>
                 </Tabs>
               </CardContent>
