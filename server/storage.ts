@@ -162,7 +162,7 @@ export class MemStorage implements IStorage {
     // Create some sample road assets
     const now = new Date();
     
-    // Main Street - Good condition
+    // Main Street - Good condition (matches actual main road)
     this.createRoadAsset({
       assetId: "RS-1024",
       name: "Main Street",
@@ -176,20 +176,20 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.501, 40.002],
-          [-74.500, 40.004],
-          [-74.498, 40.008],
-          [-74.497, 40.012],
-          [-74.496, 40.018]
+          [-73.9877, 40.7484], // NYC - Broadway/Times Square start
+          [-73.9871, 40.7519],
+          [-73.9866, 40.7548],
+          [-73.9860, 40.7577],
+          [-73.9855, 40.7604] // Broadway heading north
         ]
       },
     });
     
-    // Oak Avenue - Fair condition
+    // Oak Avenue - Fair condition (follows an actual street)
     this.createRoadAsset({
       assetId: "RS-0872",
-      name: "Oak Avenue",
-      location: "Westside",
+      name: "7th Avenue",
+      location: "Midtown",
       length: 1.2,
       width: 22,
       surfaceType: "Asphalt",
@@ -199,20 +199,20 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.508, 40.010],
-          [-74.506, 40.012],
-          [-74.504, 40.014],
-          [-74.502, 40.015],
-          [-74.498, 40.016]
+          [-73.9819, 40.7489], // 7th Ave at 42nd
+          [-73.9804, 40.7521], // 7th Ave at 45th
+          [-73.9789, 40.7554], // 7th Ave at 48th
+          [-73.9778, 40.7580], // 7th Ave at 51st
+          [-73.9761, 40.7618]  // 7th Ave at 55th
         ]
       },
     });
     
-    // River Road - Poor condition 
+    // River Road - Poor condition (follows East River Drive)
     this.createRoadAsset({
       assetId: "RS-1543",
-      name: "River Road",
-      location: "Riverside District",
+      name: "FDR Drive",
+      location: "East Side",
       length: 2.6,
       width: 20,
       surfaceType: "Asphalt",
@@ -222,21 +222,21 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.490, 39.996],
-          [-74.488, 39.998],
-          [-74.486, 40.000],
-          [-74.484, 40.002],
-          [-74.482, 40.003],
-          [-74.480, 40.004]
+          [-73.9738, 40.7560], // FDR at 53rd
+          [-73.9708, 40.7590], // FDR heading north
+          [-73.9675, 40.7624], // FDR continuing
+          [-73.9654, 40.7648], // FDR continuing
+          [-73.9621, 40.7683], // FDR at 63rd
+          [-73.9595, 40.7708]  // FDR at 67th
         ]
       },
     });
     
-    // Commerce Way - Critical condition
+    // Commerce Way - Critical condition (follows actual avenue)
     this.createRoadAsset({
       assetId: "RS-0932",
-      name: "Commerce Way",
-      location: "Industrial District",
+      name: "Lexington Avenue",
+      location: "East Midtown",
       length: 3.1,
       width: 26,
       surfaceType: "Concrete",
@@ -246,21 +246,21 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.510, 40.025],
-          [-74.508, 40.026],
-          [-74.505, 40.027],
-          [-74.502, 40.028],
-          [-74.498, 40.029],
-          [-74.495, 40.030]
+          [-73.9730, 40.7523], // Lex at 45th
+          [-73.9711, 40.7565], // Lex at 50th
+          [-73.9692, 40.7608], // Lex at 55th
+          [-73.9672, 40.7650], // Lex at 60th
+          [-73.9653, 40.7693], // Lex at 65th
+          [-73.9634, 40.7735]  // Lex at 70th
         ]
       },
     });
     
-    // Highland Drive - Good condition
+    // Highland Drive - Good condition (Central Park East Drive)
     this.createRoadAsset({
       assetId: "RS-1128",
-      name: "Highland Drive",
-      location: "Eastside",
+      name: "Central Park East Drive",
+      location: "Upper East Side",
       length: 2.4,
       width: 24,
       surfaceType: "Asphalt",
@@ -270,19 +270,20 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.492, 40.012],
-          [-74.490, 40.014],
-          [-74.488, 40.016],
-          [-74.486, 40.018]
+          [-73.9645, 40.7730], // East Drive at 70th
+          [-73.9654, 40.7757], // East Drive curve
+          [-73.9663, 40.7782], // East Drive at 75th
+          [-73.9668, 40.7809], // East Drive at 80th
+          [-73.9664, 40.7835]  // East Drive at 85th
         ]
       },
     });
     
-    // Maple Boulevard - Fair condition (forms a loop)
+    // Maple Boulevard - Fair condition (follows Central Park loop)
     this.createRoadAsset({
       assetId: "RS-3392",
-      name: "Maple Boulevard",
-      location: "Midtown",
+      name: "Central Park Loop",
+      location: "Central Park",
       length: 1.5,
       width: 26,
       surfaceType: "Asphalt",
@@ -292,14 +293,14 @@ export class MemStorage implements IStorage {
       geometry: {
         type: "LineString",
         coordinates: [
-          [-74.496, 40.006],
-          [-74.494, 40.007],
-          [-74.492, 40.008],
-          [-74.490, 40.008],
-          [-74.490, 40.006],
-          [-74.492, 40.004],
-          [-74.495, 40.004],
-          [-74.496, 40.006]
+          [-73.9725, 40.7704], // CP loop west side
+          [-73.9710, 40.7730], // CP loop curve
+          [-73.9686, 40.7754], // CP loop north curve
+          [-73.9656, 40.7758], // CP loop east curve
+          [-73.9645, 40.7730], // CP loop south curve
+          [-73.9659, 40.7706], // CP loop southwest
+          [-73.9685, 40.7690], // CP loop south
+          [-73.9725, 40.7704]  // CP loop completing circle
         ]
       },
     });

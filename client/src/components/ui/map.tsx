@@ -46,8 +46,8 @@ function MapController({ roadAssets }: { roadAssets: RoadAsset[] }) {
 export default function Map({ 
   roadAssets, 
   height = "h-80", 
-  center = [40, -74.5], 
-  zoom = 9, 
+  center = [40.7650, -73.9800], // Center on Midtown Manhattan
+  zoom = 13, // Higher zoom to better see streets
   onAssetClick 
 }: MapProps) {
   const [selectedAsset, setSelectedAsset] = useState<RoadAsset | null>(null);
@@ -116,8 +116,10 @@ export default function Map({
                   positions={coordinates}
                   pathOptions={{
                     color: conditionColor,
-                    weight: 7,
-                    opacity: 0.8
+                    weight: 6,        // Slightly thinner to match road width
+                    opacity: 0.9,     // Higher opacity for better visibility
+                    lineCap: "round", // Rounded line ends
+                    lineJoin: "round" // Rounded corners
                   }}
                   eventHandlers={{
                     click: () => handleAssetClick(asset)
@@ -145,8 +147,10 @@ export default function Map({
                   positions={coordinates}
                   pathOptions={{
                     color: "#3b82f6", // Blue
-                    weight: 8,
-                    opacity: randomOpacity
+                    weight: 5,        // Slightly thinner than the condition overlay
+                    opacity: randomOpacity,
+                    lineCap: "round", // Rounded line ends
+                    lineJoin: "round" // Rounded corners
                   }}
                 />
               );
