@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { scheduler } from "./scheduler";
 
 const app = express();
 // Increase payload limit for large CSV uploads (50MB limit)
@@ -67,5 +68,9 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Start the rainfall data scheduler
+    scheduler.start();
+    log("Monthly rainfall data scheduler started");
   });
 })();

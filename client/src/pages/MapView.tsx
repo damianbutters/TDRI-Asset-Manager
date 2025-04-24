@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { RoadAsset, getConditionState } from "@shared/schema";
 import { 
   Card, 
@@ -29,16 +29,46 @@ import Map from "@/components/ui/map";
 import { Badge } from "@/components/ui/badge";
 import { getConditionBadgeColor } from "@/lib/utils/color-utils";
 import { format } from "date-fns";
+import { RefreshCw, CloudRain } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function MapView() {
   const [selectedAsset, setSelectedAsset] = useState<RoadAsset | null>(null);
   const [isAssetDialogOpen, setIsAssetDialogOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"pci" | "moisture">("pci");
+  const { toast } = useToast();
   
   // Fetch road assets
-  const { data: roadAssets = [], isLoading } = useQuery<RoadAsset[]>({
+  const { data: roadAssets = [], isLoading, refetch: refetchRoadAssets } = useQuery<RoadAsset[]>({
     queryKey: ['/api/road-assets'],
+  });
+  
+  // Update rainfall mutation
+  const updateRainfallMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/update-all-rainfall', {});
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Rainfall data update started. This may take a few minutes to complete.",
+        variant: "default"
+      });
+      // Refetch road assets after a delay to allow time for the update to process
+      setTimeout(() => {
+        refetchRoadAssets();
+      }, 3000);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update rainfall data",
+        variant: "destructive"
+      });
+    }
   });
 
   // Fetch maintenance projects for maintenance trigger view
@@ -93,6 +123,25 @@ export default function MapView() {
           <p className="text-neutral-textSecondary">Visualize road assets and conditions spatially</p>
         </div>
         <div className="mt-4 md:mt-0 flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="flex items-center gap-1 mr-2"
+            onClick={() => updateRainfallMutation.mutate()}
+            disabled={updateRainfallMutation.isPending}
+          >
+            {updateRainfallMutation.isPending ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <CloudRain className="h-4 w-4" />
+                <span>Update Rainfall Data</span>
+              </>
+            )}
+          </Button>
           <Select value={mapFilter} onValueChange={setMapFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter by condition" />

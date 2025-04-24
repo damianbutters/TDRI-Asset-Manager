@@ -41,6 +41,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import Map from "@/components/ui/map";
 import { generateRandomRoadSegment } from "@/lib/utils/map-utils";
+import RainfallChart from "@/components/RainfallChart";
 
 export default function RoadAssets() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -641,18 +642,27 @@ export default function RoadAssets() {
                 </div>
               </div>
               
-              <div className="h-full">
-                <h3 className="text-sm font-medium mb-2">Location Map</h3>
-                <div className="h-60 md:h-full min-h-[200px]">
-                  <Map 
-                    roadAssets={[selectedAsset]} 
-                    height="h-full"
-                    center={[
-                      selectedAsset.geometry.coordinates[0][1],
-                      selectedAsset.geometry.coordinates[0][0]
-                    ]}
-                    zoom={14}
-                  />
+              <div className="flex flex-col h-full space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Location Map</h3>
+                  <div className="h-60 min-h-[200px]">
+                    <Map 
+                      roadAssets={[selectedAsset]} 
+                      height="h-full"
+                      center={[
+                        selectedAsset.geometry.coordinates[0][1],
+                        selectedAsset.geometry.coordinates[0][0]
+                      ]}
+                      zoom={14}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex-grow">
+                  <h3 className="text-sm font-medium mb-2">Rainfall History</h3>
+                  <div className="h-60 md:h-[calc(100%-2rem)] min-h-[200px]">
+                    <RainfallChart roadAssetId={selectedAsset.id} />
+                  </div>
                 </div>
               </div>
             </div>
