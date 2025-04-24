@@ -315,9 +315,9 @@ export default function DeteriorationModels() {
 
       {/* Deterioration Modeling Tabs */}
       {needsApiKey && (
-        <Alert className="mb-6" variant="warning">
-          <AlertTitle>OpenAI API Key Required</AlertTitle>
-          <AlertDescription>
+        <Alert className="mb-6 border-yellow-500 bg-yellow-50">
+          <AlertTitle className="text-yellow-800">OpenAI API Key Required</AlertTitle>
+          <AlertDescription className="text-yellow-700">
             To use machine learning-based prediction models, an OpenAI API key is required. Please contact your administrator to set up the API key.
           </AlertDescription>
         </Alert>
@@ -431,6 +431,125 @@ export default function DeteriorationModels() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </TabsContent>
+
+        {/* Model Comparison Tab */}
+        <TabsContent value="comparison">
+          <div className="grid grid-cols-1 gap-6">
+            {isLoading ? (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="h-[400px] flex items-center justify-center flex-col gap-4">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                    <p className="text-neutral-textSecondary">Training and loading machine learning models...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Model Comparison Card */}
+                <Card>
+                  <CardHeader className="p-4 border-b border-gray-200">
+                    <CardTitle>Model Comparison</CardTitle>
+                    <CardDescription>Compare traditional vs. machine learning deterioration models</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    {selectedAsset && comparisonData.length > 0 ? (
+                      <div className="h-[400px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={comparisonData}
+                            margin={{
+                              top: 20,
+                              right: 30,
+                              left: 20,
+                              bottom: 10,
+                            }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="year" 
+                              label={{ value: 'Years', position: 'insideBottomRight', offset: -10 }} 
+                            />
+                            <YAxis 
+                              label={{ value: 'PCI', angle: -90, position: 'insideLeft' }}
+                              domain={[0, 100]} 
+                            />
+                            <Tooltip />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey="traditional"
+                              name="Traditional Model"
+                              stroke="#2563eb"
+                              strokeWidth={2}
+                              dot={{ r: 3 }}
+                              activeDot={{ r: 6 }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="ml"
+                              name="ML Model"
+                              stroke="#7c3aed"
+                              strokeWidth={2}
+                              dot={{ r: 3 }}
+                              activeDot={{ r: 6 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-[400px] flex items-center justify-center">
+                        <p className="text-neutral-textSecondary">
+                          {selectedAsset 
+                            ? "Enable AI mode and select an asset to see model comparison" 
+                            : "Select a road asset to compare deterioration models"}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                  <CardFooter className="bg-gray-50 p-4 border-t border-gray-200">
+                    <div className="text-sm text-neutral-textSecondary">
+                      <p>This chart compares traditional deterioration modeling with machine learning predictions that incorporate moisture data for more accurate forecasting.</p>
+                    </div>
+                  </CardFooter>
+                </Card>
+
+                {/* ML Model Features */}
+                <Card>
+                  <CardHeader className="p-4 border-b border-gray-200">
+                    <CardTitle>Machine Learning Model Features</CardTitle>
+                    <CardDescription>Enhanced prediction capabilities</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="border rounded-lg p-4 bg-slate-50">
+                        <h3 className="font-medium text-base mb-2">Traditional Model</h3>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                          <li>Fixed deterioration curves based on surface type</li>
+                          <li>Simple traffic and climate impact factors</li>
+                          <li>Linear and exponential decay patterns</li>
+                          <li>No moisture data integration</li>
+                          <li>Deterministic outcomes</li>
+                        </ul>
+                      </div>
+                      
+                      <div className="border rounded-lg p-4 bg-purple-50">
+                        <h3 className="font-medium text-base mb-2">Machine Learning Model</h3>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                          <li>Dynamic deterioration prediction</li>
+                          <li>Incorporates moisture level data</li>
+                          <li>Learns from historical performance patterns</li>
+                          <li>Considers multiple environmental factors</li>
+                          <li>Adaptive to changing conditions</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         </TabsContent>
 

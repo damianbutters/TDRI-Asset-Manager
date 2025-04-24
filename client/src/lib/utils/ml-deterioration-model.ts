@@ -8,9 +8,16 @@ let openai: OpenAI | null = null;
 // Check if OpenAI API key is available
 const initOpenAI = () => {
   if (!openai && typeof window !== 'undefined') {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey) {
-      openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+    try {
+      // For client-side access to API key
+      openai = new OpenAI({
+        apiKey: import.meta.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+        dangerouslyAllowBrowser: true
+      });
+      return true;
+    } catch (error) {
+      console.error("Error initializing OpenAI client:", error);
+      return false;
     }
   }
   return !!openai;
