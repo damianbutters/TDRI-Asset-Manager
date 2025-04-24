@@ -23,6 +23,7 @@ export default function CSVImport({
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [previewData, setPreviewData] = useState<any[]>([]);
+  const [processingStatus, setProcessingStatus] = useState<string>('');
   const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,28 +68,78 @@ export default function CSVImport({
         header: true,
         complete: async (results) => {
           try {
-            setProgress(50);
+            setProgress(20);
             
-            // Send the data to the server
-            const response = await apiRequest(
-              "POST",
-              endpoint,
-              { csvData: Papa.unparse(results.data) }
-            );
+            // Get the total number of rows to process
+            const totalRows = results.data.length;
+            const chunkSize = 1000; // Process 1000 rows at a time
+            let processedRows = 0;
+            let successCount = 0;
+            let errorCount = 0;
             
-            setProgress(90);
+            setProcessingStatus(`Preparing to process ${totalRows.toLocaleString()} rows`);
             
-            const data = await response.json();
+            // Process data in chunks to avoid payload size issues
+            for (let i = 0; i < totalRows; i += chunkSize) {
+              // Calculate the chunk of data to process
+              const chunk = results.data.slice(i, i + chunkSize);
+              
+              // Update progress based on how many chunks we've processed
+              const chunkProgress = Math.floor(30 + (i / totalRows) * 60);
+              setProgress(chunkProgress);
+              
+              // Update processing status
+              const currentChunkStart = i + 1;
+              const currentChunkEnd = Math.min(i + chunkSize, totalRows);
+              setProcessingStatus(
+                `Processing rows ${currentChunkStart.toLocaleString()}-${currentChunkEnd.toLocaleString()} of ${totalRows.toLocaleString()}`
+              );
+              
+              try {
+                // Send the current chunk to the server
+                const response = await apiRequest(
+                  "POST",
+                  endpoint,
+                  { csvData: Papa.unparse([Object.keys(chunk[0]), ...chunk.map(Object.values)]) }
+                );
+                
+                const chunkResult = await response.json();
+                
+                // Extract success and error counts from the response
+                if (chunkResult.success) {
+                  const importedMatch = chunkResult.message.match(/Successfully imported (\d+)/);
+                  const errorsMatch = chunkResult.message.match(/Errors: (\d+)/);
+                  
+                  if (importedMatch) successCount += parseInt(importedMatch[1]);
+                  if (errorsMatch) errorCount += parseInt(errorsMatch[1]);
+                }
+                
+                processedRows += chunk.length;
+              } catch (error) {
+                console.error(`Error uploading CSV chunk (rows ${i+1}-${i+chunkSize}):`, error);
+                errorCount += chunk.length;
+              }
+            }
+            
+            setProgress(95);
+            setProcessingStatus('Finalizing import...');
+            
+            // Create a summary message
+            const summary = {
+              success: true,
+              message: `Successfully imported ${successCount.toLocaleString()} records. Errors: ${errorCount.toLocaleString()}.`
+            };
             
             setProgress(100);
+            setProcessingStatus(`Complete: ${summary.message}`);
             
             toast({
-              title: "Import successful",
-              description: data.message || "Data has been imported successfully"
+              title: "Import complete",
+              description: summary.message
             });
             
             if (onImportComplete) {
-              onImportComplete(data);
+              onImportComplete(summary);
             }
           } catch (error) {
             console.error("Error uploading CSV data:", error);
@@ -205,7 +256,9 @@ export default function CSVImport({
           {isLoading && (
             <div className="mt-4">
               <Progress value={progress} className="h-2" />
-              <p className="text-xs text-center mt-1">Uploading and processing...</p>
+              <p className="text-xs text-center mt-1">
+                {processingStatus || "Uploading and processing..."}
+              </p>
             </div>
           )}
           
@@ -217,6 +270,8 @@ export default function CSVImport({
                 <li>Make sure your CSV file has headers that match the template</li>
                 <li>Dates should be in YYYY-MM-DD format</li>
                 <li>Numeric fields should not include currency symbols or commas</li>
+                <li>Large files will be automatically processed in chunks</li>
+                <li>The import process may take several minutes for very large datasets</li>
               </ul>
             </AlertDescription>
           </Alert>
