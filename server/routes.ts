@@ -1,6 +1,7 @@
 import { createServer } from "http";
 import express, { Express, Request, Response, NextFunction } from "express";
 import { z } from "zod";
+import * as zfd from "zod-form-data";
 import { storage } from "./storage";
 import * as schema from "@shared/schema";
 
