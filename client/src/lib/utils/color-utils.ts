@@ -8,16 +8,26 @@ export function getConditionColor(condition: number): string {
   return "#A80000"; // Critical - red
 }
 
-// Get color based on moisture level with absolute scale
-export function getMoistureColor(moisture: number | null): string {
+// Default global thresholds - these can be overridden by user settings
+export const defaultMoistureThresholds = {
+  low: 8,    // Below this: green
+  medium: 15, // Below this: yellow, above: orange
+  high: 25    // Above this: red
+};
+
+// Get color based on moisture level with global thresholds
+export function getMoistureColor(
+  moisture: number | null, 
+  thresholds = defaultMoistureThresholds
+): string {
   if (moisture === null) return "#CCCCCC"; // Gray for no data
-  if (moisture > 25) return "#E60000"; // Very wet - red
-  if (moisture > 15) return "#FF8C00"; // Wet - orange
-  if (moisture > 8) return "#FFCC00";  // Moderate - yellow
+  if (moisture > thresholds.high) return "#E60000"; // Very wet - red
+  if (moisture > thresholds.medium) return "#FF8C00"; // Wet - orange
+  if (moisture > thresholds.low) return "#FFCC00";  // Moderate - yellow
   return "#00CC00";                    // Dry - green
 }
 
-// Get color based on moisture level relative to road's min/max moisture
+// Get color based on moisture level relative to road's min/max moisture (local)
 export function getRelativeMoistureColor(
   moisture: number | null,
   minMoisture: number,
