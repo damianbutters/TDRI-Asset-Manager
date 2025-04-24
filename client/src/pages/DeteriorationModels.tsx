@@ -20,14 +20,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import DeteriorationChart from "@/components/DeteriorationChart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   projectCondition, 
   DeteriorationParameters, 
   MaintenanceImpact,
   forecastConditionDistribution
 } from "@/lib/utils/deterioration-model";
+import {
+  projectConditionWithAI,
+  forecastConditionDistributionWithAI,
+  MLPredictionParams
+} from "@/lib/utils/ml-deterioration-model";
 import { 
   LineChart, 
   Line, 
@@ -58,13 +65,19 @@ export default function DeteriorationModels() {
   const [climateImpact, setClimateImpact] = useState<"low" | "medium" | "high">("medium");
   const [projectionYears, setProjectionYears] = useState<number>(20);
   const [maintenanceYear, setMaintenanceYear] = useState<number>(5);
+  const [useAI, setUseAI] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [needsApiKey, setNeedsApiKey] = useState<boolean>(false);
   
   // Results of projections
   const [projectionData, setProjectionData] = useState<any[]>([]);
   const [maintenanceScenarios, setMaintenanceScenarios] = useState<any[]>([]);
+  const [mlProjectionData, setMlProjectionData] = useState<any[]>([]);
+  const [comparisonData, setComparisonData] = useState<any[]>([]);
   
   // Global deterioration forecast data (for all assets)
   const [forecastData, setForecastData] = useState<any[]>([]);
+  const [mlForecastData, setMlForecastData] = useState<any[]>([]);
 
   // Selected asset and maintenance type
   const selectedAsset = roadAssets.find(a => a.id.toString() === selectedAssetId);
@@ -78,23 +91,51 @@ export default function DeteriorationModels() {
     costPerMile: `$${type.costPerMile.toLocaleString()}`
   }));
 
-  // Calculate data for deterioration model chart
-  useEffect(() => {
-    // Generate global forecast for all assets
-    if (roadAssets.length > 0) {
-      const forecast = forecastConditionDistribution(
-        roadAssets.map(asset => ({ 
-          condition: asset.condition, 
-          surfaceType: asset.surfaceType 
+  // Generate ML forecast for network
+  const generateMlForecast = async () => {
+    if (roadAssets.length === 0) return;
+    
+    setIsLoading(true);
+    try {
+      const mlForecast = await forecastConditionDistributionWithAI(
+        roadAssets.map(asset => ({
+          condition: asset.condition,
+          surfaceType: asset.surfaceType,
+          moistureLevel: asset.moistureLevel
         })),
         10
       );
-      setForecastData(forecast);
+      setMlForecastData(mlForecast);
+    } catch (error) {
+      console.error("Failed to generate ML forecast:", error);
+      setNeedsApiKey(true);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Generate ML projections for individual asset
+  const generateMlProjection = async () => {
+    if (!selectedAsset) return;
     
-    // Generate individual asset projection if selected
-    if (selectedAsset) {
-      const params: DeteriorationParameters = {
+    setIsLoading(true);
+    try {
+      // ML params include moisture data
+      const mlParams: MLPredictionParams = {
+        initialCondition: selectedAsset.condition,
+        ageInYears: 0,
+        surfaceType: selectedAsset.surfaceType,
+        trafficLevel,
+        climateImpact,
+        moistureLevel: selectedAsset.moistureLevel
+      };
+      
+      // Project without maintenance using ML
+      const mlProjection = await projectConditionWithAI(mlParams, projectionYears);
+      setMlProjectionData(mlProjection);
+      
+      // Generate comparison data between traditional and ML models
+      const traditionalParams: DeteriorationParameters = {
         initialCondition: selectedAsset.condition,
         ageInYears: 0,
         surfaceType: selectedAsset.surfaceType,
@@ -102,14 +143,24 @@ export default function DeteriorationModels() {
         climateImpact
       };
       
-      // Project without maintenance
-      const projection = projectCondition(params, projectionYears);
-      setProjectionData(projection);
+      const traditionalProjection = projectCondition(traditionalParams, projectionYears);
+      
+      // Prepare comparison data
+      const comparison = [];
+      for (let i = 0; i <= projectionYears; i++) {
+        comparison.push({
+          year: i,
+          traditional: traditionalProjection[i].condition,
+          ml: mlProjection[i].condition
+        });
+      }
+      
+      setComparisonData(comparison);
       
       // Generate maintenance scenarios if maintenance type selected
       if (selectedMaintenance) {
-        // Base scenario with no maintenance
-        const noMaintenance = projectCondition(params, projectionYears);
+        // Base scenario with no maintenance (ML)
+        const noMaintenance = await projectConditionWithAI(mlParams, projectionYears);
         
         // Scenario with maintenance at specified year
         const maintenanceImpact: MaintenanceImpact = {
@@ -117,8 +168,8 @@ export default function DeteriorationModels() {
           lifeExtension: selectedMaintenance.lifespanExtension
         };
         
-        const singleMaintenance = projectCondition(
-          params, 
+        const singleMaintenance = await projectConditionWithAI(
+          mlParams, 
           projectionYears,
           [{ year: maintenanceYear, impact: maintenanceImpact }]
         );
@@ -134,8 +185,8 @@ export default function DeteriorationModels() {
           });
         }
         
-        const regularMaintenance = projectCondition(
-          params, 
+        const regularMaintenance = await projectConditionWithAI(
+          mlParams, 
           projectionYears,
           regularMaintenanceSchedule
         );
@@ -154,8 +205,103 @@ export default function DeteriorationModels() {
         
         setMaintenanceScenarios(scenarioData);
       }
+    } catch (error) {
+      console.error("Failed to generate ML projection:", error);
+      setNeedsApiKey(true);
+    } finally {
+      setIsLoading(false);
     }
-  }, [selectedAssetId, selectedMaintenanceId, trafficLevel, climateImpact, projectionYears, maintenanceYear, roadAssets, maintenanceTypes]);
+  };
+
+  // Calculate data for deterioration model chart
+  useEffect(() => {
+    // Generate global forecast for all assets with traditional model
+    if (roadAssets.length > 0) {
+      const forecast = forecastConditionDistribution(
+        roadAssets.map(asset => ({ 
+          condition: asset.condition, 
+          surfaceType: asset.surfaceType 
+        })),
+        10
+      );
+      setForecastData(forecast);
+      
+      // If AI is enabled, also generate ML forecast
+      if (useAI) {
+        generateMlForecast();
+      }
+    }
+    
+    // Generate individual asset projection if selected
+    if (selectedAsset) {
+      if (useAI) {
+        // Use ML-based prediction if AI is enabled
+        generateMlProjection();
+      } else {
+        // Use traditional prediction model
+        const params: DeteriorationParameters = {
+          initialCondition: selectedAsset.condition,
+          ageInYears: 0,
+          surfaceType: selectedAsset.surfaceType,
+          trafficLevel,
+          climateImpact
+        };
+        
+        // Project without maintenance
+        const projection = projectCondition(params, projectionYears);
+        setProjectionData(projection);
+        
+        // Generate maintenance scenarios if maintenance type selected
+        if (selectedMaintenance) {
+          // Base scenario with no maintenance
+          const noMaintenance = projectCondition(params, projectionYears);
+          
+          // Scenario with maintenance at specified year
+          const maintenanceImpact: MaintenanceImpact = {
+            conditionImprovement: selectedMaintenance.conditionImprovement,
+            lifeExtension: selectedMaintenance.lifespanExtension
+          };
+          
+          const singleMaintenance = projectCondition(
+            params, 
+            projectionYears,
+            [{ year: maintenanceYear, impact: maintenanceImpact }]
+          );
+          
+          // Scenario with regular maintenance every X years
+          const regularMaintenancePeriod = Math.min(selectedMaintenance.lifespanExtension, 5);
+          const regularMaintenanceSchedule = [];
+          
+          for (let year = regularMaintenancePeriod; year <= projectionYears; year += regularMaintenancePeriod) {
+            regularMaintenanceSchedule.push({
+              year, 
+              impact: maintenanceImpact
+            });
+          }
+          
+          const regularMaintenance = projectCondition(
+            params, 
+            projectionYears,
+            regularMaintenanceSchedule
+          );
+          
+          // Prepare the data for charts
+          const scenarioData = [];
+          
+          for (let i = 0; i <= projectionYears; i++) {
+            scenarioData.push({
+              year: i,
+              noMaintenance: noMaintenance[i].condition,
+              singleMaintenance: singleMaintenance[i].condition,
+              regularMaintenance: regularMaintenance[i].condition
+            });
+          }
+          
+          setMaintenanceScenarios(scenarioData);
+        }
+      }
+    }
+  }, [selectedAssetId, selectedMaintenanceId, trafficLevel, climateImpact, projectionYears, maintenanceYear, roadAssets, maintenanceTypes, useAI]);
 
   return (
     <div className="p-6">
@@ -168,10 +314,33 @@ export default function DeteriorationModels() {
       </div>
 
       {/* Deterioration Modeling Tabs */}
+      {needsApiKey && (
+        <Alert className="mb-6" variant="warning">
+          <AlertTitle>OpenAI API Key Required</AlertTitle>
+          <AlertDescription>
+            To use machine learning-based prediction models, an OpenAI API key is required. Please contact your administrator to set up the API key.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="mb-6 flex items-center justify-end space-x-2">
+        <div className="flex items-center space-x-2">
+          <Switch 
+            id="ai-mode" 
+            checked={useAI} 
+            onCheckedChange={setUseAI} 
+          />
+          <Label htmlFor="ai-mode" className="cursor-pointer">
+            Use Machine Learning Models
+          </Label>
+        </div>
+      </div>
+
       <Tabs defaultValue="forecast" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="forecast">Network Forecast</TabsTrigger>
           <TabsTrigger value="asset">Asset Modeling</TabsTrigger>
+          <TabsTrigger value="comparison">Model Comparison</TabsTrigger>
         </TabsList>
 
         {/* Network Forecast Tab */}
