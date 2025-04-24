@@ -47,6 +47,7 @@ import {
   AreaChart,
   Area
 } from "recharts";
+import { AlertTriangle } from "lucide-react";
 
 export default function DeteriorationModels() {
   // Fetch road assets and maintenance types for projections
@@ -613,12 +614,14 @@ export default function DeteriorationModels() {
                         <span className="text-sm font-medium">
                           {selectedAssetsForComparison.length} road{selectedAssetsForComparison.length !== 1 ? 's' : ''} selected
                         </span>
-                        <Button 
-                          disabled={!useAI || selectedAssetsForComparison.length === 0} 
-                          onClick={generateMultiAssetComparison}
-                        >
-                          Generate Comparison
-                        </Button>
+                        {!useAI && selectedAssetsForComparison.length > 0 && (
+                          <div className="text-sm text-amber-600">
+                            <span className="flex items-center">
+                              <AlertTriangle className="h-4 w-4 mr-1" />
+                              Enable AI mode to generate comparisons
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -681,7 +684,7 @@ export default function DeteriorationModels() {
                           <p className="text-neutral-textSecondary">
                             {!useAI
                               ? "Enable AI mode to generate model comparisons"
-                              : "Select roads and click 'Generate Comparison' to see results"}
+                              : "Select one or more roads to see prediction results"}
                           </p>
                         </div>
                       )}
