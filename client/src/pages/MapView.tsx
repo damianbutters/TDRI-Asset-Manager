@@ -271,6 +271,7 @@ export default function MapView() {
                     height="h-full" 
                     center={getMapCenter()}
                     onAssetClick={handleAssetClick}
+                    initialLayer="pci"
                   />
                 )}
               </div>
@@ -434,6 +435,7 @@ export default function MapView() {
                       selectedAsset.geometry.coordinates[0][0]
                     ]}
                     zoom={14}
+                    initialLayer={viewMode}
                   />
                 </div>
               </div>

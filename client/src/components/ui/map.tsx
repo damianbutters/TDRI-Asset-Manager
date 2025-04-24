@@ -111,94 +111,65 @@ export default function Map({
             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           />
         </LayersControl.BaseLayer>
-        
-        {/* Overlay for Road Conditions */}
-        <LayersControl.Overlay checked={initialLayer === "pci"} name="Road Conditions (PCI)">
-          <div>
-            {roadAssets.map((asset) => {
-              const coordinates = getCoordinates(asset);
-              if (coordinates.length === 0) return null;
-              
-              const conditionColor = getConditionColor(asset.condition);
-              
-              return (
-                <Polyline
-                  key={asset.id}
-                  positions={coordinates}
-                  pathOptions={{
-                    color: conditionColor,
-                    weight: 6,        // Slightly thinner to match road width
-                    opacity: 0.9,     // Higher opacity for better visibility
-                    lineCap: "round", // Rounded line ends
-                    lineJoin: "round" // Rounded corners
-                  }}
-                  eventHandlers={{
-                    click: () => handleAssetClick(asset)
-                  }}
-                />
-              );
-            })}
-          </div>
-        </LayersControl.Overlay>
-        
-        {/* Overlay for Moisture Levels */}
-        <LayersControl.Overlay checked={initialLayer === "moisture"} name="Moisture Levels">
-          <div>
-            {roadAssets.map((asset) => {
-              const coordinates = getCoordinates(asset);
-              if (coordinates.length === 0) return null;
-              
-              // Calculate the average coordinate for centering moisture indicators
-              const moistureColor = getMoistureColor(asset.moistureLevel);
-              
-              return (
-                <Polyline
-                  key={`moisture-${asset.id}`}
-                  positions={coordinates}
-                  pathOptions={{
-                    color: moistureColor,
-                    weight: 6,
-                    opacity: 0.8,
-                    lineCap: "round", 
-                    lineJoin: "round"
-                  }}
-                  eventHandlers={{
-                    click: () => handleAssetClick(asset)
-                  }}
-                />
-              );
-            })}
-          </div>
-        </LayersControl.Overlay>
-        
-        {/* Overlay for Traffic Data (placeholder) */}
-        <LayersControl.Overlay name="Traffic Volume">
-          <div>
-            {roadAssets.map((asset) => {
-              const coordinates = getCoordinates(asset);
-              if (coordinates.length === 0) return null;
-              
-              // This would normally use actual traffic data
-              // Just for visualization, we're using random transparency
-              const randomOpacity = Math.random() * 0.6 + 0.2;
-              
-              return (
-                <Polyline
-                  key={`traffic-${asset.id}`}
-                  positions={coordinates}
-                  pathOptions={{
-                    color: "#3b82f6", // Blue
-                    weight: 5,        // Slightly thinner than the condition overlay
-                    opacity: randomOpacity,
-                    lineCap: "round", // Rounded line ends
-                    lineJoin: "round" // Rounded corners
-                  }}
-                />
-              );
-            })}
-          </div>
-        </LayersControl.Overlay>
       </LayersControl>
+      
+      {/* Display PCI layer if initialLayer is pci */}
+      {initialLayer === "pci" && (
+        <div>
+          {roadAssets.map((asset) => {
+            const coordinates = getCoordinates(asset);
+            if (coordinates.length === 0) return null;
+            
+            const conditionColor = getConditionColor(asset.condition);
+            
+            return (
+              <Polyline
+                key={asset.id}
+                positions={coordinates}
+                pathOptions={{
+                  color: conditionColor,
+                  weight: 6,        // Slightly thinner to match road width
+                  opacity: 0.9,     // Higher opacity for better visibility
+                  lineCap: "round", // Rounded line ends
+                  lineJoin: "round" // Rounded corners
+                }}
+                eventHandlers={{
+                  click: () => handleAssetClick(asset)
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+      
+      {/* Display Moisture layer if initialLayer is moisture */}
+      {initialLayer === "moisture" && (
+        <div>
+          {roadAssets.map((asset) => {
+            const coordinates = getCoordinates(asset);
+            if (coordinates.length === 0) return null;
+            
+            const moistureColor = getMoistureColor(asset.moistureLevel);
+            
+            return (
+              <Polyline
+                key={`moisture-${asset.id}`}
+                positions={coordinates}
+                pathOptions={{
+                  color: moistureColor,
+                  weight: 6,
+                  opacity: 0.8,
+                  lineCap: "round", 
+                  lineJoin: "round"
+                }}
+                eventHandlers={{
+                  click: () => handleAssetClick(asset)
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
       
       <MapController roadAssets={roadAssets} />
       
