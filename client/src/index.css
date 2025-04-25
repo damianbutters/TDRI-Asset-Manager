@@ -80,17 +80,17 @@
   }
 }
 
-/* Fix z-index issues with Leaflet popups */
-.leaflet-popup {
-  z-index: 1000 !important;
-}
-
-.leaflet-popup-content-wrapper, 
-.leaflet-popup-tip {
-  z-index: 1000 !important;
-}
-
+/* Additional Leaflet fixes */
 .leaflet-tooltip {
-  z-index: 900 !important;
+  z-index: 1400 !important;
+}
+
+/* Make sure map popup is clickable and visible */
+.leaflet-pane {
+  z-index: 400;
+}
+
+.leaflet-popup-pane {
+  z-index: 1500;
 }
 
