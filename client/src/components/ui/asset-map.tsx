@@ -151,7 +151,11 @@ export function AssetMap({
         center={getMapCenter() as [number, number]}
         zoom={13}
         style={{ height: '100%', width: '100%' }}
-        whenReady={(mapEvent: { target: L.Map }) => setMap(mapEvent.target)}
+        whenReady={(mapEvent) => {
+          if (mapEvent && mapEvent.target) {
+            setMap(mapEvent.target);
+          }
+        }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

@@ -873,6 +873,15 @@ export default function AssetInventory() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowMap(!showMap)}
+                    className={showMap ? "bg-muted" : ""}
+                  >
+                    <MapPin className="mr-2 h-4 w-4" />
+                    {showMap ? "Hide Map" : "Show Map"}
+                  </Button>
+                  
                   <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
                     <DialogTrigger asChild>
                       <Button variant="outline">
@@ -1100,6 +1109,47 @@ export default function AssetInventory() {
               </div>
             </CardHeader>
             <CardContent>
+              {showMap && (
+                <div className="mb-6 border rounded-md">
+                  <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+                    <h3 className="text-lg font-medium flex items-center">
+                      <MapPin className="mr-2 h-5 w-5" />
+                      Asset Map View
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setEnabledLayerIds(assetTypesQuery.data?.map(type => type.id) || [])}
+                      >
+                        <LayersIcon className="mr-2 h-4 w-4" />
+                        All Layers
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setEnabledLayerIds([])}
+                      >
+                        Clear Layers
+                      </Button>
+                    </div>
+                  </div>
+                  {assetTypesQuery.isLoading || roadwayAssetsQuery.isLoading ? (
+                    <div className="flex items-center justify-center py-20">
+                      <p>Loading map data...</p>
+                    </div>
+                  ) : (
+                    <AssetMap 
+                      assetTypes={assetTypesQuery.data || []}
+                      assets={roadwayAssetsQuery.data || []}
+                      height="500px"
+                      enabledLayerIds={enabledLayerIds}
+                      onLayersChange={setEnabledLayerIds}
+                    />
+                  )}
+                </div>
+              )}
+              
               <div className="mb-4 flex items-center gap-4">
                 <Select value={selectedAssetTypeFilter} onValueChange={setSelectedAssetTypeFilter}>
                   <SelectTrigger className="w-[280px]">
