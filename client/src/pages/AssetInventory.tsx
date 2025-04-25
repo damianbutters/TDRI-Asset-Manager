@@ -47,6 +47,8 @@ const assetTypeFormSchema = insertAssetTypeSchema.extend({
   conditionRatingScale: z.string().min(1, { message: "Please specify a rating scale." }),
   conditionRatingType: z.string().min(1, { message: "Please specify a rating type." }),
   inspectionFrequencyMonths: z.number().min(1, { message: "Frequency must be at least 1 month." }),
+  mapShape: z.string().min(1, { message: "Please select a map shape." }),
+  mapColor: z.string().min(1, { message: "Please specify a color." }),
   active: z.boolean().default(true),
 });
 
@@ -256,6 +258,8 @@ export default function AssetInventory() {
       conditionRatingScale: "0-100",
       conditionRatingType: "Numeric",
       inspectionFrequencyMonths: 12,
+      mapShape: "circle",
+      mapColor: "#3b82f6",
       active: true,
     },
   });
@@ -269,6 +273,8 @@ export default function AssetInventory() {
       conditionRatingScale: "0-100",
       conditionRatingType: "Numeric",
       inspectionFrequencyMonths: 12,
+      mapShape: "circle",
+      mapColor: "#3b82f6",
       active: true,
     },
   });
@@ -364,6 +370,8 @@ export default function AssetInventory() {
       conditionRatingScale: assetType.conditionRatingScale,
       conditionRatingType: assetType.conditionRatingType,
       inspectionFrequencyMonths: assetType.inspectionFrequencyMonths,
+      mapShape: assetType.mapShape || "circle",
+      mapColor: assetType.mapColor || "#3b82f6",
       active: assetType.active,
     });
     setIsEditDialogOpen(true);
@@ -727,6 +735,67 @@ export default function AssetInventory() {
                             </FormItem>
                           )}
                         />
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={createForm.control}
+                            name="mapShape"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Map Display Shape</FormLabel>
+                                <Select 
+                                  onValueChange={field.onChange} 
+                                  defaultValue={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select shape" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="circle">Circle</SelectItem>
+                                    <SelectItem value="square">Square</SelectItem>
+                                    <SelectItem value="triangle">Triangle</SelectItem>
+                                    <SelectItem value="diamond">Diamond</SelectItem>
+                                    <SelectItem value="star">Star</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  Shape used on the map for this asset type
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={createForm.control}
+                            name="mapColor"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Map Display Color</FormLabel>
+                                <FormControl>
+                                  <div className="flex items-center gap-2">
+                                    <Input 
+                                      type="color" 
+                                      {...field}
+                                      className="w-12 h-10 p-1"
+                                    />
+                                    <Input 
+                                      type="text" 
+                                      {...field}
+                                      className="flex-grow"
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormDescription>
+                                  Color used on the map for this asset type
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                         
                         <FormField
                           control={createForm.control}
@@ -1176,6 +1245,67 @@ export default function AssetInventory() {
                   </FormItem>
                 )}
               />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="mapShape"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Map Display Shape</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select shape" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="circle">Circle</SelectItem>
+                          <SelectItem value="square">Square</SelectItem>
+                          <SelectItem value="triangle">Triangle</SelectItem>
+                          <SelectItem value="diamond">Diamond</SelectItem>
+                          <SelectItem value="star">Star</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Shape used on the map for this asset type
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={editForm.control}
+                  name="mapColor"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Map Display Color</FormLabel>
+                      <FormControl>
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            type="color" 
+                            {...field}
+                            className="w-12 h-10 p-1"
+                          />
+                          <Input 
+                            type="text" 
+                            {...field}
+                            className="flex-grow"
+                          />
+                        </div>
+                      </FormControl>
+                      <FormDescription>
+                        Color used on the map for this asset type
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               
               <FormField
                 control={editForm.control}
