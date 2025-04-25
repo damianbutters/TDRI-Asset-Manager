@@ -80,7 +80,7 @@ export default function AssetInventory() {
   const [coordinates, setCoordinates] = useState<{lat?: number, lng?: number}>({});
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-  const [showMap, setShowMap] = useState<boolean>(false);
+  const [showMap, setShowMap] = useState<boolean>(true);
   const [enabledLayerIds, setEnabledLayerIds] = useState<number[]>([]);
   
   const { toast } = useToast();
