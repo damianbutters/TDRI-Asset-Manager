@@ -1,5 +1,9 @@
 import {
   users, User, InsertUser,
+  tenants, Tenant, InsertTenant,
+  userTenants,
+  tenantRoadAssets,
+  tenantRoadwayAssets,
   roadAssets, RoadAsset, InsertRoadAsset,
   maintenanceTypes, MaintenanceType, InsertMaintenanceType,
   maintenanceProjects, MaintenanceProject, InsertMaintenanceProject,
@@ -16,10 +20,26 @@ import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
+  // Tenant operations
+  getTenants(): Promise<Tenant[]>;
+  getTenant(id: number): Promise<Tenant | undefined>;
+  getTenantByCode(code: string): Promise<Tenant | undefined>;
+  createTenant(tenant: InsertTenant): Promise<Tenant>;
+  updateTenant(id: number, tenant: Partial<InsertTenant>): Promise<Tenant | undefined>;
+  deleteTenant(id: number): Promise<boolean>;
+  
+  // User-Tenant operations
+  getUserTenants(userId: number): Promise<Tenant[]>;
+  addUserToTenant(userId: number, tenantId: number, role: string, isAdmin: boolean): Promise<boolean>;
+  removeUserFromTenant(userId: number, tenantId: number): Promise<boolean>;
+  updateUserTenantRole(userId: number, tenantId: number, role: string, isAdmin: boolean): Promise<boolean>;
+  setUserCurrentTenant(userId: number, tenantId: number | null): Promise<User | undefined>;
+  
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
   
   // Road asset operations
   getRoadAssets(): Promise<RoadAsset[]>;

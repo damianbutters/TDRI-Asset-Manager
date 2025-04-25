@@ -1,7 +1,24 @@
-import { pgTable, text, serial, integer, timestamp, doublePrecision, json, boolean, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, doublePrecision, json, boolean, unique, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
+
+// Tenant table
+export const tenants = pgTable("tenants", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  code: text("code").notNull().unique(), // Short unique code for the tenant
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertTenantSchema = createInsertSchema(tenants).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 // User table
 export const users = pgTable("users", {
@@ -10,6 +27,23 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   fullName: text("full_name").notNull(),
   role: text("role").notNull(),
+  isSystemAdmin: boolean("is_system_admin").default(false), // System admins can access all tenants
+  currentTenantId: integer("current_tenant_id"), // Currently selected tenant
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Many-to-many relationship between users and tenants
+export const userTenants = pgTable("user_tenants", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  role: text("role").notNull(), // Role within this specific tenant
+  isAdmin: boolean("is_admin").default(false), // Admin for this specific tenant
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    pk: primaryKey({ columns: [table.userId, table.tenantId] })
+  };
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -17,6 +51,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   fullName: true,
   role: true,
+  isSystemAdmin: true,
 });
 
 // Road Asset table
@@ -265,13 +300,35 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   })
 }));
 
-export const usersRelations = relations(users, ({ many }) => ({
+// Tenant-related relations will be defined later to prevent circular dependencies
+
+// User-tenant relations
+export const userTenantsRelations = relations(userTenants, ({ one }) => ({
+  user: one(users, {
+    fields: [userTenants.userId],
+    references: [users.id],
+  }),
+  tenant: one(tenants, {
+    fields: [userTenants.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+// User relations
+export const usersRelations = relations(users, ({ one, many }) => ({
+  tenants: many(userTenants),
+  currentTenant: one(tenants, {
+    fields: [users.currentTenantId],
+    references: [tenants.id],
+  }),
   maintenanceProjects: many(maintenanceProjects, { relationName: "user_maintenance_projects" }),
   budgetAllocations: many(budgetAllocations, { relationName: "user_budget_allocations" }),
   auditLogs: many(auditLogs, { relationName: "user_audit_logs" }),
   assetInspections: many(assetInspections),
   assetMaintenanceRecords: many(assetMaintenanceRecords),
 }));
+
+// Relation definitions moved after the table definitions to fix reference errors
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -301,6 +358,20 @@ export type InsertRainfallHistory = z.infer<typeof insertRainfallHistorySchema>;
 export type MoistureReading = typeof moistureReadings.$inferSelect;
 export type InsertMoistureReading = z.infer<typeof insertMoistureReadingSchema>;
 
+export type Tenant = typeof tenants.$inferSelect;
+export type InsertTenant = z.infer<typeof insertTenantSchema>;
+
+// Many-to-many relationship between tenants and road assets
+export const tenantRoadAssets = pgTable("tenant_road_assets", {
+  tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  roadAssetId: integer("road_asset_id").notNull().references(() => roadAssets.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    pk: primaryKey({ columns: [table.tenantId, table.roadAssetId] })
+  };
+});
+
 // Asset Types table - for defining custom asset types
 export const assetTypes = pgTable("asset_types", {
   id: serial("id").primaryKey(),
@@ -313,6 +384,7 @@ export const assetTypes = pgTable("asset_types", {
   mapShape: text("map_shape").notNull().default("circle"), // e.g. "circle", "square", "triangle", "diamond", etc.
   mapColor: text("map_color").notNull().default("#3b82f6"), // Default to blue
   customFields: json("custom_fields"), // Store additional field definitions specific to this asset type
+  tenantId: integer("tenant_id"), // Which tenant owns this asset type, null means global/system
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   active: boolean("active").notNull().default(true),
@@ -346,12 +418,24 @@ export const roadwayAssets = pgTable("roadway_assets", {
   geometry: json("geometry"), // For line/polygon assets like guardrails or pavement markings
   customData: json("custom_data"), // Store type-specific data (varies by asset type)
   lastMaintenanceDate: timestamp("last_maintenance_date"),
+  tenantId: integer("tenant_id"), // Which tenant owns this asset, null means global/system
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   active: boolean("active").notNull().default(true),
 }, (table) => {
   return {
     assetIdUnique: unique().on(table.assetId),
+  };
+});
+
+// Many-to-many relationship between tenants and roadway assets
+export const tenantRoadwayAssets = pgTable("tenant_roadway_assets", {
+  tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  roadwayAssetId: integer("roadway_asset_id").notNull().references(() => roadwayAssets.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    pk: primaryKey({ columns: [table.tenantId, table.roadwayAssetId] })
   };
 });
 
@@ -463,3 +547,44 @@ export type InsertAssetInspection = z.infer<typeof insertAssetInspectionSchema>;
 
 export type AssetMaintenanceRecord = typeof assetMaintenanceRecords.$inferSelect;
 export type InsertAssetMaintenanceRecord = z.infer<typeof insertAssetMaintenanceRecordSchema>;
+
+// Define tenant-related relations now that all tables are defined
+export const tenantsRelations = relations(tenants, ({ many, one }) => ({
+  users: many(userTenants),
+  roadAssets: many(tenantRoadAssets),
+  roadwayAssets: many(tenantRoadwayAssets),
+  assetTypes: many(assetTypes, { relationName: "tenant_asset_types" }),
+}));
+
+// Tenant-roadAsset relations
+export const tenantRoadAssetsRelations = relations(tenantRoadAssets, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [tenantRoadAssets.tenantId],
+    references: [tenants.id],
+  }),
+  roadAsset: one(roadAssets, {
+    fields: [tenantRoadAssets.roadAssetId],
+    references: [roadAssets.id],
+  }),
+}));
+
+// Tenant-roadwayAsset relations
+export const tenantRoadwayAssetsRelations = relations(tenantRoadwayAssets, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [tenantRoadwayAssets.tenantId],
+    references: [tenants.id],
+  }),
+  roadwayAsset: one(roadwayAssets, {
+    fields: [tenantRoadwayAssets.roadwayAssetId],
+    references: [roadwayAssets.id],
+  }),
+}));
+
+// Update assetTypes to include tenant relation
+export const assetTypesTenantRelation = relations(assetTypes, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [assetTypes.tenantId],
+    references: [tenants.id],
+    relationName: "tenant_asset_types"
+  })
+}));
