@@ -64,7 +64,7 @@ const assetFormSchema = insertRoadwayAssetSchema.extend({
 });
 
 export default function AssetInventory() {
-  const [activeTab, setActiveTab] = useState("types");
+  const [activeTab, setActiveTab] = useState("assets");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreateAssetDialogOpen, setIsCreateAssetDialogOpen] = useState(false);
@@ -596,7 +596,7 @@ export default function AssetInventory() {
     <div className="container py-6">
       <h1 className="text-3xl font-bold mb-6">Asset Inventory</h1>
       
-      <Tabs defaultValue="types" value={activeTab} onValueChange={setActiveTab}>
+      <Tabs defaultValue="assets" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="types">Asset Types</TabsTrigger>
           <TabsTrigger value="assets">Assets</TabsTrigger>
