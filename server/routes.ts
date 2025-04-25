@@ -2177,8 +2177,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isNaN(assetTypeId)) {
           return res.status(400).json({ message: "Invalid asset type ID" });
         }
-        // Currently no tenant filtering with type filtering - we could add this in the future
-        assets = await storage.getRoadwayAssetsByType(assetTypeId);
+        // Apply tenant filtering with type filtering
+        assets = await storage.getRoadwayAssetsByType(assetTypeId, tenantId);
       } else {
         // Use tenant filtering when getting all assets
         assets = await storage.getRoadwayAssets(tenantId);
