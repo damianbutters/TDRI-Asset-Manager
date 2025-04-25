@@ -17,7 +17,7 @@ import {
   assetMaintenanceRecords, AssetMaintenanceRecord, InsertAssetMaintenanceRecord
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
   // Tenant operations
@@ -1186,6 +1186,137 @@ export class MemStorage implements IStorage {
 
 // DatabaseStorage implementation
 export class DatabaseStorage implements IStorage {
+  // Tenant operations
+  async getTenants(): Promise<Tenant[]> {
+    return await db.select().from(tenants);
+  }
+  
+  async getTenant(id: number): Promise<Tenant | undefined> {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, id));
+    return tenant;
+  }
+  
+  async getTenantByCode(code: string): Promise<Tenant | undefined> {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.code, code));
+    return tenant;
+  }
+  
+  async createTenant(tenant: InsertTenant): Promise<Tenant> {
+    const now = new Date();
+    const [newTenant] = await db.insert(tenants).values({
+      ...tenant,
+      createdAt: now,
+      updatedAt: now
+    }).returning();
+    return newTenant;
+  }
+  
+  async updateTenant(id: number, tenant: Partial<InsertTenant>): Promise<Tenant | undefined> {
+    const [updatedTenant] = await db.update(tenants)
+      .set({
+        ...tenant,
+        updatedAt: new Date()
+      })
+      .where(eq(tenants.id, id))
+      .returning();
+    return updatedTenant;
+  }
+  
+  async deleteTenant(id: number): Promise<boolean> {
+    // First remove user-tenant associations
+    await db.delete(userTenants).where(eq(userTenants.tenantId, id));
+    
+    // Then remove tenant-asset associations
+    await db.delete(tenantRoadAssets).where(eq(tenantRoadAssets.tenantId, id));
+    await db.delete(tenantRoadwayAssets).where(eq(tenantRoadwayAssets.tenantId, id));
+    
+    // Finally remove the tenant
+    const result = await db.delete(tenants).where(eq(tenants.id, id));
+    return result.rowCount > 0;
+  }
+  
+  // User-Tenant operations
+  async getUserTenants(userId: number): Promise<Tenant[]> {
+    const result = await db.select({
+      tenant: tenants
+    })
+    .from(userTenants)
+    .innerJoin(tenants, eq(userTenants.tenantId, tenants.id))
+    .where(eq(userTenants.userId, userId));
+    
+    return result.map(r => r.tenant);
+  }
+  
+  async addUserToTenant(userId: number, tenantId: number, role: string, isAdmin: boolean): Promise<boolean> {
+    try {
+      await db.insert(userTenants).values({
+        userId,
+        tenantId,
+        role,
+        isAdmin
+      });
+      return true;
+    } catch (error) {
+      console.error("Error adding user to tenant:", error);
+      return false;
+    }
+  }
+  
+  async removeUserFromTenant(userId: number, tenantId: number): Promise<boolean> {
+    const result = await db.delete(userTenants)
+      .where(
+        and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, tenantId)
+        )
+      );
+    return result.rowCount > 0;
+  }
+  
+  async updateUserTenantRole(userId: number, tenantId: number, role: string, isAdmin: boolean): Promise<boolean> {
+    const result = await db.update(userTenants)
+      .set({
+        role,
+        isAdmin,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, tenantId)
+        )
+      );
+    return result.rowCount > 0;
+  }
+  
+  async setUserCurrentTenant(userId: number, tenantId: number | null): Promise<User | undefined> {
+    // If tenantId is not null, check if user has access to this tenant
+    if (tenantId !== null) {
+      const [userTenant] = await db.select()
+        .from(userTenants)
+        .where(
+          and(
+            eq(userTenants.userId, userId),
+            eq(userTenants.tenantId, tenantId)
+          )
+        );
+      
+      if (!userTenant) {
+        return undefined;
+      }
+    }
+    
+    const [updatedUser] = await db.update(users)
+      .set({
+        currentTenantId: tenantId,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    return updatedUser;
+  }
+  
   // User methods
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
