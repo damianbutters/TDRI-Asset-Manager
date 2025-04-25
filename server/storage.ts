@@ -824,8 +824,23 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
-  async getRoadAssets(): Promise<RoadAsset[]> {
-    return Array.from(this.roadAssets.values());
+  async getRoadAssets(tenantId?: number): Promise<RoadAsset[]> {
+    if (tenantId) {
+      // If tenantId is provided, return only road assets for that tenant
+      const roadAssetIds = new Set<number>();
+      
+      for (const [key, association] of this.tenantRoadAssets.entries()) {
+        if (association.tenantId === tenantId) {
+          roadAssetIds.add(association.roadAssetId);
+        }
+      }
+      
+      return Array.from(this.roadAssets.values())
+        .filter(asset => roadAssetIds.has(asset.id));
+    } else {
+      // Otherwise return all road assets
+      return Array.from(this.roadAssets.values());
+    }
   }
   
   async getRoadAsset(id: number): Promise<RoadAsset | undefined> {
@@ -1136,8 +1151,23 @@ export class MemStorage implements IStorage {
   }
 
   // Roadway Asset methods
-  async getRoadwayAssets(): Promise<RoadwayAsset[]> {
-    return Array.from(this.roadwayAssets.values());
+  async getRoadwayAssets(tenantId?: number): Promise<RoadwayAsset[]> {
+    if (tenantId) {
+      // If tenantId is provided, return only roadway assets for that tenant
+      const roadwayAssetIds = new Set<number>();
+      
+      for (const [key, association] of this.tenantRoadwayAssets.entries()) {
+        if (association.tenantId === tenantId) {
+          roadwayAssetIds.add(association.roadwayAssetId);
+        }
+      }
+      
+      return Array.from(this.roadwayAssets.values())
+        .filter(asset => roadwayAssetIds.has(asset.id));
+    } else {
+      // Otherwise return all roadway assets
+      return Array.from(this.roadwayAssets.values());
+    }
   }
 
   async getRoadwayAssetsByType(assetTypeId: number): Promise<RoadwayAsset[]> {
@@ -1490,8 +1520,21 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Road asset methods
-  async getRoadAssets(): Promise<RoadAsset[]> {
-    return await db.select().from(roadAssets);
+  async getRoadAssets(tenantId?: number): Promise<RoadAsset[]> {
+    if (tenantId) {
+      // If tenantId is provided, only return road assets for that tenant
+      const result = await db.select({
+        roadAsset: roadAssets
+      })
+      .from(tenantRoadAssets)
+      .innerJoin(roadAssets, eq(tenantRoadAssets.roadAssetId, roadAssets.id))
+      .where(eq(tenantRoadAssets.tenantId, tenantId));
+      
+      return result.map(r => r.roadAsset);
+    } else {
+      // Otherwise return all road assets
+      return await db.select().from(roadAssets);
+    }
   }
   
   async getRoadAsset(id: number): Promise<RoadAsset | undefined> {
@@ -1772,8 +1815,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Roadway Asset methods
-  async getRoadwayAssets(): Promise<RoadwayAsset[]> {
-    return await db.select().from(roadwayAssets);
+  async getRoadwayAssets(tenantId?: number): Promise<RoadwayAsset[]> {
+    if (tenantId) {
+      // If tenantId is provided, only return roadway assets for that tenant
+      const result = await db.select({
+        roadwayAsset: roadwayAssets
+      })
+      .from(tenantRoadwayAssets)
+      .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
+      .where(eq(tenantRoadwayAssets.tenantId, tenantId));
+      
+      return result.map(r => r.roadwayAsset);
+    } else {
+      // Otherwise return all roadway assets
+      return await db.select().from(roadwayAssets);
+    }
   }
 
   async getRoadwayAssetsByType(assetTypeId: number): Promise<RoadwayAsset[]> {
