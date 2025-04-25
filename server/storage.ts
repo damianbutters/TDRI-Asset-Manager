@@ -1402,6 +1402,77 @@ export class DatabaseStorage implements IStorage {
     return updatedUser;
   }
   
+  // Tenant-Asset operations
+  async assignRoadAssetToTenant(tenantId: number, roadAssetId: number): Promise<boolean> {
+    try {
+      await db.insert(tenantRoadAssets).values({
+        tenantId,
+        roadAssetId
+      }).onConflictDoNothing();
+      return true;
+    } catch (error) {
+      console.error("Error assigning road asset to tenant:", error);
+      return false;
+    }
+  }
+  
+  async removeRoadAssetFromTenant(tenantId: number, roadAssetId: number): Promise<boolean> {
+    const result = await db.delete(tenantRoadAssets)
+      .where(
+        and(
+          eq(tenantRoadAssets.tenantId, tenantId),
+          eq(tenantRoadAssets.roadAssetId, roadAssetId)
+        )
+      );
+    return result.rowCount > 0;
+  }
+  
+  async getTenantRoadAssets(tenantId: number): Promise<RoadAsset[]> {
+    const result = await db.select({
+      roadAsset: roadAssets
+    })
+    .from(tenantRoadAssets)
+    .innerJoin(roadAssets, eq(tenantRoadAssets.roadAssetId, roadAssets.id))
+    .where(eq(tenantRoadAssets.tenantId, tenantId));
+    
+    return result.map(r => r.roadAsset);
+  }
+  
+  async assignRoadwayAssetToTenant(tenantId: number, roadwayAssetId: number): Promise<boolean> {
+    try {
+      await db.insert(tenantRoadwayAssets).values({
+        tenantId,
+        roadwayAssetId
+      }).onConflictDoNothing();
+      return true;
+    } catch (error) {
+      console.error("Error assigning roadway asset to tenant:", error);
+      return false;
+    }
+  }
+  
+  async removeRoadwayAssetFromTenant(tenantId: number, roadwayAssetId: number): Promise<boolean> {
+    const result = await db.delete(tenantRoadwayAssets)
+      .where(
+        and(
+          eq(tenantRoadwayAssets.tenantId, tenantId),
+          eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssetId)
+        )
+      );
+    return result.rowCount > 0;
+  }
+  
+  async getTenantRoadwayAssets(tenantId: number): Promise<RoadwayAsset[]> {
+    const result = await db.select({
+      roadwayAsset: roadwayAssets
+    })
+    .from(tenantRoadwayAssets)
+    .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
+    .where(eq(tenantRoadwayAssets.tenantId, tenantId));
+    
+    return result.map(r => r.roadwayAsset);
+  }
+  
   // User methods
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
