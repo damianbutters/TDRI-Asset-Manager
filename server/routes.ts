@@ -15,9 +15,12 @@ import {
   insertRoadwayAssetSchema,
   insertAssetInspectionSchema,
   insertAssetMaintenanceRecordSchema,
-  User
+  User,
+  Tenant
 } from "@shared/schema";
 import { weatherService } from "./weather-service";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 /**
  * Finds the closest road asset to the given coordinates
@@ -1736,7 +1739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Associate the asset with the tenant
-      const success = await storage.associateRoadwayAssetWithTenant(assetId, tenantId);
+      const success = await storage.assignRoadwayAssetToTenant(tenantId, assetId);
       
       if (!success) {
         return res.status(500).json({ message: "Failed to associate asset with tenant" });
@@ -1772,7 +1775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Remove the asset from the tenant
-      const success = await storage.removeRoadwayAssetFromTenant(assetId, tenantId);
+      const success = await storage.removeRoadwayAssetFromTenant(tenantId, assetId);
       
       if (!success) {
         return res.status(404).json({ message: "Asset not associated with tenant or association could not be removed" });
@@ -1812,8 +1815,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Roadway asset not found" });
       }
       
-      // Get tenants associated with the asset
-      const tenants = await storage.getRoadwayAssetTenants(assetId);
+      // We don't have a direct method to get tenants for a roadway asset,
+      // so we'll query using SQL directly
+      const tenants = await db.execute(sql`
+        SELECT t.* 
+        FROM tenants t
+        JOIN tenant_roadway_assets tra ON t.id = tra.tenant_id
+        WHERE tra.roadway_asset_id = ${assetId}
+      `).then(result => result.rows as Tenant[]);
       
       res.json(tenants);
     } catch (error) {
