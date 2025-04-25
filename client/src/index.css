@@ -57,3 +57,17 @@
   }
 }
 
+/* Fix z-index issues with Leaflet popups */
+.leaflet-popup {
+  z-index: 1000 !important;
+}
+
+.leaflet-popup-content-wrapper, 
+.leaflet-popup-tip {
+  z-index: 1000 !important;
+}
+
+.leaflet-tooltip {
+  z-index: 900 !important;
+}
+

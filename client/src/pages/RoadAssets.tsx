@@ -42,12 +42,15 @@ import { z } from "zod";
 import Map from "@/components/ui/map";
 import { generateRandomRoadSegment } from "@/lib/utils/map-utils";
 import RainfallChart from "@/components/RainfallChart";
+import { useLocation } from "wouter";
+import { Droplet } from "lucide-react";
 
 export default function RoadAssets() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<RoadAsset | null>(null);
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   // Fetch road assets
   const { data: roadAssets = [], isLoading } = useQuery<RoadAsset[]>({
@@ -579,30 +582,26 @@ export default function RoadAssets() {
                     <h3 className="text-sm font-medium">Moisture Data</h3>
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       <div>
-                        <p className="text-xs text-neutral-textSecondary">Moisture Level</p>
+                        <p className="text-xs text-neutral-textSecondary">Moisture Readings</p>
                         <div className="flex items-center">
-                          {selectedAsset.moistureLevel !== null ? (
-                            <Badge 
-                              className={
-                                selectedAsset.moistureLevel > 25 ? "bg-blue-700 text-white" :
-                                selectedAsset.moistureLevel > 15 ? "bg-blue-500 text-white" :
-                                selectedAsset.moistureLevel > 8 ? "bg-blue-300 text-blue-900" :
-                                "bg-blue-100 text-blue-800"
-                              }
-                            >
-                              {selectedAsset.moistureLevel.toFixed(1)}%
-                            </Badge>
-                          ) : (
-                            <span className="text-gray-500">Not measured</span>
-                          )}
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="mt-1" 
+                            onClick={() => {
+                              setIsViewDialogOpen(false);
+                              navigate(`/moisture?roadId=${selectedAsset.id}`);
+                            }}
+                          >
+                            <Droplet className="h-3 w-3 mr-1" />
+                            View Moisture Map
+                          </Button>
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs text-neutral-textSecondary">Last Reading</p>
-                        <p>
-                          {selectedAsset.lastMoistureReading
-                            ? format(new Date(selectedAsset.lastMoistureReading), "MM/dd/yyyy")
-                            : "Not recorded"}
+                        <p className="text-xs text-neutral-textSecondary">Detailed Data</p>
+                        <p className="text-xs text-muted-foreground">
+                          Multiple readings available along the road segment
                         </p>
                       </div>
                     </div>
