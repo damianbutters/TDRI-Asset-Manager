@@ -107,8 +107,8 @@ export interface IStorage {
   deleteAssetType(id: number): Promise<boolean>;
   
   // Roadway Assets operations
-  getRoadwayAssets(): Promise<RoadwayAsset[]>;
-  getRoadwayAssetsByType(assetTypeId: number): Promise<RoadwayAsset[]>;
+  getRoadwayAssets(tenantId?: number): Promise<RoadwayAsset[]>;
+  getRoadwayAssetsByType(assetTypeId: number, tenantId?: number): Promise<RoadwayAsset[]>;
   getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined>;
   createRoadwayAsset(asset: InsertRoadwayAsset): Promise<RoadwayAsset>;
   updateRoadwayAsset(id: number, asset: Partial<InsertRoadwayAsset>): Promise<RoadwayAsset | undefined>;
@@ -1851,10 +1851,28 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getRoadwayAssetsByType(assetTypeId: number): Promise<RoadwayAsset[]> {
-    return await db.select()
-      .from(roadwayAssets)
-      .where(eq(roadwayAssets.assetTypeId, assetTypeId));
+  async getRoadwayAssetsByType(assetTypeId: number, tenantId?: number): Promise<RoadwayAsset[]> {
+    if (tenantId) {
+      // Get tenant-filtered roadway assets of the specified type
+      const result = await db.select({
+        roadwayAsset: roadwayAssets
+      })
+      .from(tenantRoadwayAssets)
+      .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
+      .where(
+        and(
+          eq(tenantRoadwayAssets.tenantId, tenantId),
+          eq(roadwayAssets.assetTypeId, assetTypeId)
+        )
+      );
+      
+      return result.map(r => r.roadwayAsset);
+    } else {
+      // If no tenant filter, just filter by asset type
+      return await db.select()
+        .from(roadwayAssets)
+        .where(eq(roadwayAssets.assetTypeId, assetTypeId));
+    }
   }
 
   async getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined> {
