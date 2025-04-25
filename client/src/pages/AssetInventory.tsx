@@ -152,12 +152,13 @@ export default function AssetInventory() {
   
   const createRoadwayAssetMutation = useMutation({
     mutationFn: createRoadwayAsset,
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Asset created",
         description: "The asset has been created successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/roadway-assets"] });
       setIsCreateAssetDialogOpen(false);
       createAssetForm.reset();
       setCoordinates({});
@@ -173,12 +174,13 @@ export default function AssetInventory() {
   
   const updateRoadwayAssetMutation = useMutation({
     mutationFn: updateRoadwayAsset,
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Asset updated",
         description: "The asset has been updated successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/roadway-assets"] });
       setIsEditAssetDialogOpen(false);
       editAssetForm.reset();
     },
@@ -193,12 +195,13 @@ export default function AssetInventory() {
   
   const deleteRoadwayAssetMutation = useMutation({
     mutationFn: deleteRoadwayAsset,
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Asset deleted",
         description: "The asset has been deleted successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/roadway-assets"] });
     },
     onError: (error: any) => {
       toast({
@@ -211,12 +214,13 @@ export default function AssetInventory() {
   
   const importRoadwayAssetsMutation = useMutation({
     mutationFn: (file: File) => importRoadwayAssets(file),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast({
         title: "Assets imported",
         description: `Successfully imported ${data.count} assets.`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/roadway-assets"] });
       setIsImportDialogOpen(false);
       setImportFile(null);
     },
@@ -925,26 +929,55 @@ export default function AssetInventory() {
                             />
                           </div>
                           
-                          <FormField
-                            control={createAssetForm.control}
-                            name="active"
-                            render={({ field }) => (
-                              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormItem>
+                              <FormLabel>Coordinates (Latitude, Longitude)</FormLabel>
+                              <div className="flex gap-2">
                                 <FormControl>
-                                  <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
+                                  <Input 
+                                    placeholder="Latitude" 
+                                    type="number"
+                                    value={coordinates.lat || ''}
+                                    onChange={(e) => setCoordinates({...coordinates, lat: parseFloat(e.target.value)})}
+                                    step="0.000001"
                                   />
                                 </FormControl>
-                                <div className="space-y-1 leading-none">
-                                  <FormLabel>Active</FormLabel>
-                                  <FormDescription>
-                                    Asset is currently in service
-                                  </FormDescription>
-                                </div>
-                              </FormItem>
-                            )}
-                          />
+                                <FormControl>
+                                  <Input 
+                                    placeholder="Longitude" 
+                                    type="number"
+                                    value={coordinates.lng || ''}
+                                    onChange={(e) => setCoordinates({...coordinates, lng: parseFloat(e.target.value)})}
+                                    step="0.000001"
+                                  />
+                                </FormControl>
+                              </div>
+                              <FormDescription>
+                                Used to display asset location on maps
+                              </FormDescription>
+                            </FormItem>
+
+                            <FormField
+                              control={createAssetForm.control}
+                              name="active"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <div className="space-y-1 leading-none">
+                                    <FormLabel>Active</FormLabel>
+                                    <FormDescription>
+                                      Asset is currently in service
+                                    </FormDescription>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
                           
                           <DialogFooter>
                             <Button type="submit" disabled={createRoadwayAssetMutation.isPending}>
@@ -1257,26 +1290,55 @@ export default function AssetInventory() {
                 />
               </div>
               
-              <FormField
-                control={editAssetForm.control}
-                name="active"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormItem>
+                  <FormLabel>Coordinates (Latitude, Longitude)</FormLabel>
+                  <div className="flex gap-2">
                     <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
+                      <Input 
+                        placeholder="Latitude" 
+                        type="number"
+                        value={coordinates.lat || ''}
+                        onChange={(e) => setCoordinates({...coordinates, lat: parseFloat(e.target.value)})}
+                        step="0.000001"
                       />
                     </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Active</FormLabel>
-                      <FormDescription>
-                        Asset is currently in service
-                      </FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
+                    <FormControl>
+                      <Input 
+                        placeholder="Longitude" 
+                        type="number"
+                        value={coordinates.lng || ''}
+                        onChange={(e) => setCoordinates({...coordinates, lng: parseFloat(e.target.value)})}
+                        step="0.000001"
+                      />
+                    </FormControl>
+                  </div>
+                  <FormDescription>
+                    Used to display asset location on maps
+                  </FormDescription>
+                </FormItem>
+
+                <FormField
+                  control={editAssetForm.control}
+                  name="active"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Active</FormLabel>
+                        <FormDescription>
+                          Asset is currently in service
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
               
               <DialogFooter>
                 <Button type="submit" disabled={updateRoadwayAssetMutation.isPending}>
