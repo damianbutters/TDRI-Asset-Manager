@@ -19,6 +19,59 @@ import {
 import { weatherService } from "./weather-service";
 
 /**
+ * Finds the closest road asset to the given coordinates
+ * Returns the road asset ID or null if no road is found within the distance threshold
+ */
+async function findClosestRoadAsset(
+  longitude: number, 
+  latitude: number, 
+  maxDistanceThreshold: number = 0.005
+): Promise<number | null> {
+  // Get all road assets
+  const allRoadAssets = await storage.getAllRoadAssets();
+  
+  if (!allRoadAssets.length) {
+    console.log("No road assets found in the database");
+    return null;
+  }
+  
+  let closestAsset = null;
+  let minDistance = Number.MAX_VALUE;
+  
+  for (const asset of allRoadAssets) {
+    if (asset.geometry?.type === "LineString" && Array.isArray(asset.geometry.coordinates)) {
+      // Calculate distance to each point in the line and find the minimum
+      for (const point of asset.geometry.coordinates) {
+        if (Array.isArray(point) && point.length >= 2) {
+          const assetLong = point[0];
+          const assetLat = point[1];
+          
+          // Simple Euclidean distance calculation (not accurate for geographic coordinates but works for demo)
+          const distance = Math.sqrt(
+            Math.pow(longitude - assetLong, 2) + 
+            Math.pow(latitude - assetLat, 2)
+          );
+          
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestAsset = asset;
+          }
+        }
+      }
+    }
+  }
+  
+  // Only consider the asset a match if it's within our distance threshold
+  if (closestAsset && minDistance < maxDistanceThreshold) {
+    console.log(`Found nearby road asset: ${closestAsset.name} (ID: ${closestAsset.id}) at distance ${minDistance}`);
+    return closestAsset.id;
+  }
+  
+  console.log(`No road asset found within threshold distance (${maxDistanceThreshold}) of coordinates: ${longitude}, ${latitude}`);
+  return null;
+}
+
+/**
  * Uses OpenStreetMap's Nominatim API to convert coordinates to real road names and locations
  * This uses actual OSM data for accurate road identification
  */
