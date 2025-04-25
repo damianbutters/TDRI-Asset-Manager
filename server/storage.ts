@@ -125,6 +125,10 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
+  private tenants: Map<number, Tenant>;
+  private userTenants: Map<string, { userId: number, tenantId: number, role: string, isAdmin: boolean }>;
+  private tenantRoadAssets: Map<string, { tenantId: number, roadAssetId: number }>;
+  private tenantRoadwayAssets: Map<string, { tenantId: number, roadwayAssetId: number }>;
   private roadAssets: Map<number, RoadAsset>;
   private maintenanceTypes: Map<number, MaintenanceType>;
   private maintenanceProjects: Map<number, MaintenanceProject>;
@@ -138,6 +142,7 @@ export class MemStorage implements IStorage {
   private assetMaintenanceRecords: Map<number, AssetMaintenanceRecord>;
   
   private userIdCounter: number;
+  private tenantIdCounter: number;
   private roadAssetIdCounter: number;
   private maintenanceTypeIdCounter: number;
   private maintenanceProjectIdCounter: number;
@@ -152,6 +157,10 @@ export class MemStorage implements IStorage {
   
   constructor() {
     this.users = new Map();
+    this.tenants = new Map();
+    this.userTenants = new Map();
+    this.tenantRoadAssets = new Map();
+    this.tenantRoadwayAssets = new Map();
     this.roadAssets = new Map();
     this.maintenanceTypes = new Map();
     this.maintenanceProjects = new Map();
@@ -165,6 +174,7 @@ export class MemStorage implements IStorage {
     this.assetMaintenanceRecords = new Map();
     
     this.userIdCounter = 1;
+    this.tenantIdCounter = 1;
     this.roadAssetIdCounter = 1;
     this.maintenanceTypeIdCounter = 1;
     this.maintenanceProjectIdCounter = 1;
@@ -182,13 +192,40 @@ export class MemStorage implements IStorage {
   
   // Initialize with some default data
   private initializeData() {
+    // Create default tenants
+    const mechanicsville = this.createTenant({
+      name: "Mechanicsville",
+      code: "MECH",
+      description: "Town of Mechanicsville, VA",
+      contactEmail: "info@mechanicsville.gov",
+      contactPhone: "(804) 555-1212",
+      address: "123 Main Street, Mechanicsville, VA 23111",
+      active: true
+    });
+    
+    const ashland = this.createTenant({
+      name: "Ashland",
+      code: "ASHL",
+      description: "Town of Ashland, VA",
+      contactEmail: "info@ashland.gov",
+      contactPhone: "(804) 555-2323",
+      address: "456 Center Street, Ashland, VA 23005",
+      active: true
+    });
+    
     // Create a default user
-    this.createUser({
+    const admin = this.createUser({
       username: "admin",
       password: "admin123", // In a real app, this would be hashed
       fullName: "John Rodriguez",
       role: "Road Manager",
+      isSystemAdmin: true,
+      currentTenantId: mechanicsville.id
     });
+    
+    // Add user to tenants
+    this.addUserToTenant(admin.id, mechanicsville.id, "Road Manager", true);
+    this.addUserToTenant(admin.id, ashland.id, "Road Manager", true);
     
     // Create default maintenance types
     this.createMaintenanceType({
@@ -510,6 +547,159 @@ export class MemStorage implements IStorage {
     // of asset inventory system sample data here
   }
   
+  // Tenant operations
+  async getTenants(): Promise<Tenant[]> {
+    return Array.from(this.tenants.values());
+  }
+  
+  async getTenant(id: number): Promise<Tenant | undefined> {
+    return this.tenants.get(id);
+  }
+  
+  async getTenantByCode(code: string): Promise<Tenant | undefined> {
+    return Array.from(this.tenants.values()).find(t => t.code === code);
+  }
+  
+  async createTenant(tenant: InsertTenant): Promise<Tenant> {
+    const id = this.tenantIdCounter++;
+    const now = new Date();
+    const newTenant: Tenant = {
+      id,
+      ...tenant,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.tenants.set(id, newTenant);
+    return newTenant;
+  }
+  
+  async updateTenant(id: number, tenant: Partial<InsertTenant>): Promise<Tenant | undefined> {
+    const existingTenant = await this.getTenant(id);
+    if (!existingTenant) {
+      return undefined;
+    }
+    
+    const updatedTenant: Tenant = {
+      ...existingTenant,
+      ...tenant,
+      updatedAt: new Date(),
+    };
+    
+    this.tenants.set(id, updatedTenant);
+    return updatedTenant;
+  }
+  
+  async deleteTenant(id: number): Promise<boolean> {
+    if (!this.tenants.has(id)) {
+      return false;
+    }
+    
+    // First remove all user-tenant associations
+    for (const [key, userTenant] of this.userTenants.entries()) {
+      if (userTenant.tenantId === id) {
+        this.userTenants.delete(key);
+      }
+    }
+    
+    // Then remove all tenant-asset associations
+    for (const [key, tenantRoadAsset] of this.tenantRoadAssets.entries()) {
+      if (tenantRoadAsset.tenantId === id) {
+        this.tenantRoadAssets.delete(key);
+      }
+    }
+    
+    for (const [key, tenantRoadwayAsset] of this.tenantRoadwayAssets.entries()) {
+      if (tenantRoadwayAsset.tenantId === id) {
+        this.tenantRoadwayAssets.delete(key);
+      }
+    }
+    
+    // Finally remove the tenant
+    return this.tenants.delete(id);
+  }
+  
+  // User-Tenant operations
+  async getUserTenants(userId: number): Promise<Tenant[]> {
+    const tenantIds: number[] = [];
+    
+    for (const [key, userTenant] of this.userTenants.entries()) {
+      if (userTenant.userId === userId) {
+        tenantIds.push(userTenant.tenantId);
+      }
+    }
+    
+    const tenants: Tenant[] = [];
+    for (const tenantId of tenantIds) {
+      const tenant = await this.getTenant(tenantId);
+      if (tenant) {
+        tenants.push(tenant);
+      }
+    }
+    
+    return tenants;
+  }
+  
+  async addUserToTenant(userId: number, tenantId: number, role: string, isAdmin: boolean): Promise<boolean> {
+    const user = await this.getUser(userId);
+    const tenant = await this.getTenant(tenantId);
+    
+    if (!user || !tenant) {
+      return false;
+    }
+    
+    const key = `${userId}-${tenantId}`;
+    this.userTenants.set(key, { userId, tenantId, role, isAdmin });
+    return true;
+  }
+  
+  async removeUserFromTenant(userId: number, tenantId: number): Promise<boolean> {
+    const key = `${userId}-${tenantId}`;
+    return this.userTenants.delete(key);
+  }
+  
+  async updateUserTenantRole(userId: number, tenantId: number, role: string, isAdmin: boolean): Promise<boolean> {
+    const key = `${userId}-${tenantId}`;
+    const userTenant = this.userTenants.get(key);
+    
+    if (!userTenant) {
+      return false;
+    }
+    
+    this.userTenants.set(key, { ...userTenant, role, isAdmin });
+    return true;
+  }
+  
+  async setUserCurrentTenant(userId: number, tenantId: number | null): Promise<User | undefined> {
+    const user = await this.getUser(userId);
+    
+    if (!user) {
+      return undefined;
+    }
+    
+    if (tenantId !== null) {
+      const tenant = await this.getTenant(tenantId);
+      if (!tenant) {
+        return undefined;
+      }
+      
+      // Check if user has access to this tenant
+      const key = `${userId}-${tenantId}`;
+      if (!this.userTenants.has(key)) {
+        return undefined;
+      }
+    }
+    
+    const updatedUser: User = {
+      ...user,
+      currentTenantId: tenantId,
+      updatedAt: new Date()
+    };
+    
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+  
+  // User operations
   async getUser(id: number): Promise<User | undefined> {
     return this.users.get(id);
   }
@@ -520,9 +710,33 @@ export class MemStorage implements IStorage {
   
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.userIdCounter++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+    const now = new Date();
+    const newUser: User = {
+      id,
+      ...insertUser,
+      isSystemAdmin: insertUser.isSystemAdmin || false,
+      currentTenantId: insertUser.currentTenantId || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.users.set(id, newUser);
+    return newUser;
+  }
+  
+  async updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined> {
+    const existingUser = await this.getUser(id);
+    if (!existingUser) {
+      return undefined;
+    }
+    
+    const updatedUser: User = {
+      ...existingUser,
+      ...user,
+      updatedAt: new Date(),
+    };
+    
+    this.users.set(id, updatedUser);
+    return updatedUser;
   }
   
   async getRoadAssets(): Promise<RoadAsset[]> {
