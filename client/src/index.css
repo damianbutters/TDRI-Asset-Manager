@@ -4,22 +4,25 @@
 
 /* Fix Leaflet z-index issues */
 .leaflet-popup {
-  z-index: 1000 !important;
+  z-index: 1500 !important;
 }
 
 .leaflet-popup-content-wrapper {
   background-color: white;
   box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+  z-index: 1500 !important;
 }
 
 .leaflet-popup-content {
   margin: 13px 19px;
   line-height: 1.4;
+  z-index: 1500 !important;
 }
 
 .leaflet-popup-tip {
   background: white;
   box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+  z-index: 1500 !important;
 }
 
 :root {

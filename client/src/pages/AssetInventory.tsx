@@ -1134,7 +1134,7 @@ export default function AssetInventory() {
                   <AssetMap 
                     assetTypes={assetTypesQuery.data || []}
                     assets={roadwayAssetsQuery.data || []}
-                    height="500px"
+                    height="600px"
                     enabledLayerIds={enabledLayerIds}
                     onLayersChange={setEnabledLayerIds}
                   />
