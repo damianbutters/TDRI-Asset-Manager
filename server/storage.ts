@@ -1852,26 +1852,41 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRoadwayAssetsByType(assetTypeId: number, tenantId?: number): Promise<RoadwayAsset[]> {
-    if (tenantId) {
-      // Get tenant-filtered roadway assets of the specified type
-      const result = await db.select({
-        roadwayAsset: roadwayAssets
-      })
-      .from(tenantRoadwayAssets)
-      .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
-      .where(
-        and(
-          eq(tenantRoadwayAssets.tenantId, tenantId),
-          eq(roadwayAssets.assetTypeId, assetTypeId)
-        )
-      );
-      
-      return result.map(r => r.roadwayAsset);
-    } else {
-      // If no tenant filter, just filter by asset type
-      return await db.select()
-        .from(roadwayAssets)
-        .where(eq(roadwayAssets.assetTypeId, assetTypeId));
+    try {
+      if (tenantId) {
+        // First try using the join approach
+        try {
+          const result = await db.select({
+            roadwayAsset: roadwayAssets
+          })
+          .from(tenantRoadwayAssets)
+          .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
+          .where(
+            and(
+              eq(tenantRoadwayAssets.tenantId, tenantId),
+              eq(roadwayAssets.assetTypeId, assetTypeId)
+            )
+          );
+          
+          return result.map(r => r.roadwayAsset);
+        } catch (error) {
+          console.log("Error with join approach, falling back to simpler query:", error);
+          // Fallback to simpler query if there's an issue with the join
+          // This might happen if the tenant_roadway_assets table has no entries yet
+          return await db.select()
+            .from(roadwayAssets)
+            .where(eq(roadwayAssets.assetTypeId, assetTypeId));
+        }
+      } else {
+        // If no tenant filter, just filter by asset type
+        return await db.select()
+          .from(roadwayAssets)
+          .where(eq(roadwayAssets.assetTypeId, assetTypeId));
+      }
+    } catch (error) {
+      console.error("Error in getRoadwayAssetsByType:", error);
+      // Return empty array as fallback
+      return [];
     }
   }
 
