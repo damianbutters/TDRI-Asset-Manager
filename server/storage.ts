@@ -1844,15 +1844,42 @@ export class DatabaseStorage implements IStorage {
   // Roadway Asset methods
   async getRoadwayAssets(tenantId?: number): Promise<RoadwayAsset[]> {
     if (tenantId) {
-      // If tenantId is provided, only return roadway assets for that tenant
-      const result = await db.select({
-        roadwayAsset: roadwayAssets
-      })
-      .from(tenantRoadwayAssets)
-      .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
-      .where(eq(tenantRoadwayAssets.tenantId, tenantId));
+      try {
+        // First try to get all assets explicitly associated with the tenant via the join table
+        const result1 = await db.select({
+          roadwayAsset: roadwayAssets
+        })
+        .from(tenantRoadwayAssets)
+        .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
+        .where(eq(tenantRoadwayAssets.tenantId, tenantId));
       
-      return result.map(r => r.roadwayAsset);
+        // Then get all assets that have the tenantId property set directly
+        const result2 = await db.select()
+          .from(roadwayAssets)
+          .where(eq(roadwayAssets.tenantId, tenantId));
+        
+        // Combine the results and remove duplicates by using a Map with asset ID as key
+        const combinedAssets = new Map<number, RoadwayAsset>();
+        
+        // Add assets from the explicit tenant associations
+        for (const record of result1) {
+          combinedAssets.set(record.roadwayAsset.id, record.roadwayAsset);
+        }
+        
+        // Add assets with the direct tenantId set
+        for (const asset of result2) {
+          combinedAssets.set(asset.id, asset);
+        }
+        
+        // Convert map values to array
+        return Array.from(combinedAssets.values());
+      } catch (error) {
+        console.error(`Error getting tenant roadway assets for tenant ${tenantId}:`, error);
+        // Fallback to direct tenantId filtering if the join fails
+        return await db.select()
+          .from(roadwayAssets)
+          .where(eq(roadwayAssets.tenantId, tenantId));
+      }
     } else {
       // Otherwise return all roadway assets
       return await db.select().from(roadwayAssets);
@@ -1861,35 +1888,64 @@ export class DatabaseStorage implements IStorage {
 
   async getRoadwayAssetsByType(assetTypeId: number, tenantId?: number): Promise<RoadwayAsset[]> {
     try {
-      if (tenantId) {
-        // First try using the join approach
-        try {
-          const result = await db.select({
-            roadwayAsset: roadwayAssets
-          })
-          .from(tenantRoadwayAssets)
-          .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
-          .where(
-            and(
-              eq(tenantRoadwayAssets.tenantId, tenantId),
-              eq(roadwayAssets.assetTypeId, assetTypeId)
-            )
-          );
-          
-          return result.map(r => r.roadwayAsset);
-        } catch (error) {
-          console.log("Error with join approach, falling back to simpler query:", error);
-          // Fallback to simpler query if there's an issue with the join
-          // This might happen if the tenant_roadway_assets table has no entries yet
-          return await db.select()
-            .from(roadwayAssets)
-            .where(eq(roadwayAssets.assetTypeId, assetTypeId));
-        }
-      } else {
-        // If no tenant filter, just filter by asset type
+      // If no tenant filter, just filter by asset type
+      if (!tenantId) {
         return await db.select()
           .from(roadwayAssets)
           .where(eq(roadwayAssets.assetTypeId, assetTypeId));
+      }
+      
+      // If tenantId is provided, filter by both asset type and tenant
+      try {
+        // First try to get all assets explicitly associated with the tenant via the join table
+        const result1 = await db.select({
+          roadwayAsset: roadwayAssets
+        })
+        .from(tenantRoadwayAssets)
+        .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
+        .where(
+          and(
+            eq(tenantRoadwayAssets.tenantId, tenantId),
+            eq(roadwayAssets.assetTypeId, assetTypeId)
+          )
+        );
+        
+        // Then get all assets that have the tenantId property set directly
+        const result2 = await db.select()
+          .from(roadwayAssets)
+          .where(
+            and(
+              eq(roadwayAssets.tenantId, tenantId),
+              eq(roadwayAssets.assetTypeId, assetTypeId)
+            )
+          );
+        
+        // Combine the results and remove duplicates by using a Map with asset ID as key
+        const combinedAssets = new Map<number, RoadwayAsset>();
+        
+        // Add assets from the explicit tenant associations
+        for (const record of result1) {
+          combinedAssets.set(record.roadwayAsset.id, record.roadwayAsset);
+        }
+        
+        // Add assets with the direct tenantId set
+        for (const asset of result2) {
+          combinedAssets.set(asset.id, asset);
+        }
+        
+        // Convert map values to array
+        return Array.from(combinedAssets.values());
+      } catch (error) {
+        console.error(`Error getting tenant roadway assets for tenant ${tenantId} and type ${assetTypeId}:`, error);
+        // Fallback to direct tenantId filtering if the join fails
+        return await db.select()
+          .from(roadwayAssets)
+          .where(
+            and(
+              eq(roadwayAssets.tenantId, tenantId),
+              eq(roadwayAssets.assetTypeId, assetTypeId)
+            )
+          );
       }
     } catch (error) {
       console.error("Error in getRoadwayAssetsByType:", error);
