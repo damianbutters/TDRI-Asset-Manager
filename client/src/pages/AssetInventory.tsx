@@ -508,6 +508,27 @@ export default function AssetInventory() {
       header: "Location",
     },
     {
+      accessorKey: "roadAssetId",
+      header: "Road",
+      cell: ({ row }: { row: any }) => {
+        const roadAssetId = row.original.roadAssetId;
+        
+        if (!roadAssetId) {
+          return <span className="text-gray-400">None</span>;
+        }
+        
+        // Get the road asset details from the road assets query
+        const roadAssets = roadAssetsQuery.data || [];
+        const roadAsset = roadAssets.find(road => road.id === roadAssetId);
+        
+        return roadAsset ? (
+          <span className="text-blue-600 hover:underline">{roadAsset.name}</span>
+        ) : (
+          <span>Road ID: {roadAssetId}</span>
+        );
+      },
+    },
+    {
       accessorKey: "condition",
       header: "Condition",
       cell: ({ row }: { row: any }) => (

@@ -28,7 +28,7 @@ async function findClosestRoadAsset(
   maxDistanceThreshold: number = 0.005
 ): Promise<number | null> {
   // Get all road assets
-  const allRoadAssets = await storage.getAllRoadAssets();
+  const allRoadAssets = await storage.getRoadAssets();
   
   if (!allRoadAssets.length) {
     console.log("No road assets found in the database");
@@ -39,7 +39,12 @@ async function findClosestRoadAsset(
   let minDistance = Number.MAX_VALUE;
   
   for (const asset of allRoadAssets) {
-    if (asset.geometry?.type === "LineString" && Array.isArray(asset.geometry.coordinates)) {
+    if (asset.geometry && 
+        typeof asset.geometry === 'object' &&
+        'type' in asset.geometry &&
+        asset.geometry.type === "LineString" && 
+        'coordinates' in asset.geometry &&
+        Array.isArray(asset.geometry.coordinates)) {
       // Calculate distance to each point in the line and find the minimum
       for (const point of asset.geometry.coordinates) {
         if (Array.isArray(point) && point.length >= 2) {
@@ -1521,6 +1526,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/roadway-assets", async (req: Request, res: Response) => {
     try {
       const validatedData = insertRoadwayAssetSchema.parse(req.body);
+      
+      // Check if the asset has coordinates in the geometry field or direct lat/lng fields
+      let longitude: number | null = null;
+      let latitude: number | null = null;
+      
+      // Extract coordinates from geometry if available
+      if (validatedData.geometry && 
+          typeof validatedData.geometry === 'object' &&
+          'type' in validatedData.geometry &&
+          validatedData.geometry.type === "Point" && 
+          'coordinates' in validatedData.geometry &&
+          Array.isArray(validatedData.geometry.coordinates) && 
+          validatedData.geometry.coordinates.length === 2) {
+        longitude = validatedData.geometry.coordinates[0];
+        latitude = validatedData.geometry.coordinates[1];
+      } 
+      // If direct latitude/longitude fields are provided, use those
+      else if (validatedData.latitude !== undefined && validatedData.longitude !== undefined) {
+        longitude = validatedData.longitude;
+        latitude = validatedData.latitude;
+      }
+      
+      // If we have coordinates, find the closest road
+      if (longitude !== null && latitude !== null) {
+        console.log(`Finding closest road for coordinates: ${longitude}, ${latitude}`);
+        const closestRoadId = await findClosestRoadAsset(longitude, latitude);
+        
+        if (closestRoadId) {
+          console.log(`Found closest road with ID: ${closestRoadId}`);
+          validatedData.roadAssetId = closestRoadId;
+        } else {
+          console.log('No close road found for the coordinates');
+        }
+      } else {
+        console.log('No coordinates available to find closest road');
+      }
+      
       const asset = await storage.createRoadwayAsset(validatedData);
 
       // Log the action
@@ -1528,7 +1570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: 1,
         username: "admin",
         action: "Created roadway asset",
-        details: `Created ${asset.assetId}: ${asset.name}`,
+        details: `Created ${asset.assetId}: ${asset.name}${asset.roadAssetId ? ` (associated with road ID: ${asset.roadAssetId})` : ''}`,
         ipAddress: req.ip,
         resourceType: "roadway_asset",
         resourceId: asset.id.toString(),
@@ -1557,6 +1599,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validatedData = insertRoadwayAssetSchema.partial().parse(req.body);
+      
+      // Check if coordinates are being updated
+      let longitude: number | null = null;
+      let latitude: number | null = null;
+      
+      // Extract coordinates from geometry if available
+      if (validatedData.geometry && 
+          typeof validatedData.geometry === 'object' &&
+          'type' in validatedData.geometry &&
+          validatedData.geometry.type === "Point" && 
+          'coordinates' in validatedData.geometry &&
+          Array.isArray(validatedData.geometry.coordinates) && 
+          validatedData.geometry.coordinates.length === 2) {
+        longitude = validatedData.geometry.coordinates[0];
+        latitude = validatedData.geometry.coordinates[1];
+      } 
+      // If direct latitude/longitude fields are provided, use those
+      else if (validatedData.latitude !== undefined && validatedData.longitude !== undefined) {
+        longitude = validatedData.longitude;
+        latitude = validatedData.latitude;
+      }
+      
+      // If coordinates were updated, find the closest road
+      if (longitude !== null && latitude !== null) {
+        console.log(`Finding closest road for updated asset ID ${id} at coordinates: ${longitude}, ${latitude}`);
+        const closestRoadId = await findClosestRoadAsset(longitude, latitude);
+        
+        if (closestRoadId) {
+          console.log(`Found closest road with ID: ${closestRoadId} for asset ID: ${id}`);
+          validatedData.roadAssetId = closestRoadId;
+        } else {
+          console.log('No close road found for the updated coordinates');
+        }
+      }
+      
       const updatedAsset = await storage.updateRoadwayAsset(id, validatedData);
 
       // Log the action
@@ -1564,7 +1641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: 1,
         username: "admin",
         action: "Updated roadway asset",
-        details: `Updated ${existingAsset.assetId}: ${existingAsset.name}`,
+        details: `Updated ${existingAsset.assetId}: ${existingAsset.name}${updatedAsset.roadAssetId ? ` (associated with road ID: ${updatedAsset.roadAssetId})` : ''}`,
         ipAddress: req.ip,
         resourceType: "roadway_asset",
         resourceId: id.toString(),
@@ -1745,11 +1822,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const asset of assets) {
         try {
+          // Check if asset has coordinates to find the closest road
+          let longitude: number | null = null;
+          let latitude: number | null = null;
+          
+          // Extract coordinates from geometry if available
+          if (asset.geometry && 
+              typeof asset.geometry === 'object' &&
+              'type' in asset.geometry &&
+              asset.geometry.type === "Point" && 
+              'coordinates' in asset.geometry &&
+              Array.isArray(asset.geometry.coordinates) && 
+              asset.geometry.coordinates.length === 2) {
+            longitude = asset.geometry.coordinates[0];
+            latitude = asset.geometry.coordinates[1];
+          } 
+          // If direct latitude/longitude fields are provided, use those
+          else if (asset.latitude !== undefined && asset.longitude !== undefined) {
+            longitude = asset.longitude;
+            latitude = asset.latitude;
+          }
+          
+          // If we have coordinates, find the closest road
+          if (longitude !== null && latitude !== null) {
+            console.log(`Finding closest road for imported asset: ${asset.assetId} at coordinates: ${longitude}, ${latitude}`);
+            const closestRoadId = await findClosestRoadAsset(longitude, latitude);
+            
+            if (closestRoadId) {
+              console.log(`Found closest road with ID: ${closestRoadId} for imported asset: ${asset.assetId}`);
+              asset.roadAssetId = closestRoadId;
+            }
+          }
+          
           const createdAsset = await storage.createRoadwayAsset(asset);
           results.push({
             success: true,
             assetId: createdAsset.assetId,
-            id: createdAsset.id
+            id: createdAsset.id,
+            roadAssetId: createdAsset.roadAssetId
           });
         } catch (err) {
           results.push({
