@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { PlusCircle, Pencil, Trash2, FileDown, FileUp, CalendarIcon, MapPin } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, FileDown, FileUp, CalendarIcon, MapPin, Layers, LayersIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { AssetMap } from "@/components/ui/asset-map";
 import { 
   getAssetTypes, 
   createAssetType, 
@@ -79,6 +80,8 @@ export default function AssetInventory() {
   const [coordinates, setCoordinates] = useState<{lat?: number, lng?: number}>({});
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [showMap, setShowMap] = useState<boolean>(false);
+  const [enabledLayerIds, setEnabledLayerIds] = useState<number[]>([]);
   
   const { toast } = useToast();
   
