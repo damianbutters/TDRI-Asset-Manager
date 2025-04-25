@@ -14,7 +14,8 @@ import {
   insertAssetTypeSchema,
   insertRoadwayAssetSchema,
   insertAssetInspectionSchema,
-  insertAssetMaintenanceRecordSchema
+  insertAssetMaintenanceRecordSchema,
+  User
 } from "@shared/schema";
 import { weatherService } from "./weather-service";
 
@@ -25,10 +26,11 @@ import { weatherService } from "./weather-service";
 async function findClosestRoadAsset(
   longitude: number, 
   latitude: number, 
-  maxDistanceThreshold: number = 0.005
+  maxDistanceThreshold: number = 0.005,
+  tenantId?: number
 ): Promise<number | null> {
-  // Get all road assets
-  const allRoadAssets = await storage.getRoadAssets();
+  // Get all road assets, filtered by tenant if provided
+  const allRoadAssets = await storage.getRoadAssets(tenantId);
   
   if (!allRoadAssets.length) {
     console.log("No road assets found in the database");
@@ -400,7 +402,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Road Assets
   app.get("/api/road-assets", async (req: Request, res: Response) => {
     try {
-      const assets = await storage.getRoadAssets();
+      // Check if tenant_id was provided as a query parameter
+      const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id as string) : undefined;
+      
+      // If user is authenticated, use their current tenant if no tenant_id is provided
+      const currentUser = req.user as User | undefined;
+      const effectiveTenantId = tenantId || (currentUser?.currentTenantId || undefined);
+      
+      const assets = await storage.getRoadAssets(effectiveTenantId);
       res.json(assets);
     } catch (error) {
       console.error("Error getting road assets:", error);
@@ -1733,7 +1742,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Roadway Assets
   app.get("/api/roadway-assets", async (req: Request, res: Response) => {
     try {
-      const assets = await storage.getRoadwayAssets();
+      // Check if tenant_id was provided as a query parameter
+      const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id as string) : undefined;
+      
+      // If user is authenticated, use their current tenant if no tenant_id is provided
+      const currentUser = req.user as User | undefined;
+      const effectiveTenantId = tenantId || (currentUser?.currentTenantId || undefined);
+      
+      const assets = await storage.getRoadwayAssets(effectiveTenantId);
       res.json(assets);
     } catch (error) {
       console.error("Error getting roadway assets:", error);
@@ -1787,8 +1803,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If we have coordinates, find the closest road
       if (longitude !== null && latitude !== null) {
-        console.log(`Finding closest road for coordinates: ${longitude}, ${latitude}`);
-        const closestRoadId = await findClosestRoadAsset(longitude, latitude);
+        // Get the current user and their tenant for filtering road assets
+        const currentUser = req.user as User | undefined;
+        const tenantId = currentUser?.currentTenantId;
+        
+        console.log(`Finding closest road for coordinates: ${longitude}, ${latitude}${tenantId ? ` in tenant ${tenantId}` : ''}`);
+        const closestRoadId = await findClosestRoadAsset(longitude, latitude, 0.005, tenantId);
         
         if (closestRoadId) {
           console.log(`Found closest road with ID: ${closestRoadId}`);
@@ -1860,8 +1880,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If coordinates were updated, find the closest road
       if (longitude !== null && latitude !== null) {
-        console.log(`Finding closest road for updated asset ID ${id} at coordinates: ${longitude}, ${latitude}`);
-        const closestRoadId = await findClosestRoadAsset(longitude, latitude);
+        // Get the current user and their tenant for filtering road assets
+        const currentUser = req.user as User | undefined;
+        const tenantId = currentUser?.currentTenantId;
+        
+        console.log(`Finding closest road for updated asset ID ${id} at coordinates: ${longitude}, ${latitude}${tenantId ? ` in tenant ${tenantId}` : ''}`);
+        const closestRoadId = await findClosestRoadAsset(longitude, latitude, 0.005, tenantId);
         
         if (closestRoadId) {
           console.log(`Found closest road with ID: ${closestRoadId} for asset ID: ${id}`);
@@ -2082,8 +2106,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // If we have coordinates, find the closest road
           if (longitude !== null && latitude !== null) {
-            console.log(`Finding closest road for imported asset: ${asset.assetId} at coordinates: ${longitude}, ${latitude}`);
-            const closestRoadId = await findClosestRoadAsset(longitude, latitude);
+            // Get the current user and their tenant for filtering road assets
+            const currentUser = req.user as User | undefined;
+            const tenantId = currentUser?.currentTenantId;
+            
+            console.log(`Finding closest road for imported asset: ${asset.assetId} at coordinates: ${longitude}, ${latitude}${tenantId ? ` in tenant ${tenantId}` : ''}`);
+            const closestRoadId = await findClosestRoadAsset(longitude, latitude, 0.005, tenantId);
             
             if (closestRoadId) {
               console.log(`Found closest road with ID: ${closestRoadId} for imported asset: ${asset.assetId}`);
