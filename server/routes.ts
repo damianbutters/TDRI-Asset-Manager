@@ -1974,14 +1974,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('No coordinates available to find closest road');
       }
       
+      // Check for tenant_id in request body, or use current user's tenant if available
+      const requestTenantId = req.body.tenant_id ? parseInt(req.body.tenant_id) : undefined;
+      const currentUser = req.user as User | undefined;
+      const effectiveTenantId = requestTenantId || currentUser?.currentTenantId;
+      
+      // If we have a tenant ID, add it to the asset data
+      if (effectiveTenantId) {
+        validatedData.tenantId = effectiveTenantId;
+      }
+      
       const asset = await storage.createRoadwayAsset(validatedData);
+
+      // If we have a tenant ID, associate the asset with the tenant
+      if (effectiveTenantId) {
+        await storage.assignRoadwayAssetToTenant(effectiveTenantId, asset.id);
+        console.log(`Associated new roadway asset ${asset.id} with tenant ${effectiveTenantId}`);
+      }
 
       // Log the action
       await storage.createAuditLog({
-        userId: 1,
-        username: "admin",
+        userId: currentUser?.id || 1,
+        username: currentUser?.username || "admin",
         action: "Created roadway asset",
-        details: `Created ${asset.assetId}: ${asset.name}${asset.roadAssetId ? ` (associated with road ID: ${asset.roadAssetId})` : ''}`,
+        details: `Created ${asset.assetId}: ${asset.name}${asset.roadAssetId ? ` (associated with road ID: ${asset.roadAssetId})` : ''}${effectiveTenantId ? ` (associated with tenant ID: ${effectiveTenantId})` : ''}`,
         ipAddress: req.ip,
         resourceType: "roadway_asset",
         resourceId: asset.id.toString(),
@@ -2049,14 +2065,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Check for tenant_id in request body, or use current user's tenant if available
+      const requestTenantId = req.body.tenant_id ? parseInt(req.body.tenant_id) : undefined;
+      const currentUser = req.user as User | undefined;
+      const effectiveTenantId = requestTenantId || currentUser?.currentTenantId;
+      
+      // If we have a tenant ID and it's different from the existing one, update it
+      if (effectiveTenantId !== undefined && effectiveTenantId !== existingAsset.tenantId) {
+        validatedData.tenantId = effectiveTenantId;
+        
+        // Update the tenant association
+        if (existingAsset.tenantId) {
+          // Remove from old tenant
+          await storage.removeRoadwayAssetFromTenant(existingAsset.tenantId, id);
+        }
+        
+        // Add to new tenant
+        await storage.assignRoadwayAssetToTenant(effectiveTenantId, id);
+        console.log(`Updated roadway asset ${id} tenant association to ${effectiveTenantId}`);
+      }
+      
       const updatedAsset = await storage.updateRoadwayAsset(id, validatedData);
 
       // Log the action
       await storage.createAuditLog({
-        userId: 1,
-        username: "admin",
+        userId: currentUser?.id || 1,
+        username: currentUser?.username || "admin",
         action: "Updated roadway asset",
-        details: `Updated ${existingAsset.assetId}: ${existingAsset.name}${updatedAsset?.roadAssetId ? ` (associated with road ID: ${updatedAsset.roadAssetId})` : ''}`,
+        details: `Updated ${existingAsset.assetId}: ${existingAsset.name}${updatedAsset?.roadAssetId ? ` (associated with road ID: ${updatedAsset.roadAssetId})` : ''}${effectiveTenantId ? ` (associated with tenant ID: ${effectiveTenantId})` : ''}`,
         ipAddress: req.ip,
         resourceType: "roadway_asset",
         resourceId: id.toString(),
@@ -2273,12 +2309,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
+          // Check for tenant_id in request body or use current user's tenant
+          const requestTenantId = req.body.tenant_id ? parseInt(req.body.tenant_id) : undefined;
+          const currentUser = req.user as User | undefined;
+          const effectiveTenantId = requestTenantId || currentUser?.currentTenantId;
+          
+          // If we have a tenant ID, add it to the asset data
+          if (effectiveTenantId) {
+            asset.tenantId = effectiveTenantId;
+          }
+          
           const createdAsset = await storage.createRoadwayAsset(asset);
+          
+          // If we have a tenant ID, associate the asset with the tenant
+          if (effectiveTenantId) {
+            await storage.assignRoadwayAssetToTenant(effectiveTenantId, createdAsset.id);
+            console.log(`Associated imported roadway asset ${createdAsset.id} with tenant ${effectiveTenantId}`);
+          }
+          
           results.push({
             success: true,
             assetId: createdAsset.assetId,
             id: createdAsset.id,
-            roadAssetId: createdAsset.roadAssetId
+            roadAssetId: createdAsset.roadAssetId,
+            tenantId: effectiveTenantId
           });
         } catch (err) {
           results.push({
