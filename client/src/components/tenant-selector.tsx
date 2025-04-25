@@ -17,13 +17,24 @@ import { useTenant } from "@/hooks/use-tenant";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function TenantSelector() {
-  const { tenants, currentTenant, setCurrentTenant, isLoading } = useTenant();
+  const { tenants = [], currentTenant, setCurrentTenant, isLoading, error } = useTenant();
 
   if (isLoading) {
     return (
       <div className="px-4 py-3 border-t border-gray-200">
         <Skeleton className="h-4 w-28 mb-2" />
         <Skeleton className="h-9 w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-4 py-3 border-t border-gray-200">
+        <p className="text-xs text-neutral-muted mb-1.5">Current Tenant</p>
+        <div className="text-sm text-red-500 italic">
+          Error loading tenants
+        </div>
       </div>
     );
   }

@@ -63,9 +63,14 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
           ))}
         </ul>
       </nav>
+
+      {/* Tenant selection control - positioned above user profile */}
+      <div className="absolute bottom-20 left-0 right-0">
+        <TenantSelector />
+      </div>
       
       <div className="absolute bottom-0 w-64 border-t border-gray-200">
-        <div className="flex items-center">
+        <div className="flex items-center p-4">
           <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
             <span className="text-gray-500">JR</span>
           </div>
