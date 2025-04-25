@@ -160,6 +160,243 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
   }
 }
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Tenant Management
+  app.get("/api/tenants", async (req: Request, res: Response) => {
+    try {
+      const tenants = await storage.getTenants();
+      res.json(tenants);
+    } catch (error) {
+      console.error("Error fetching tenants:", error);
+      res.status(500).json({ error: "Failed to fetch tenants" });
+    }
+  });
+
+  app.get("/api/tenants/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid tenant ID" });
+      }
+      
+      const tenant = await storage.getTenant(id);
+      if (!tenant) {
+        return res.status(404).json({ error: "Tenant not found" });
+      }
+      
+      res.json(tenant);
+    } catch (error) {
+      console.error(`Error fetching tenant with ID ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to fetch tenant" });
+    }
+  });
+  
+  app.post("/api/tenants", async (req: Request, res: Response) => {
+    try {
+      const tenantSchema = schema.insertTenantSchema;
+      const parsedData = tenantSchema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ error: "Invalid tenant data", details: parsedData.error.format() });
+      }
+      
+      const tenant = await storage.createTenant(parsedData.data);
+      res.status(201).json(tenant);
+    } catch (error) {
+      console.error("Error creating tenant:", error);
+      res.status(500).json({ error: "Failed to create tenant" });
+    }
+  });
+  
+  app.put("/api/tenants/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid tenant ID" });
+      }
+      
+      const tenantSchema = schema.insertTenantSchema.partial();
+      const parsedData = tenantSchema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ error: "Invalid tenant data", details: parsedData.error.format() });
+      }
+      
+      const tenant = await storage.updateTenant(id, parsedData.data);
+      if (!tenant) {
+        return res.status(404).json({ error: "Tenant not found" });
+      }
+      
+      res.json(tenant);
+    } catch (error) {
+      console.error(`Error updating tenant with ID ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to update tenant" });
+    }
+  });
+  
+  app.delete("/api/tenants/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid tenant ID" });
+      }
+      
+      const success = await storage.deleteTenant(id);
+      if (!success) {
+        return res.status(404).json({ error: "Tenant not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error(`Error deleting tenant with ID ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to delete tenant" });
+    }
+  });
+  
+  // User-Tenant Management
+  app.get("/api/users/:id/tenants", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+      
+      const tenants = await storage.getUserTenants(userId);
+      res.json(tenants);
+    } catch (error) {
+      console.error(`Error fetching tenants for user ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to fetch user tenants" });
+    }
+  });
+  
+  app.post("/api/users/:userId/tenants/:tenantId", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const tenantId = parseInt(req.params.tenantId);
+      
+      if (isNaN(userId) || isNaN(tenantId)) {
+        return res.status(400).json({ error: "Invalid user ID or tenant ID" });
+      }
+      
+      const schema = z.object({
+        role: z.string(),
+        isAdmin: z.boolean()
+      });
+      
+      const parsedData = schema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ error: "Invalid data", details: parsedData.error.format() });
+      }
+      
+      const success = await storage.addUserToTenant(
+        userId, 
+        tenantId, 
+        parsedData.data.role, 
+        parsedData.data.isAdmin
+      );
+      
+      if (!success) {
+        return res.status(404).json({ error: "User or tenant not found" });
+      }
+      
+      res.status(201).json({ message: "User added to tenant" });
+    } catch (error) {
+      console.error(`Error adding user ${req.params.userId} to tenant ${req.params.tenantId}:`, error);
+      res.status(500).json({ error: "Failed to add user to tenant" });
+    }
+  });
+  
+  app.delete("/api/users/:userId/tenants/:tenantId", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const tenantId = parseInt(req.params.tenantId);
+      
+      if (isNaN(userId) || isNaN(tenantId)) {
+        return res.status(400).json({ error: "Invalid user ID or tenant ID" });
+      }
+      
+      const success = await storage.removeUserFromTenant(userId, tenantId);
+      
+      if (!success) {
+        return res.status(404).json({ error: "User-tenant relationship not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error(`Error removing user ${req.params.userId} from tenant ${req.params.tenantId}:`, error);
+      res.status(500).json({ error: "Failed to remove user from tenant" });
+    }
+  });
+  
+  app.put("/api/users/:userId/tenants/:tenantId", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const tenantId = parseInt(req.params.tenantId);
+      
+      if (isNaN(userId) || isNaN(tenantId)) {
+        return res.status(400).json({ error: "Invalid user ID or tenant ID" });
+      }
+      
+      const schema = z.object({
+        role: z.string(),
+        isAdmin: z.boolean()
+      });
+      
+      const parsedData = schema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ error: "Invalid data", details: parsedData.error.format() });
+      }
+      
+      const success = await storage.updateUserTenantRole(
+        userId, 
+        tenantId, 
+        parsedData.data.role, 
+        parsedData.data.isAdmin
+      );
+      
+      if (!success) {
+        return res.status(404).json({ error: "User-tenant relationship not found" });
+      }
+      
+      res.json({ message: "User-tenant relationship updated" });
+    } catch (error) {
+      console.error(`Error updating user ${req.params.userId} tenant ${req.params.tenantId} relationship:`, error);
+      res.status(500).json({ error: "Failed to update user-tenant relationship" });
+    }
+  });
+  
+  app.put("/api/users/:id/current-tenant", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+      
+      const schema = z.object({
+        tenantId: z.number().nullable()
+      });
+      
+      const parsedData = schema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ error: "Invalid data", details: parsedData.error.format() });
+      }
+      
+      const user = await storage.setUserCurrentTenant(userId, parsedData.data.tenantId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found or tenant not accessible" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      console.error(`Error setting current tenant for user ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to set current tenant" });
+    }
+  });
+
   // Road Assets
   app.get("/api/road-assets", async (req: Request, res: Response) => {
     try {

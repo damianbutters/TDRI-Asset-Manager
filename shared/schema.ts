@@ -9,6 +9,9 @@ export const tenants = pgTable("tenants", {
   name: text("name").notNull().unique(),
   description: text("description"),
   code: text("code").notNull().unique(), // Short unique code for the tenant
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  address: text("address"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
