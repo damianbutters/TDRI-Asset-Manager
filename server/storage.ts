@@ -1156,14 +1156,18 @@ export class MemStorage implements IStorage {
       // If tenantId is provided, return only roadway assets for that tenant
       const roadwayAssetIds = new Set<number>();
       
+      // First check explicit tenant associations
       for (const [key, association] of this.tenantRoadwayAssets.entries()) {
         if (association.tenantId === tenantId) {
           roadwayAssetIds.add(association.roadwayAssetId);
         }
       }
       
+      // Return assets that:
+      // 1. Are explicitly associated with the tenant (via the tenant-asset association)
+      // 2. OR have the tenantId property set to match the requested tenant
       return Array.from(this.roadwayAssets.values())
-        .filter(asset => roadwayAssetIds.has(asset.id));
+        .filter(asset => roadwayAssetIds.has(asset.id) || asset.tenantId === tenantId);
     } else {
       // Otherwise return all roadway assets
       return Array.from(this.roadwayAssets.values());
@@ -1190,8 +1194,12 @@ export class MemStorage implements IStorage {
       }
     }
 
-    // Return only assets that match both the type and tenant filters
-    return typeFilteredAssets.filter(asset => roadwayAssetIds.has(asset.id));
+    // Return assets that:
+    // 1. Match the asset type filter
+    // 2. AND (are explicitly associated with the tenant OR have the tenantId property set to match the requested tenant)
+    return typeFilteredAssets.filter(asset => 
+      roadwayAssetIds.has(asset.id) || asset.tenantId === tenantId
+    );
   }
 
   async getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined> {
