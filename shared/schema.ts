@@ -310,6 +310,8 @@ export const assetTypes = pgTable("asset_types", {
   conditionRatingType: text("condition_rating_type").notNull().default("numeric"), // e.g. "numeric", "text", etc.
   category: text("category").notNull(), // e.g. "Surface", "Safety", "Drainage", etc.
   inspectionFrequencyMonths: integer("inspection_frequency_months").notNull().default(12), // default frequency in months
+  mapShape: text("map_shape").notNull().default("circle"), // e.g. "circle", "square", "triangle", "diamond", etc.
+  mapColor: text("map_color").notNull().default("#3b82f6"), // Default to blue
   customFields: json("custom_fields"), // Store additional field definitions specific to this asset type
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
