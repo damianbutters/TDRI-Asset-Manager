@@ -1918,7 +1918,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid ID" });
       }
 
-      const asset = await storage.getRoadwayAsset(id);
+      // Check if tenant_id was provided as a query parameter
+      const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id as string) : undefined;
+      
+      // If user is authenticated, use their current tenant if no tenant_id is provided
+      const currentUser = req.user as User | undefined;
+      const effectiveTenantId = tenantId || (currentUser?.currentTenantId || undefined);
+      
+      console.log(`Fetching roadway asset ID ${id}${effectiveTenantId ? ` for tenant ${effectiveTenantId}` : ''}`);
+      const asset = await storage.getRoadwayAsset(id, effectiveTenantId);
+      
       if (!asset) {
         return res.status(404).json({ message: "Roadway asset not found" });
       }
