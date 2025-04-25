@@ -35,6 +35,14 @@ export interface IStorage {
   updateUserTenantRole(userId: number, tenantId: number, role: string, isAdmin: boolean): Promise<boolean>;
   setUserCurrentTenant(userId: number, tenantId: number | null): Promise<User | undefined>;
   
+  // Tenant-Asset operations
+  assignRoadAssetToTenant(tenantId: number, roadAssetId: number): Promise<boolean>;
+  removeRoadAssetFromTenant(tenantId: number, roadAssetId: number): Promise<boolean>;
+  getTenantRoadAssets(tenantId: number): Promise<RoadAsset[]>;
+  assignRoadwayAssetToTenant(tenantId: number, roadwayAssetId: number): Promise<boolean>;
+  removeRoadwayAssetFromTenant(tenantId: number, roadwayAssetId: number): Promise<boolean>;
+  getTenantRoadwayAssets(tenantId: number): Promise<RoadwayAsset[]>;
+  
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -697,6 +705,83 @@ export class MemStorage implements IStorage {
     
     this.users.set(userId, updatedUser);
     return updatedUser;
+  }
+  
+  // Tenant-Asset operations
+  async assignRoadAssetToTenant(tenantId: number, roadAssetId: number): Promise<boolean> {
+    const tenant = await this.getTenant(tenantId);
+    const roadAsset = await this.getRoadAsset(roadAssetId);
+    
+    if (!tenant || !roadAsset) {
+      return false;
+    }
+    
+    const key = `${tenantId}-${roadAssetId}`;
+    this.tenantRoadAssets.set(key, { tenantId, roadAssetId });
+    return true;
+  }
+  
+  async removeRoadAssetFromTenant(tenantId: number, roadAssetId: number): Promise<boolean> {
+    const key = `${tenantId}-${roadAssetId}`;
+    return this.tenantRoadAssets.delete(key);
+  }
+  
+  async getTenantRoadAssets(tenantId: number): Promise<RoadAsset[]> {
+    const roadAssetIds: number[] = [];
+    
+    for (const [key, association] of this.tenantRoadAssets.entries()) {
+      if (association.tenantId === tenantId) {
+        roadAssetIds.push(association.roadAssetId);
+      }
+    }
+    
+    const roadAssets: RoadAsset[] = [];
+    for (const roadAssetId of roadAssetIds) {
+      const roadAsset = await this.getRoadAsset(roadAssetId);
+      if (roadAsset) {
+        roadAssets.push(roadAsset);
+      }
+    }
+    
+    return roadAssets;
+  }
+  
+  async assignRoadwayAssetToTenant(tenantId: number, roadwayAssetId: number): Promise<boolean> {
+    const tenant = await this.getTenant(tenantId);
+    const roadwayAsset = await this.getRoadwayAsset(roadwayAssetId);
+    
+    if (!tenant || !roadwayAsset) {
+      return false;
+    }
+    
+    const key = `${tenantId}-${roadwayAssetId}`;
+    this.tenantRoadwayAssets.set(key, { tenantId, roadwayAssetId });
+    return true;
+  }
+  
+  async removeRoadwayAssetFromTenant(tenantId: number, roadwayAssetId: number): Promise<boolean> {
+    const key = `${tenantId}-${roadwayAssetId}`;
+    return this.tenantRoadwayAssets.delete(key);
+  }
+  
+  async getTenantRoadwayAssets(tenantId: number): Promise<RoadwayAsset[]> {
+    const roadwayAssetIds: number[] = [];
+    
+    for (const [key, association] of this.tenantRoadwayAssets.entries()) {
+      if (association.tenantId === tenantId) {
+        roadwayAssetIds.push(association.roadwayAssetId);
+      }
+    }
+    
+    const roadwayAssets: RoadwayAsset[] = [];
+    for (const roadwayAssetId of roadwayAssetIds) {
+      const roadwayAsset = await this.getRoadwayAsset(roadwayAssetId);
+      if (roadwayAsset) {
+        roadwayAssets.push(roadwayAsset);
+      }
+    }
+    
+    return roadwayAssets;
   }
   
   // User operations
