@@ -1163,13 +1163,40 @@ export class MemStorage implements IStorage {
         }
       }
       
-      // Return assets that:
+      // Get all assets that either:
       // 1. Are explicitly associated with the tenant (via the tenant-asset association)
       // 2. OR have the tenantId property set to match the requested tenant
+      // 3. AND are not associated with any other tenant in the explicit association table
       return Array.from(this.roadwayAssets.values())
-        .filter(asset => roadwayAssetIds.has(asset.id) || asset.tenantId === tenantId);
+        .filter(asset => {
+          // Check if the asset explicitly has this tenant ID
+          if (asset.tenantId === tenantId) {
+            return true;
+          }
+
+          // Check if the asset is explicitly associated with this tenant
+          if (roadwayAssetIds.has(asset.id)) {
+            return true;
+          }
+
+          // For assets with no explicit tenant ID, check if they're explicitly 
+          // associated with any tenant - if not, they're available to all tenants
+          if (asset.tenantId === null || asset.tenantId === undefined) {
+            // Check if this asset is associated with any tenant explicitly
+            const isAssociatedWithAnyTenant = Array.from(this.tenantRoadwayAssets.entries())
+              .some(([_, assoc]) => assoc.roadwayAssetId === asset.id);
+            
+            // If not associated with any tenant, it's available for all
+            return !isAssociatedWithAnyTenant;
+          }
+          
+          // Otherwise, this asset belongs to another tenant
+          return false;
+        });
     } else {
-      // Otherwise return all roadway assets
+      // When no tenantId is provided (system admin view), return all roadway assets
+      // but log a warning as this should generally not happen in production
+      console.warn("Warning: Retrieving all roadway assets without tenant filtering");
       return Array.from(this.roadwayAssets.values());
     }
   }
@@ -1194,16 +1221,68 @@ export class MemStorage implements IStorage {
       }
     }
 
-    // Return assets that:
-    // 1. Match the asset type filter
-    // 2. AND (are explicitly associated with the tenant OR have the tenantId property set to match the requested tenant)
-    return typeFilteredAssets.filter(asset => 
-      roadwayAssetIds.has(asset.id) || asset.tenantId === tenantId
-    );
+    // Apply the same tenant filtering logic as in getRoadwayAssets but for assets that match the type
+    return typeFilteredAssets.filter(asset => {
+      // Check if the asset explicitly has this tenant ID
+      if (asset.tenantId === tenantId) {
+        return true;
+      }
+
+      // Check if the asset is explicitly associated with this tenant
+      if (roadwayAssetIds.has(asset.id)) {
+        return true;
+      }
+
+      // For assets with no explicit tenant ID, check if they're explicitly 
+      // associated with any tenant - if not, they're available to all tenants
+      if (asset.tenantId === null || asset.tenantId === undefined) {
+        // Check if this asset is associated with any tenant explicitly
+        const isAssociatedWithAnyTenant = Array.from(this.tenantRoadwayAssets.entries())
+          .some(([_, assoc]) => assoc.roadwayAssetId === asset.id);
+        
+        // If not associated with any tenant, it's available for all
+        return !isAssociatedWithAnyTenant;
+      }
+      
+      // Otherwise, this asset belongs to another tenant
+      return false;
+    });
   }
 
-  async getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined> {
-    return this.roadwayAssets.get(id);
+  async getRoadwayAsset(id: number, tenantId?: number): Promise<RoadwayAsset | undefined> {
+    const asset = this.roadwayAssets.get(id);
+    if (!asset) return undefined;
+    
+    // If no tenant filter or system admin view, return the asset
+    if (!tenantId) return asset;
+    
+    // Check if the asset explicitly has this tenant ID
+    if (asset.tenantId === tenantId) {
+      return asset;
+    }
+    
+    // Check if asset is explicitly associated with this tenant
+    for (const [_, association] of this.tenantRoadwayAssets.entries()) {
+      if (association.roadwayAssetId === id && association.tenantId === tenantId) {
+        return asset;
+      }
+    }
+    
+    // If asset has no tenant ID and isn't explicitly associated with any tenant,
+    // it's available to all tenants
+    if (asset.tenantId === null || asset.tenantId === undefined) {
+      // Check if this asset is associated with any tenant explicitly
+      const isAssociatedWithAnyTenant = Array.from(this.tenantRoadwayAssets.entries())
+        .some(([_, assoc]) => assoc.roadwayAssetId === id);
+      
+      // If not associated with any tenant, it's available for all
+      if (!isAssociatedWithAnyTenant) {
+        return asset;
+      }
+    }
+    
+    // Asset is not accessible to this tenant
+    return undefined;
   }
 
   async createRoadwayAsset(asset: InsertRoadwayAsset): Promise<RoadwayAsset> {
@@ -1845,7 +1924,7 @@ export class DatabaseStorage implements IStorage {
   async getRoadwayAssets(tenantId?: number): Promise<RoadwayAsset[]> {
     if (tenantId) {
       try {
-        // First try to get all assets explicitly associated with the tenant via the join table
+        // Get assets explicitly associated with the tenant via the join table
         const result1 = await db.select({
           roadwayAsset: roadwayAssets
         })
@@ -1853,7 +1932,7 @@ export class DatabaseStorage implements IStorage {
         .innerJoin(roadwayAssets, eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssets.id))
         .where(eq(tenantRoadwayAssets.tenantId, tenantId));
       
-        // Then get all assets that have the tenantId property set directly
+        // Get assets that have the tenantId property set directly
         const result2 = await db.select()
           .from(roadwayAssets)
           .where(eq(roadwayAssets.tenantId, tenantId));
@@ -1881,7 +1960,9 @@ export class DatabaseStorage implements IStorage {
           .where(eq(roadwayAssets.tenantId, tenantId));
       }
     } else {
-      // Otherwise return all roadway assets
+      // When no tenantId is provided (system admin view), return all roadway assets
+      // but log a warning as this should generally not happen in production
+      console.warn("Warning: Retrieving all roadway assets without tenant filtering");
       return await db.select().from(roadwayAssets);
     }
   }
@@ -1890,6 +1971,7 @@ export class DatabaseStorage implements IStorage {
     try {
       // If no tenant filter, just filter by asset type
       if (!tenantId) {
+        console.warn(`Warning: Retrieving all roadway assets of type ${assetTypeId} without tenant filtering`);
         return await db.select()
           .from(roadwayAssets)
           .where(eq(roadwayAssets.assetTypeId, assetTypeId));
@@ -1897,6 +1979,15 @@ export class DatabaseStorage implements IStorage {
       
       // If tenantId is provided, filter by both asset type and tenant
       try {
+        // First get all roadway assets filtered by tenant (using our established logic)
+        const tenantFilteredAssets = await this.getRoadwayAssets(tenantId);
+        
+        // Then filter those assets by type
+        return tenantFilteredAssets.filter(asset => asset.assetTypeId === assetTypeId);
+      } catch (error) {
+        console.error(`Error getting tenant roadway assets for tenant ${tenantId} and type ${assetTypeId}:`, error);
+        
+        // Fallback to direct filtering if the approach above fails
         // First try to get all assets explicitly associated with the tenant via the join table
         const result1 = await db.select({
           roadwayAsset: roadwayAssets
@@ -1935,17 +2026,6 @@ export class DatabaseStorage implements IStorage {
         
         // Convert map values to array
         return Array.from(combinedAssets.values());
-      } catch (error) {
-        console.error(`Error getting tenant roadway assets for tenant ${tenantId} and type ${assetTypeId}:`, error);
-        // Fallback to direct tenantId filtering if the join fails
-        return await db.select()
-          .from(roadwayAssets)
-          .where(
-            and(
-              eq(roadwayAssets.tenantId, tenantId),
-              eq(roadwayAssets.assetTypeId, assetTypeId)
-            )
-          );
       }
     } catch (error) {
       console.error("Error in getRoadwayAssetsByType:", error);
@@ -1954,9 +2034,58 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined> {
-    const [asset] = await db.select().from(roadwayAssets).where(eq(roadwayAssets.id, id));
-    return asset;
+  async getRoadwayAsset(id: number, tenantId?: number): Promise<RoadwayAsset | undefined> {
+    try {
+      // First get the basic asset
+      const [asset] = await db.select().from(roadwayAssets).where(eq(roadwayAssets.id, id));
+      if (!asset) return undefined;
+      
+      // If no tenant filter, just return the asset (system admin view)
+      if (!tenantId) {
+        console.warn(`Warning: Retrieving roadway asset ID ${id} without tenant filtering`);
+        return asset;
+      }
+      
+      // Check if the asset belongs to this tenant directly
+      if (asset.tenantId === tenantId) {
+        return asset;
+      }
+      
+      // Check if the asset is explicitly associated with this tenant
+      const tenantAssociation = await db.select()
+        .from(tenantRoadwayAssets)
+        .where(
+          and(
+            eq(tenantRoadwayAssets.roadwayAssetId, id),
+            eq(tenantRoadwayAssets.tenantId, tenantId)
+          )
+        );
+      
+      if (tenantAssociation.length > 0) {
+        return asset;
+      }
+      
+      // For assets with no explicit tenant ID, check if they're explicitly 
+      // associated with any tenant
+      if (asset.tenantId === null) {
+        // Check if this asset is associated with any tenant explicitly
+        const allAssociations = await db.select()
+          .from(tenantRoadwayAssets)
+          .where(eq(tenantRoadwayAssets.roadwayAssetId, id));
+        
+        // If not associated with any tenant, it's available for all
+        if (allAssociations.length === 0) {
+          return asset;
+        }
+      }
+      
+      // Asset is not accessible to this tenant
+      return undefined;
+    } catch (error) {
+      console.error(`Error getting roadway asset ${id} for tenant ${tenantId}:`, error);
+      // For critical errors, we might choose to log and return undefined rather than expose errors
+      return undefined;
+    }
   }
 
   async createRoadwayAsset(asset: InsertRoadwayAsset): Promise<RoadwayAsset> {
