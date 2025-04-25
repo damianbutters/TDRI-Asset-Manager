@@ -1996,6 +1996,71 @@ export class DatabaseStorage implements IStorage {
     const result = await db.delete(assetMaintenanceRecords).where(eq(assetMaintenanceRecords.id, id));
     return result.rowCount > 0;
   }
+
+  // Tenant - Asset Association Methods
+  async associateRoadwayAssetWithTenant(roadwayAssetId: number, tenantId: number): Promise<boolean> {
+    try {
+      // Check if the association already exists
+      const existing = await db.select()
+        .from(tenantRoadwayAssets)
+        .where(
+          and(
+            eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssetId),
+            eq(tenantRoadwayAssets.tenantId, tenantId)
+          )
+        );
+      
+      if (existing.length > 0) {
+        // Association already exists
+        return true;
+      }
+      
+      // Create the association
+      await db.insert(tenantRoadwayAssets).values({
+        roadwayAssetId,
+        tenantId,
+        createdAt: new Date()
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error associating roadway asset with tenant:", error);
+      return false;
+    }
+  }
+  
+  async removeRoadwayAssetFromTenant(roadwayAssetId: number, tenantId: number): Promise<boolean> {
+    try {
+      const result = await db.delete(tenantRoadwayAssets)
+        .where(
+          and(
+            eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssetId),
+            eq(tenantRoadwayAssets.tenantId, tenantId)
+          )
+        );
+      
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error("Error removing roadway asset from tenant:", error);
+      return false;
+    }
+  }
+  
+  async getRoadwayAssetTenants(roadwayAssetId: number): Promise<Tenant[]> {
+    try {
+      const result = await db.select({
+        tenant: tenants
+      })
+      .from(tenantRoadwayAssets)
+      .innerJoin(tenants, eq(tenantRoadwayAssets.tenantId, tenants.id))
+      .where(eq(tenantRoadwayAssets.roadwayAssetId, roadwayAssetId));
+      
+      return result.map(r => r.tenant);
+    } catch (error) {
+      console.error("Error getting roadway asset tenants:", error);
+      return [];
+    }
+  }
 }
 
 // Export a database storage instance

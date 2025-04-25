@@ -1712,6 +1712,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
+  
+  // Associate a roadway asset with a tenant
+  app.post("/api/tenants/:tenantId/roadway-assets/:assetId", async (req: Request, res: Response) => {
+    try {
+      const tenantId = parseInt(req.params.tenantId);
+      const assetId = parseInt(req.params.assetId);
+      
+      if (isNaN(tenantId) || isNaN(assetId)) {
+        return res.status(400).json({ message: "Invalid tenant ID or asset ID" });
+      }
+      
+      // Verify the tenant exists
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+      
+      // Verify the asset exists
+      const asset = await storage.getRoadwayAsset(assetId);
+      if (!asset) {
+        return res.status(404).json({ message: "Roadway asset not found" });
+      }
+      
+      // Associate the asset with the tenant
+      const success = await storage.associateRoadwayAssetWithTenant(assetId, tenantId);
+      
+      if (!success) {
+        return res.status(500).json({ message: "Failed to associate asset with tenant" });
+      }
+      
+      // Log the action
+      const currentUser = req.user as User | undefined;
+      await storage.createAuditLog({
+        userId: currentUser?.id || 1,
+        username: currentUser?.username || "admin",
+        action: "Associated asset with tenant",
+        details: `Associated roadway asset ID ${assetId} with tenant ID ${tenantId}`,
+        ipAddress: req.ip,
+        resourceType: "roadway_asset",
+        resourceId: assetId.toString(),
+      });
+      
+      res.status(201).json({ message: "Asset associated with tenant successfully" });
+    } catch (error) {
+      console.error("Error associating asset with tenant:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  
+  // Remove a roadway asset from a tenant
+  app.delete("/api/tenants/:tenantId/roadway-assets/:assetId", async (req: Request, res: Response) => {
+    try {
+      const tenantId = parseInt(req.params.tenantId);
+      const assetId = parseInt(req.params.assetId);
+      
+      if (isNaN(tenantId) || isNaN(assetId)) {
+        return res.status(400).json({ message: "Invalid tenant ID or asset ID" });
+      }
+      
+      // Remove the asset from the tenant
+      const success = await storage.removeRoadwayAssetFromTenant(assetId, tenantId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Asset not associated with tenant or association could not be removed" });
+      }
+      
+      // Log the action
+      const currentUser = req.user as User | undefined;
+      await storage.createAuditLog({
+        userId: currentUser?.id || 1,
+        username: currentUser?.username || "admin",
+        action: "Removed asset from tenant",
+        details: `Removed roadway asset ID ${assetId} from tenant ID ${tenantId}`,
+        ipAddress: req.ip,
+        resourceType: "roadway_asset",
+        resourceId: assetId.toString(),
+      });
+      
+      res.status(200).json({ message: "Asset removed from tenant successfully" });
+    } catch (error) {
+      console.error("Error removing asset from tenant:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  
+  // Get tenants associated with a roadway asset
+  app.get("/api/roadway-assets/:assetId/tenants", async (req: Request, res: Response) => {
+    try {
+      const assetId = parseInt(req.params.assetId);
+      
+      if (isNaN(assetId)) {
+        return res.status(400).json({ message: "Invalid asset ID" });
+      }
+      
+      // Verify the asset exists
+      const asset = await storage.getRoadwayAsset(assetId);
+      if (!asset) {
+        return res.status(404).json({ message: "Roadway asset not found" });
+      }
+      
+      // Get tenants associated with the asset
+      const tenants = await storage.getRoadwayAssetTenants(assetId);
+      
+      res.json(tenants);
+    } catch (error) {
+      console.error("Error getting asset tenants:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
 
   app.post("/api/asset-types", async (req: Request, res: Response) => {
     try {
