@@ -1676,6 +1676,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
+  
+  // Get roadway assets by asset type with tenant filtering
+  app.get("/api/asset-types/:id/assets", async (req: Request, res: Response) => {
+    try {
+      const assetTypeId = parseInt(req.params.id);
+      if (isNaN(assetTypeId)) {
+        return res.status(400).json({ message: "Invalid asset type ID" });
+      }
+
+      // Check if tenant_id was provided as a query parameter
+      const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id as string) : undefined;
+      
+      // If user is authenticated, use their current tenant if no tenant_id is provided
+      const currentUser = req.user as User | undefined;
+      const effectiveTenantId = tenantId || (currentUser?.currentTenantId || undefined);
+      
+      // Get assets of this type, filtered by tenant if applicable
+      const assets = await storage.getRoadwayAssetsByType(assetTypeId, effectiveTenantId);
+      
+      // Log the action
+      await storage.createAuditLog({
+        userId: currentUser?.id || 1,
+        username: currentUser?.username || "admin",
+        action: "Viewed assets by type",
+        details: `Viewed ${assets.length} assets of type ID ${assetTypeId}`,
+        ipAddress: req.ip,
+        resourceType: "asset_type",
+        resourceId: assetTypeId.toString(),
+      });
+
+      res.json(assets);
+    } catch (error) {
+      console.error("Error getting assets by type:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
 
   app.post("/api/asset-types", async (req: Request, res: Response) => {
     try {
