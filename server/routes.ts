@@ -1641,7 +1641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: 1,
         username: "admin",
         action: "Updated roadway asset",
-        details: `Updated ${existingAsset.assetId}: ${existingAsset.name}${updatedAsset.roadAssetId ? ` (associated with road ID: ${updatedAsset.roadAssetId})` : ''}`,
+        details: `Updated ${existingAsset.assetId}: ${existingAsset.name}${updatedAsset?.roadAssetId ? ` (associated with road ID: ${updatedAsset.roadAssetId})` : ''}`,
         ipAddress: req.ip,
         resourceType: "roadway_asset",
         resourceId: id.toString(),

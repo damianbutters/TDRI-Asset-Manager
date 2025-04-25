@@ -27,7 +27,8 @@ export async function createAssetType(data: InsertAssetType): Promise<AssetType>
   return await response.json();
 }
 
-export async function updateAssetType(id: number, data: Partial<InsertAssetType>): Promise<AssetType> {
+export async function updateAssetType(params: { id: number, data: Partial<InsertAssetType> }): Promise<AssetType> {
+  const { id, data } = params;
   const response = await apiRequest("PUT", `/api/asset-types/${id}`, data);
   queryClient.invalidateQueries({ queryKey: ["/api/asset-types"] });
   queryClient.invalidateQueries({ queryKey: [`/api/asset-types/${id}`] });
@@ -61,7 +62,8 @@ export async function createRoadwayAsset(data: InsertRoadwayAsset): Promise<Road
   return await response.json();
 }
 
-export async function updateRoadwayAsset(id: number, data: Partial<InsertRoadwayAsset>): Promise<RoadwayAsset> {
+export async function updateRoadwayAsset(params: { id: number, data: Partial<InsertRoadwayAsset> }): Promise<RoadwayAsset> {
+  const { id, data } = params;
   const response = await apiRequest("PUT", `/api/roadway-assets/${id}`, data);
   queryClient.invalidateQueries({ queryKey: ["/api/roadway-assets"] });
   queryClient.invalidateQueries({ queryKey: [`/api/roadway-assets/${id}`] });

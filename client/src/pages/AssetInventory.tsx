@@ -91,6 +91,19 @@ export default function AssetInventory() {
     queryFn: () => getRoadwayAssets(),
   });
   
+  const roadAssetsQuery = useQuery({
+    queryKey: ["/api/road-assets"],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/road-assets');
+        return await response.json();
+      } catch (error) {
+        console.error("Error fetching road assets:", error);
+        return [];
+      }
+    },
+  });
+  
   // Mutations
   const createAssetTypeMutation = useMutation({
     mutationFn: createAssetType,
@@ -291,9 +304,10 @@ export default function AssetInventory() {
   
   const onEditSubmit = (values: z.infer<typeof assetTypeFormSchema>) => {
     if (selectedAssetType) {
+      // Convert to proper format for mutation
       updateAssetTypeMutation.mutate({
         id: selectedAssetType.id,
-        ...values,
+        data: values,
       });
     }
   };
@@ -320,9 +334,10 @@ export default function AssetInventory() {
           coordinates: [coordinates.lng, coordinates.lat] 
         };
       }
+      // Convert to proper format for mutation
       updateRoadwayAssetMutation.mutate({
         id: selectedRoadwayAsset.id,
-        ...assetData,
+        data: assetData,
       });
     }
   };
@@ -518,11 +533,11 @@ export default function AssetInventory() {
         }
         
         // Get the road asset details from the road assets query
-        const roadAssets = roadAssetsQuery.data || [];
-        const roadAsset = roadAssets.find(road => road.id === roadAssetId);
+        const roads = roadAssetsQuery.data || [];
+        const road = roads.find((r: any) => r.id === roadAssetId);
         
-        return roadAsset ? (
-          <span className="text-blue-600 hover:underline">{roadAsset.name}</span>
+        return road ? (
+          <span className="text-blue-600 hover:underline">{road.name}</span>
         ) : (
           <span>Road ID: {roadAssetId}</span>
         );
