@@ -23,18 +23,27 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchField?: string;
+  searchKey?: string;
+  searchPlaceholder?: string;
+  isLoading?: boolean;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   searchField,
+  searchKey,
+  searchPlaceholder,
+  isLoading,
 }: DataTableProps<TData, TValue>) {
   const [searchQuery, setSearchQuery] = useState("");
   
-  const filteredData = searchField && searchQuery
+  // Use searchKey if provided, otherwise fallback to searchField
+  const actualSearchField = searchKey || searchField;
+  
+  const filteredData = actualSearchField && searchQuery
     ? data.filter((row: any) => {
-        return row[searchField] && row[searchField].toString().toLowerCase().includes(searchQuery.toLowerCase());
+        return row[actualSearchField] && row[actualSearchField].toString().toLowerCase().includes(searchQuery.toLowerCase());
       })
     : data;
   
@@ -52,12 +61,12 @@ export function DataTable<TData, TValue>({
 
   return (
     <div>
-      {searchField && (
+      {actualSearchField && (
         <div className="flex items-center pb-4">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={`Search by ${searchField}...`}
+              placeholder={searchPlaceholder || `Search by ${actualSearchField}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8"

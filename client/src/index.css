@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fix Leaflet z-index issues */
+.leaflet-popup {
+  z-index: 1000 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: white;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+}
+
+.leaflet-popup-content {
+  margin: 13px 19px;
+  line-height: 1.4;
+}
+
+.leaflet-popup-tip {
+  background: white;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+}
+
 :root {
       --background: 0 0% 100%;
 --foreground: 20 14.3% 4.1%;

@@ -48,7 +48,15 @@ import { Droplet } from "lucide-react";
 export default function RoadAssets() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<RoadAsset | null>(null);
+  // Define the type for a road asset with typed geometry
+  type RoadAssetWithGeometry = RoadAsset & {
+    geometry: {
+      type: string;
+      coordinates: number[][];
+    }
+  };
+  
+  const [selectedAsset, setSelectedAsset] = useState<RoadAssetWithGeometry | null>(null);
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
@@ -144,9 +152,20 @@ export default function RoadAssets() {
     createMutation.mutate(values);
   };
 
+  // Type for geometry
+  type GeometryType = {
+    type: string;
+    coordinates: number[][];
+  };
+
   // Handle view asset
   const handleViewAsset = (asset: RoadAsset) => {
-    setSelectedAsset(asset);
+    // Ensure geometry is properly typed
+    const assetWithGeometry = {
+      ...asset,
+      geometry: asset.geometry as GeometryType
+    };
+    setSelectedAsset(assetWithGeometry);
     setIsViewDialogOpen(true);
   };
 
@@ -250,6 +269,10 @@ export default function RoadAssets() {
           <p className="text-neutral-textSecondary">Manage and view road asset inventory</p>
         </div>
         <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
+          <Button onClick={() => navigate('/map-view')} variant="outline">
+            <Droplet className="h-4 w-4 mr-2" />
+            View Moisture Map
+          </Button>
           <Button onClick={() => setIsAddDialogOpen(true)}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -649,7 +672,7 @@ export default function RoadAssets() {
                       roadAssets={[selectedAsset]} 
                       height="h-full"
                       center={[
-                        selectedAsset.geometry.coordinates[0][1],
+                        selectedAsset.geometry.coordinates[0][1], 
                         selectedAsset.geometry.coordinates[0][0]
                       ]}
                       zoom={14}
