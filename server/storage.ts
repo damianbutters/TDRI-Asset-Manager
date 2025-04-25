@@ -1170,9 +1170,28 @@ export class MemStorage implements IStorage {
     }
   }
 
-  async getRoadwayAssetsByType(assetTypeId: number): Promise<RoadwayAsset[]> {
-    return Array.from(this.roadwayAssets.values())
+  async getRoadwayAssetsByType(assetTypeId: number, tenantId?: number): Promise<RoadwayAsset[]> {
+    // First filter by asset type
+    const typeFilteredAssets = Array.from(this.roadwayAssets.values())
       .filter(asset => asset.assetTypeId === assetTypeId);
+    
+    // If no tenant filter is applied, return all assets of the specified type
+    if (!tenantId) {
+      return typeFilteredAssets;
+    }
+
+    // Apply tenant filtering
+    const roadwayAssetIds = new Set<number>();
+    
+    // Collect tenant-associated roadway asset IDs
+    for (const [_, association] of this.tenantRoadwayAssets.entries()) {
+      if (association.tenantId === tenantId) {
+        roadwayAssetIds.add(association.roadwayAssetId);
+      }
+    }
+
+    // Return only assets that match both the type and tenant filters
+    return typeFilteredAssets.filter(asset => roadwayAssetIds.has(asset.id));
   }
 
   async getRoadwayAsset(id: number): Promise<RoadwayAsset | undefined> {

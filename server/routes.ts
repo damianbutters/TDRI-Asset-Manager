@@ -2165,15 +2165,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let assets;
       
+      // Get tenant context
+      const currentUser = req.user as User | undefined;
+      const tenantId = req.query.tenant_id ? 
+        parseInt(req.query.tenant_id as string) : 
+        (currentUser?.currentTenantId || undefined);
+      
       // Filter by asset type if specified
       if (req.query.assetTypeId) {
         const assetTypeId = parseInt(req.query.assetTypeId as string);
         if (isNaN(assetTypeId)) {
           return res.status(400).json({ message: "Invalid asset type ID" });
         }
+        // Currently no tenant filtering with type filtering - we could add this in the future
         assets = await storage.getRoadwayAssetsByType(assetTypeId);
       } else {
-        assets = await storage.getRoadwayAssets();
+        // Use tenant filtering when getting all assets
+        assets = await storage.getRoadwayAssets(tenantId);
       }
 
       // Log the action
