@@ -830,6 +830,96 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
+  async deleteUser(id: number): Promise<boolean> {
+    const existingUser = await this.getUser(id);
+    if (!existingUser) {
+      return false;
+    }
+    
+    // Remove all user-tenant associations for this user
+    Array.from(this.userTenants.entries())
+      .filter(([key, value]) => value.userId === id)
+      .forEach(([key]) => this.userTenants.delete(key));
+    
+    // Remove the user
+    return this.users.delete(id);
+  }
+  
+  async getUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+  
+  async getAllUserTenants(): Promise<UserTenant[]> {
+    return Array.from(this.userTenants.entries()).map(([key, value]) => {
+      const [userId, tenantId] = key.split('-').map(Number);
+      return {
+        id: parseInt(key),
+        userId,
+        tenantId,
+        role: value.role,
+        isAdmin: value.isAdmin,
+        createdAt: new Date()
+      };
+    });
+  }
+  
+  async createUserTenant(userTenant: { userId: number, tenantId: number, role: string, isAdmin: boolean }): Promise<UserTenant> {
+    const { userId, tenantId, role, isAdmin } = userTenant;
+    const key = `${userId}-${tenantId}`;
+    
+    // Make sure user and tenant exist
+    const user = await this.getUser(userId);
+    const tenant = await this.getTenant(tenantId);
+    
+    if (!user || !tenant) {
+      throw new Error("User or tenant does not exist");
+    }
+    
+    // Create the association
+    this.userTenants.set(key, { userId, tenantId, role, isAdmin });
+    
+    return {
+      id: parseInt(key),
+      userId,
+      tenantId,
+      role,
+      isAdmin,
+      createdAt: new Date()
+    };
+  }
+  
+  async updateUserTenant(id: number, updates: Partial<{ role: string, isAdmin: boolean }>): Promise<UserTenant | undefined> {
+    // In this implementation, id is the composite key "{userId}-{tenantId}"
+    const key = id.toString();
+    const existing = this.userTenants.get(key);
+    
+    if (!existing) {
+      return undefined;
+    }
+    
+    const updated = {
+      ...existing,
+      ...updates
+    };
+    
+    this.userTenants.set(key, updated);
+    
+    return {
+      id,
+      userId: existing.userId,
+      tenantId: existing.tenantId,
+      role: updated.role,
+      isAdmin: updated.isAdmin,
+      createdAt: new Date()
+    };
+  }
+  
+  async deleteUserTenant(id: number): Promise<boolean> {
+    // In this implementation, id is the composite key "{userId}-{tenantId}"
+    const key = id.toString();
+    return this.userTenants.delete(key);
+  }
+  
   async getRoadAssets(tenantId?: number): Promise<RoadAsset[]> {
     if (tenantId) {
       // If tenantId is provided, return only road assets for that tenant
@@ -1629,6 +1719,95 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+  
+  async updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined> {
+    const existingUser = await this.getUser(id);
+    if (!existingUser) {
+      return undefined;
+    }
+    
+    const [updatedUser] = await db.update(users)
+      .set({
+        ...user,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, id))
+      .returning();
+    
+    return updatedUser;
+  }
+  
+  async deleteUser(id: number): Promise<boolean> {
+    // First, remove all user-tenant associations
+    await db.delete(userTenants)
+      .where(eq(userTenants.userId, id));
+    
+    // Then delete the user
+    const result = await db.delete(users)
+      .where(eq(users.id, id));
+      
+    return result.rowCount > 0;
+  }
+  
+  async getUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(users.username);
+  }
+  
+  async getAllUserTenants(): Promise<UserTenant[]> {
+    return await db.select().from(userTenants);
+  }
+  
+  async createUserTenant(userTenant: { userId: number, tenantId: number, role: string, isAdmin: boolean }): Promise<UserTenant> {
+    const { userId, tenantId, role, isAdmin } = userTenant;
+    
+    // Make sure user and tenant exist
+    const user = await this.getUser(userId);
+    const tenant = await this.getTenant(tenantId);
+    
+    if (!user || !tenant) {
+      throw new Error("User or tenant does not exist");
+    }
+    
+    const [newUserTenant] = await db.insert(userTenants)
+      .values({
+        userId,
+        tenantId,
+        role,
+        isAdmin,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+      
+    return newUserTenant;
+  }
+  
+  async updateUserTenant(id: number, updates: Partial<{ role: string, isAdmin: boolean }>): Promise<UserTenant | undefined> {
+    // Get the existing user tenant
+    const [existingUserTenant] = await db.select().from(userTenants).where(eq(userTenants.id, id));
+    
+    if (!existingUserTenant) {
+      return undefined;
+    }
+    
+    // Update the user tenant
+    const [updatedUserTenant] = await db.update(userTenants)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(userTenants.id, id))
+      .returning();
+      
+    return updatedUserTenant;
+  }
+  
+  async deleteUserTenant(id: number): Promise<boolean> {
+    const result = await db.delete(userTenants)
+      .where(eq(userTenants.id, id));
+      
+    return result.rowCount > 0;
   }
   
   // Road asset methods

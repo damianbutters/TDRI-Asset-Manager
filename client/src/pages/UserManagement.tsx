@@ -1,149 +1,104 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { Pencil, Trash, Plus, Loader2 } from "lucide-react";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { DataTable } from "@/components/ui/data-table";
+import { ColumnDef } from "@tanstack/react-table";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Trash2, PencilIcon, UserCogIcon, PlusCircle, CheckCircle2, XCircle } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Tenant, User, UserTenant } from "@shared/schema";
+import { useTenant } from "@/hooks/use-tenant";
 
-interface User {
-  id: number;
-  username: string;
-  fullName: string;
-  role: string;
-  isSystemAdmin: boolean | null;
-  currentTenantId: number | null;
-}
+// Form validation schema for creating/updating users
+const userSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(5, "Password must be at least 5 characters").optional(),
+  fullName: z.string().min(3, "Full name must be at least 3 characters"),
+  role: z.string().min(2, "Role must be at least 2 characters"),
+  isSystemAdmin: z.boolean().optional().default(false),
+});
 
-interface Tenant {
-  id: number;
-  name: string;
-  description: string | null;
-  code: string;
-}
+// Form validation schema for user tenant associations
+const userTenantSchema = z.object({
+  tenantId: z.coerce.number().min(1, "Please select a tenant"),
+  userId: z.coerce.number().min(1, "Please select a user"),
+  role: z.string().min(2, "Role must be at least 2 characters"),
+  isAdmin: z.boolean().optional().default(false),
+});
 
-interface UserTenant {
-  id: number;
-  userId: number;
-  tenantId: number;
-  role: string;
-  isAdmin: boolean;
-}
-
-interface UserFormData {
-  username: string;
-  password: string;
-  fullName: string;
-  role: string;
-  isSystemAdmin: boolean;
-  tenantAccess: {
-    tenantId: number;
-    role: string;
-    isAdmin: boolean;
-  }[];
-}
-
-const UserManagement = () => {
+export default function UserManagement() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const { currentTenant } = useTenant();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState<UserFormData>({
-    username: "",
-    password: "",
-    fullName: "",
-    role: "user",
-    isSystemAdmin: false,
-    tenantAccess: [],
-  });
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
+  const [isUserTenantDialogOpen, setIsUserTenantDialogOpen] = useState(false);
+  const [selectedUserTenant, setSelectedUserTenant] = useState<UserTenant | null>(null);
+  const [activeTab, setActiveTab] = useState("users");
 
   // Fetch users
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
-    queryKey: ['/api/users'],
-    retry: false,
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
+    queryKey: ["/api/users"],
   });
 
   // Fetch tenants
-  const { data: tenants = [], isLoading: isTenantsLoading } = useQuery<Tenant[]>({
-    queryKey: ['/api/tenants'],
+  const { data: tenants = [], isLoading: isLoadingTenants } = useQuery<Tenant[]>({
+    queryKey: ["/api/tenants"],
   });
 
-  // Fetch user-tenant relationships
-  const { data: userTenants = [], isLoading: isUserTenantsLoading } = useQuery<UserTenant[]>({
-    queryKey: ['/api/user-tenants'],
-    retry: false,
+  // Fetch user tenants
+  const { data: userTenants = [], isLoading: isLoadingUserTenants } = useQuery<UserTenant[]>({
+    queryKey: ["/api/user-tenants"],
   });
 
-  // Create user mutation
+  // User form setup
+  const userForm = useForm<z.infer<typeof userSchema>>({
+    resolver: zodResolver(userSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+      fullName: "",
+      role: "",
+      isSystemAdmin: false,
+    },
+  });
+
+  // User-tenant form setup
+  const userTenantForm = useForm<z.infer<typeof userTenantSchema>>({
+    resolver: zodResolver(userTenantSchema),
+    defaultValues: {
+      userId: 0,
+      tenantId: 0,
+      role: "",
+      isAdmin: false,
+    },
+  });
+
+  // Mutations for users
   const createUserMutation = useMutation({
-    mutationFn: async (data: UserFormData) => {
-      // First create the user
-      const userResponse = await apiRequest("POST", "/api/users", {
-        username: data.username,
-        password: data.password,
-        fullName: data.fullName,
-        role: data.role,
-        isSystemAdmin: data.isSystemAdmin,
-      });
-      
-      const user = await userResponse.json();
-      
-      // Then create tenant associations
-      for (const tenantAccess of data.tenantAccess) {
-        await apiRequest("POST", "/api/user-tenants", {
-          userId: user.id,
-          tenantId: tenantAccess.tenantId,
-          role: tenantAccess.role,
-          isAdmin: tenantAccess.isAdmin,
-        });
-      }
-      
-      return user;
+    mutationFn: async (data: z.infer<typeof userSchema>) => {
+      const res = await apiRequest("POST", "/api/users", data);
+      return await res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user-tenants'] });
-      setIsCreateDialogOpen(false);
-      resetForm();
       toast({
         title: "User created",
         description: "The user has been created successfully",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setIsUserDialogOpen(false);
+      userForm.reset();
     },
     onError: (error: Error) => {
       toast({
@@ -154,70 +109,20 @@ const UserManagement = () => {
     },
   });
 
-  // Update user mutation
   const updateUserMutation = useMutation({
-    mutationFn: async (data: UserFormData & { id: number }) => {
-      // First update the user
-      const userUpdateData: any = {
-        fullName: data.fullName,
-        role: data.role,
-        isSystemAdmin: data.isSystemAdmin,
-      };
-      
-      // Only include password if it was changed
-      if (data.password) {
-        userUpdateData.password = data.password;
-      }
-      
-      const userResponse = await apiRequest("PUT", `/api/users/${data.id}`, userUpdateData);
-      const user = await userResponse.json();
-      
-      // Get existing tenant associations
-      const existingAssociations = userTenants.filter(ut => ut.userId === data.id);
-      
-      // Delete removed associations
-      for (const existing of existingAssociations) {
-        const stillExists = data.tenantAccess.some(ta => ta.tenantId === existing.tenantId);
-        if (!stillExists) {
-          await apiRequest("DELETE", `/api/user-tenants/${existing.id}`);
-        }
-      }
-      
-      // Update or create tenant associations
-      for (const tenantAccess of data.tenantAccess) {
-        const existingAssoc = existingAssociations.find(ea => ea.tenantId === tenantAccess.tenantId);
-        
-        if (existingAssoc) {
-          // Update if changed
-          if (existingAssoc.role !== tenantAccess.role || existingAssoc.isAdmin !== tenantAccess.isAdmin) {
-            await apiRequest("PUT", `/api/user-tenants/${existingAssoc.id}`, {
-              role: tenantAccess.role,
-              isAdmin: tenantAccess.isAdmin,
-            });
-          }
-        } else {
-          // Create new association
-          await apiRequest("POST", "/api/user-tenants", {
-            userId: data.id,
-            tenantId: tenantAccess.tenantId,
-            role: tenantAccess.role,
-            isAdmin: tenantAccess.isAdmin,
-          });
-        }
-      }
-      
-      return user;
+    mutationFn: async ({ id, data }: { id: number; data: z.infer<typeof userSchema> }) => {
+      const res = await apiRequest("PUT", `/api/users/${id}`, data);
+      return await res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user-tenants'] });
-      setIsEditDialogOpen(false);
-      setSelectedUser(null);
-      resetForm();
       toast({
         title: "User updated",
         description: "The user has been updated successfully",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setIsUserDialogOpen(false);
+      userForm.reset();
+      setSelectedUser(null);
     },
     onError: (error: Error) => {
       toast({
@@ -228,20 +133,16 @@ const UserManagement = () => {
     },
   });
 
-  // Delete user mutation
   const deleteUserMutation = useMutation({
-    mutationFn: async (userId: number) => {
-      await apiRequest("DELETE", `/api/users/${userId}`);
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/users/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user-tenants'] });
-      setIsDeleteDialogOpen(false);
-      setSelectedUser(null);
       toast({
         title: "User deleted",
         description: "The user has been deleted successfully",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
     onError: (error: Error) => {
       toast({
@@ -252,583 +153,599 @@ const UserManagement = () => {
     },
   });
 
-  const resetForm = () => {
-    setFormData({
-      username: "",
-      password: "",
-      fullName: "",
-      role: "user",
-      isSystemAdmin: false,
-      tenantAccess: [],
-    });
+  // Mutations for user tenants
+  const createUserTenantMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof userTenantSchema>) => {
+      const res = await apiRequest("POST", "/api/user-tenants", data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "User tenant association created",
+        description: "The user has been associated with the tenant successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-tenants"] });
+      setIsUserTenantDialogOpen(false);
+      userTenantForm.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error creating user tenant association",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateUserTenantMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<z.infer<typeof userTenantSchema>> }) => {
+      const res = await apiRequest("PUT", `/api/user-tenants/${id}`, data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "User tenant association updated",
+        description: "The user tenant association has been updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-tenants"] });
+      setIsUserTenantDialogOpen(false);
+      userTenantForm.reset();
+      setSelectedUserTenant(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating user tenant association",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUserTenantMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/user-tenants/${id}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "User tenant association deleted",
+        description: "The user tenant association has been deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-tenants"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error deleting user tenant association",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle user form submission
+  const onUserSubmit = (data: z.infer<typeof userSchema>) => {
+    const formData = { ...data };
+    
+    // Only include password if it has a value (for updates)
+    if (!formData.password) {
+      delete formData.password;
+    }
+    
+    if (selectedUser) {
+      updateUserMutation.mutate({ id: selectedUser.id, data: formData });
+    } else {
+      if (!formData.password) {
+        toast({
+          title: "Password required",
+          description: "Please provide a password for the new user",
+          variant: "destructive",
+        });
+        return;
+      }
+      createUserMutation.mutate(formData);
+    }
   };
 
+  // Handle user tenant form submission
+  const onUserTenantSubmit = (data: z.infer<typeof userTenantSchema>) => {
+    if (selectedUserTenant) {
+      // For updates, we only send role and isAdmin
+      const updateData = {
+        role: data.role,
+        isAdmin: data.isAdmin,
+      };
+      updateUserTenantMutation.mutate({ id: selectedUserTenant.id, data: updateData });
+    } else {
+      createUserTenantMutation.mutate(data);
+    }
+  };
+
+  // Handle edit user
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
-    
-    // Get user's tenant associations
-    const userTenantAccess = userTenants
-      .filter(ut => ut.userId === user.id)
-      .map(ut => ({
-        tenantId: ut.tenantId,
-        role: ut.role,
-        isAdmin: ut.isAdmin
-      }));
-    
-    setFormData({
+    userForm.reset({
       username: user.username,
-      password: "", // Don't populate password for security
       fullName: user.fullName,
       role: user.role,
       isSystemAdmin: user.isSystemAdmin || false,
-      tenantAccess: userTenantAccess,
+      password: "", // Don't populate password on edit
     });
-    
-    setIsEditDialogOpen(true);
+    setIsUserDialogOpen(true);
   };
 
+  // Handle create new user
+  const handleCreateUser = () => {
+    setSelectedUser(null);
+    userForm.reset({
+      username: "",
+      password: "",
+      fullName: "",
+      role: "",
+      isSystemAdmin: false,
+    });
+    setIsUserDialogOpen(true);
+  };
+
+  // Handle edit user tenant
+  const handleEditUserTenant = (userTenant: UserTenant) => {
+    setSelectedUserTenant(userTenant);
+    userTenantForm.reset({
+      userId: userTenant.userId,
+      tenantId: userTenant.tenantId,
+      role: userTenant.role,
+      isAdmin: userTenant.isAdmin,
+    });
+    setIsUserTenantDialogOpen(true);
+  };
+
+  // Handle create new user tenant
+  const handleCreateUserTenant = (userId?: number) => {
+    setSelectedUserTenant(null);
+    userTenantForm.reset({
+      userId: userId || 0,
+      tenantId: currentTenant?.id || 0,
+      role: "",
+      isAdmin: false,
+    });
+    setIsUserTenantDialogOpen(true);
+  };
+
+  // Handle delete user
   const handleDeleteUser = (user: User) => {
-    setSelectedUser(user);
-    setIsDeleteDialogOpen(true);
+    if (confirm(`Are you sure you want to delete the user ${user.username}? This action cannot be undone.`)) {
+      deleteUserMutation.mutate(user.id);
+    }
   };
 
-  const handleAddTenantAccess = () => {
-    if (tenants.length === 0) return;
-    
-    // Find a tenant that's not already in the access list
-    const availableTenants = tenants.filter(
-      tenant => !formData.tenantAccess.some(ta => ta.tenantId === tenant.id)
-    );
-    
-    if (availableTenants.length === 0) return;
-    
-    setFormData({
-      ...formData,
-      tenantAccess: [
-        ...formData.tenantAccess,
-        {
-          tenantId: availableTenants[0].id,
-          role: "user",
-          isAdmin: false
-        }
-      ]
-    });
+  // Handle delete user tenant
+  const handleDeleteUserTenant = (userTenant: UserTenant) => {
+    if (confirm("Are you sure you want to delete this user-tenant association? This action cannot be undone.")) {
+      deleteUserTenantMutation.mutate(userTenant.id);
+    }
   };
 
-  const handleRemoveTenantAccess = (index: number) => {
-    const newTenantAccess = [...formData.tenantAccess];
-    newTenantAccess.splice(index, 1);
-    setFormData({
-      ...formData,
-      tenantAccess: newTenantAccess
-    });
-  };
+  // Table columns for users
+  const userColumns = useMemo<ColumnDef<User>[]>(
+    () => [
+      {
+        accessorKey: "username",
+        header: "Username",
+      },
+      {
+        accessorKey: "fullName",
+        header: "Full Name",
+      },
+      {
+        accessorKey: "role",
+        header: "Role",
+      },
+      {
+        accessorKey: "isSystemAdmin",
+        header: "System Admin",
+        cell: ({ row }) => (
+          <div className="flex justify-center">
+            {row.original.isSystemAdmin ? (
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+            ) : (
+              <XCircle className="h-5 w-5 text-red-500" />
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "tenants",
+        header: "Tenants",
+        cell: ({ row }) => {
+          const userTenantAssociations = userTenants.filter(ut => ut.userId === row.original.id);
+          const userTenantIds = userTenantAssociations.map(ut => ut.tenantId);
+          const userTenantNames = tenants
+            .filter(tenant => userTenantIds.includes(tenant.id))
+            .map(tenant => tenant.name);
+          
+          return (
+            <div className="flex flex-wrap gap-1">
+              {userTenantNames.map((name, i) => (
+                <Badge key={i} variant="outline" className="mr-1">{name}</Badge>
+              ))}
+              <Button
+                variant="ghost"
+                size="icon" 
+                onClick={() => handleCreateUserTenant(row.original.id)}
+                title="Add this user to a tenant"
+              >
+                <PlusCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost" 
+              size="icon" 
+              onClick={() => handleEditUser(row.original)}
+              title="Edit user"
+            >
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost" 
+              size="icon"
+              onClick={() => handleDeleteUser(row.original)}
+              title="Delete user"
+            >
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [userTenants, tenants]
+  );
 
-  const handleTenantAccessChange = (index: number, field: keyof typeof formData.tenantAccess[0], value: any) => {
-    const newTenantAccess = [...formData.tenantAccess];
-    newTenantAccess[index] = {
-      ...newTenantAccess[index],
-      [field]: value
-    };
-    setFormData({
-      ...formData,
-      tenantAccess: newTenantAccess
-    });
-  };
+  // Table columns for user tenants
+  const userTenantColumns = useMemo<ColumnDef<UserTenant>[]>(
+    () => [
+      {
+        id: "user",
+        header: "User",
+        cell: ({ row }) => {
+          const user = users.find(u => u.id === row.original.userId);
+          return user ? (
+            <div>
+              <div className="font-medium">{user.username}</div>
+              <div className="text-sm text-gray-500">{user.fullName}</div>
+            </div>
+          ) : "Unknown";
+        },
+      },
+      {
+        id: "tenant",
+        header: "Tenant",
+        cell: ({ row }) => {
+          const tenant = tenants.find(t => t.id === row.original.tenantId);
+          return tenant ? (
+            <div>
+              <div className="font-medium">{tenant.name}</div>
+              <div className="text-sm text-gray-500">{tenant.code}</div>
+            </div>
+          ) : "Unknown";
+        },
+      },
+      {
+        accessorKey: "role",
+        header: "Role",
+      },
+      {
+        accessorKey: "isAdmin",
+        header: "Admin",
+        cell: ({ row }) => (
+          <div className="flex justify-center">
+            {row.original.isAdmin ? (
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+            ) : (
+              <XCircle className="h-5 w-5 text-red-500" />
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost" 
+              size="icon" 
+              onClick={() => handleEditUserTenant(row.original)}
+              title="Edit association"
+            >
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost" 
+              size="icon"
+              onClick={() => handleDeleteUserTenant(row.original)}
+              title="Delete association"
+            >
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [users, tenants]
+  );
 
-  const getTenantName = (tenantId: number) => {
-    const tenant = tenants.find(t => t.id === tenantId);
-    return tenant ? tenant.name : `Tenant #${tenantId}`;
-  };
-
-  const isLoading = isUsersLoading || isTenantsLoading || isUserTenantsLoading;
+  const isLoading = isLoadingUsers || isLoadingTenants || isLoadingUserTenants;
 
   return (
-    <div className="container mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>User Management</CardTitle>
-              <CardDescription>
-                Manage users and their access rights
-              </CardDescription>
-            </div>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add User
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Create New User</DialogTitle>
-                  <DialogDescription>
-                    Add a new user to the system
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="username" className="text-right">
-                      Username
-                    </Label>
-                    <Input
-                      id="username"
-                      className="col-span-3"
-                      value={formData.username}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="password" className="text-right">
-                      Password
-                    </Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      className="col-span-3"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="fullName" className="text-right">
-                      Full Name
-                    </Label>
-                    <Input
-                      id="fullName"
-                      className="col-span-3"
-                      value={formData.fullName}
-                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="role" className="text-right">
-                      Role
-                    </Label>
-                    <Select 
-                      value={formData.role} 
-                      onValueChange={(value) => setFormData({ ...formData, role: value })}
-                    >
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="user">User</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">System Admin</Label>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="sysadmin"
-                        checked={formData.isSystemAdmin}
-                        onCheckedChange={(checked) => 
-                          setFormData({ ...formData, isSystemAdmin: checked as boolean })
-                        }
-                      />
-                      <label
-                        htmlFor="sysadmin"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Has system administrator privileges
-                      </label>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-4 mt-4">
-                    <div className="flex justify-between items-center">
-                      <Label className="text-left font-bold">Tenant Access</Label>
-                      <Button size="sm" type="button" onClick={handleAddTenantAccess} variant="outline">
-                        <Plus className="h-4 w-4 mr-1" /> Add Tenant Access
-                      </Button>
-                    </div>
-                    
-                    {formData.tenantAccess.length > 0 ? (
-                      <div className="border rounded-md p-4">
-                        {formData.tenantAccess.map((access, index) => (
-                          <div key={index} className="grid grid-cols-12 gap-2 items-center mb-4">
-                            <Label className="col-span-2">Tenant</Label>
-                            <div className="col-span-3">
-                              <Select 
-                                value={access.tenantId.toString()} 
-                                onValueChange={(value) => handleTenantAccessChange(index, 'tenantId', parseInt(value))}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select tenant" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {tenants.map(tenant => (
-                                    <SelectItem key={tenant.id} value={tenant.id.toString()}>
-                                      {tenant.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <Label className="col-span-1">Role</Label>
-                            <div className="col-span-2">
-                              <Select 
-                                value={access.role} 
-                                onValueChange={(value) => handleTenantAccessChange(index, 'role', value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select role" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="viewer">Viewer</SelectItem>
-                                  <SelectItem value="user">User</SelectItem>
-                                  <SelectItem value="manager">Manager</SelectItem>
-                                  <SelectItem value="admin">Admin</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <div className="col-span-3 flex items-center space-x-2">
-                              <Checkbox
-                                id={`admin-${index}`}
-                                checked={access.isAdmin}
-                                onCheckedChange={(checked) => 
-                                  handleTenantAccessChange(index, 'isAdmin', checked as boolean)
-                                }
-                              />
-                              <label
-                                htmlFor={`admin-${index}`}
-                                className="text-sm font-medium leading-none"
-                              >
-                                Tenant Admin
-                              </label>
-                            </div>
-                            
-                            <Button 
-                              size="icon" 
-                              variant="ghost" 
-                              className="col-span-1"
-                              onClick={() => handleRemoveTenantAccess(index)}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center p-4 border border-dashed rounded-md text-gray-500">
-                        No tenant access configured. User will not have access to any tenant data.
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsCreateDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={() => createUserMutation.mutate(formData)}
-                    disabled={createUserMutation.isPending}
-                  >
-                    {createUserMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Create User
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-48">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Full Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>System Admin</TableHead>
-                  <TableHead>Tenant Access</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.length > 0 ? (
-                  users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell>{user.fullName}</TableCell>
-                      <TableCell>{user.role}</TableCell>
-                      <TableCell>{user.isSystemAdmin ? "Yes" : "No"}</TableCell>
-                      <TableCell>
-                        {userTenants
-                          .filter(ut => ut.userId === user.id)
-                          .map(ut => (
-                            <div key={ut.id} className="text-xs mb-1">
-                              <span className="font-medium">{getTenantName(ut.tenantId)}</span>
-                              <span className="text-gray-500 ml-2">({ut.role}{ut.isAdmin ? ", Admin" : ""})</span>
-                            </div>
-                          ))}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditUser(user)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteUser(user)}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                      No users found. Click "Add User" to create one.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+    <div className="container mx-auto py-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">User Management</h1>
+          <p className="text-gray-500">Manage users and their access rights</p>
+        </div>
+        <UserCogIcon className="h-12 w-12 text-primary" />
+      </div>
 
-      {/* Edit User Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Update the user information
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-username" className="text-right">
-                Username
-              </Label>
-              <Input
-                id="edit-username"
-                className="col-span-3"
-                value={formData.username}
-                disabled
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-password" className="text-right">
-                Password
-              </Label>
-              <Input
-                id="edit-password"
-                type="password"
-                className="col-span-3"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="Leave blank to keep current password"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-fullName" className="text-right">
-                Full Name
-              </Label>
-              <Input
-                id="edit-fullName"
-                className="col-span-3"
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-role" className="text-right">
-                Role
-              </Label>
-              <Select 
-                value={formData.role} 
-                onValueChange={(value) => setFormData({ ...formData, role: value })}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">System Admin</Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="edit-sysadmin"
-                  checked={formData.isSystemAdmin}
-                  onCheckedChange={(checked) => 
-                    setFormData({ ...formData, isSystemAdmin: checked as boolean })
-                  }
-                />
-                <label
-                  htmlFor="edit-sysadmin"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Has system administrator privileges
-                </label>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="associations">User-Tenant Associations</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Users</CardTitle>
+                <CardDescription>Manage user accounts in the system</CardDescription>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4 mt-4">
-              <div className="flex justify-between items-center">
-                <Label className="text-left font-bold">Tenant Access</Label>
-                <Button size="sm" type="button" onClick={handleAddTenantAccess} variant="outline">
-                  <Plus className="h-4 w-4 mr-1" /> Add Tenant Access
-                </Button>
-              </div>
-              
-              {formData.tenantAccess.length > 0 ? (
-                <div className="border rounded-md p-4">
-                  {formData.tenantAccess.map((access, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2 items-center mb-4">
-                      <Label className="col-span-2">Tenant</Label>
-                      <div className="col-span-3">
-                        <Select 
-                          value={access.tenantId.toString()} 
-                          onValueChange={(value) => handleTenantAccessChange(index, 'tenantId', parseInt(value))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select tenant" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {tenants.map(tenant => (
-                              <SelectItem key={tenant.id} value={tenant.id.toString()}>
-                                {tenant.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <Label className="col-span-1">Role</Label>
-                      <div className="col-span-2">
-                        <Select 
-                          value={access.role} 
-                          onValueChange={(value) => handleTenantAccessChange(index, 'role', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="user">User</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="col-span-3 flex items-center space-x-2">
-                        <Checkbox
-                          id={`edit-admin-${index}`}
-                          checked={access.isAdmin}
-                          onCheckedChange={(checked) => 
-                            handleTenantAccessChange(index, 'isAdmin', checked as boolean)
-                          }
-                        />
-                        <label
-                          htmlFor={`edit-admin-${index}`}
-                          className="text-sm font-medium leading-none"
-                        >
-                          Tenant Admin
-                        </label>
-                      </div>
-                      
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        className="col-span-1"
-                        onClick={() => handleRemoveTenantAccess(index)}
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+              <Button onClick={handleCreateUser}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add User
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center p-4">Loading users...</div>
               ) : (
-                <div className="text-center p-4 border border-dashed rounded-md text-gray-500">
-                  No tenant access configured. User will not have access to any tenant data.
-                </div>
+                <DataTable columns={userColumns} data={users} />
               )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsEditDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => selectedUser && updateUserMutation.mutate({ ...formData, id: selectedUser.id })}
-              disabled={updateUserMutation.isPending}
-            >
-              {updateUserMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Update User
-            </Button>
-          </DialogFooter>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="associations">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>User-Tenant Associations</CardTitle>
+                <CardDescription>Manage which users have access to which tenants</CardDescription>
+              </div>
+              <Button onClick={() => handleCreateUserTenant()}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Association
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center p-4">Loading associations...</div>
+              ) : (
+                <DataTable columns={userTenantColumns} data={userTenants} />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* User Dialog */}
+      <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{selectedUser ? "Edit User" : "Create New User"}</DialogTitle>
+          </DialogHeader>
+          <Form {...userForm}>
+            <form onSubmit={userForm.handleSubmit(onUserSubmit)} className="space-y-4">
+              <FormField
+                control={userForm.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{selectedUser ? "New Password (leave blank to keep current)" : "Password"}</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Global Role</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="isSystemAdmin"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>System Administrator</FormLabel>
+                      <p className="text-sm text-gray-500">
+                        System administrators have full access to all features and tenants
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button 
+                  type="submit" 
+                  disabled={createUserMutation.isPending || updateUserMutation.isPending}
+                >
+                  {(createUserMutation.isPending || updateUserMutation.isPending) ? "Saving..." : "Save"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
-      {/* Delete User Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+      {/* User Tenant Dialog */}
+      <Dialog open={isUserTenantDialogOpen} onOpenChange={setIsUserTenantDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this user? This action cannot be undone.
-            </DialogDescription>
+            <DialogTitle>{selectedUserTenant ? "Edit Association" : "Create New Association"}</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            {selectedUser && (
-              <div className="space-y-2">
-                <p><strong>Username:</strong> {selectedUser.username}</p>
-                <p><strong>Full Name:</strong> {selectedUser.fullName}</p>
-                <p><strong>Role:</strong> {selectedUser.role}</p>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={() => selectedUser && deleteUserMutation.mutate(selectedUser.id)}
-              disabled={deleteUserMutation.isPending}
-            >
-              {deleteUserMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete User
-            </Button>
-          </DialogFooter>
+          <Form {...userTenantForm}>
+            <form onSubmit={userTenantForm.handleSubmit(onUserTenantSubmit)} className="space-y-4">
+              <FormField
+                control={userTenantForm.control}
+                name="userId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>User</FormLabel>
+                    <Select
+                      disabled={!!selectedUserTenant}
+                      value={field.value.toString()}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a user" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={user.id.toString()}>
+                            {user.username} ({user.fullName})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userTenantForm.control}
+                name="tenantId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tenant</FormLabel>
+                    <Select
+                      disabled={!!selectedUserTenant}
+                      value={field.value.toString()}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a tenant" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {tenants.map((tenant) => (
+                          <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                            {tenant.name} ({tenant.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userTenantForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role in Tenant</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="e.g., Road Manager, Inspector, Viewer" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userTenantForm.control}
+                name="isAdmin"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Tenant Administrator</FormLabel>
+                      <p className="text-sm text-gray-500">
+                        Tenant administrators have full access to manage this tenant
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button 
+                  type="submit" 
+                  disabled={createUserTenantMutation.isPending || updateUserTenantMutation.isPending}
+                >
+                  {(createUserTenantMutation.isPending || updateUserTenantMutation.isPending) ? "Saving..." : "Save"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
   );
-};
+}
 
-export default UserManagement;
