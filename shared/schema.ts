@@ -27,7 +27,8 @@ export const insertTenantSchema = createInsertSchema(tenants).omit({
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  email: text("email").unique(),
+  password: text("password"),
   fullName: text("full_name").notNull(),
   role: text("role").notNull(),
   isSystemAdmin: boolean("is_system_admin").default(false), // System admins can access all tenants
@@ -57,10 +58,21 @@ export const insertUserTenantSchema = createInsertSchema(userTenants).omit({
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
+  email: true,
   password: true,
   fullName: true,
   role: true,
   isSystemAdmin: true,
+});
+
+// Magic Links for passwordless authentication
+export const magicLinks = pgTable("magic_links", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Road Asset table
@@ -324,12 +336,20 @@ export const userTenantsRelations = relations(userTenants, ({ one }) => ({
 }));
 
 // User relations
+export const magicLinksRelations = relations(magicLinks, ({ one }) => ({
+  user: one(users, {
+    fields: [magicLinks.userId],
+    references: [users.id],
+  }),
+}));
+
 export const usersRelations = relations(users, ({ one, many }) => ({
   tenants: many(userTenants),
   currentTenant: one(tenants, {
     fields: [users.currentTenantId],
     references: [tenants.id],
   }),
+  magicLinks: many(magicLinks),
   maintenanceProjects: many(maintenanceProjects, { relationName: "user_maintenance_projects" }),
   budgetAllocations: many(budgetAllocations, { relationName: "user_budget_allocations" }),
   auditLogs: many(auditLogs, { relationName: "user_audit_logs" }),
@@ -342,6 +362,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type MagicLink = typeof magicLinks.$inferSelect;
 
 export type RoadAsset = typeof roadAssets.$inferSelect;
 export type InsertRoadAsset = z.infer<typeof insertRoadAssetSchema>;
