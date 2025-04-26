@@ -167,7 +167,11 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
     };
   }
 }
+import { setupAuth } from './auth';
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up authentication routes
+  setupAuth(app);
   // Tenant Management
   app.get("/api/tenants", async (req: Request, res: Response) => {
     try {
