@@ -21,6 +21,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
     { path: "/map-view", name: "Map View", icon: "map-marked-alt" },
     { path: "/import-export", name: "Import/Export", icon: "file-import" },
     { path: "/audit-logs", name: "Audit Logs", icon: "history" },
+    { path: "/user-management", name: "User Management", icon: "users-cog" },
   ];
 
   const closeMobileMenu = () => {

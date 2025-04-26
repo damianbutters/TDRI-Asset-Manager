@@ -38,6 +38,7 @@ export const users = pgTable("users", {
 
 // Many-to-many relationship between users and tenants
 export const userTenants = pgTable("user_tenants", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: 'cascade' }),
   role: text("role").notNull(), // Role within this specific tenant
@@ -45,8 +46,13 @@ export const userTenants = pgTable("user_tenants", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => {
   return {
-    pk: primaryKey({ columns: [table.userId, table.tenantId] })
+    compoundKey: unique({ columns: [table.userId, table.tenantId] })
   };
+});
+
+export const insertUserTenantSchema = createInsertSchema(userTenants).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -363,6 +369,9 @@ export type InsertMoistureReading = z.infer<typeof insertMoistureReadingSchema>;
 
 export type Tenant = typeof tenants.$inferSelect;
 export type InsertTenant = z.infer<typeof insertTenantSchema>;
+
+export type UserTenant = typeof userTenants.$inferSelect;
+export type InsertUserTenant = z.infer<typeof insertUserTenantSchema>;
 
 // Many-to-many relationship between tenants and road assets
 export const tenantRoadAssets = pgTable("tenant_road_assets", {

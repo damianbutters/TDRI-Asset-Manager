@@ -13,6 +13,7 @@ import MapView from "@/pages/MapView";
 import ImportExport from "@/pages/ImportExport";
 import AuditLogs from "@/pages/AuditLogs";
 import AssetInventory from "@/pages/AssetInventory";
+import UserManagement from "@/pages/UserManagement";
 import { useState } from "react";
 import { TenantProvider } from "@/hooks/use-tenant";
 
@@ -55,6 +56,7 @@ function App() {
               <Route path="/import-export" component={ImportExport} />
               <Route path="/audit-logs" component={AuditLogs} />
               <Route path="/asset-inventory" component={AssetInventory} />
+              <Route path="/user-management" component={UserManagement} />
               <Route component={NotFound} />
             </Switch>
           </main>
