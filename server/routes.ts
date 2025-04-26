@@ -15,8 +15,11 @@ import {
   insertRoadwayAssetSchema,
   insertAssetInspectionSchema,
   insertAssetMaintenanceRecordSchema,
+  insertUserSchema,
+  insertUserTenantSchema,
   User,
-  Tenant
+  Tenant,
+  UserTenant
 } from "@shared/schema";
 import { weatherService } from "./weather-service";
 import { db } from "./db";
@@ -2425,6 +2428,197 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error exporting roadway assets:", error);
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // User Management endpoints
+  app.get("/api/users", async (req: Request, res: Response) => {
+    try {
+      const users = await storage.getUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+  
+  app.get("/api/users/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+      
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      console.error(`Error fetching user with ID ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to fetch user" });
+    }
+  });
+  
+  app.post("/api/users", async (req: Request, res: Response) => {
+    try {
+      const userData = insertUserSchema.safeParse(req.body);
+      
+      if (!userData.success) {
+        return res.status(400).json({ error: "Invalid user data", details: userData.error.format() });
+      }
+      
+      // Check if username already exists
+      const existingUser = await storage.getUserByUsername(userData.data.username);
+      if (existingUser) {
+        return res.status(409).json({ error: "Username already exists" });
+      }
+      
+      const user = await storage.createUser(userData.data);
+      res.status(201).json(user);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ error: "Failed to create user" });
+    }
+  });
+  
+  app.put("/api/users/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+      
+      // Allow partial updates without requiring all fields
+      const userUpdateSchema = insertUserSchema.partial();
+      const userData = userUpdateSchema.safeParse(req.body);
+      
+      if (!userData.success) {
+        return res.status(400).json({ error: "Invalid user data", details: userData.error.format() });
+      }
+      
+      // If username is being changed, check that it doesn't conflict with existing users
+      if (userData.data.username) {
+        const existingUser = await storage.getUserByUsername(userData.data.username);
+        if (existingUser && existingUser.id !== id) {
+          return res.status(409).json({ error: "Username already exists" });
+        }
+      }
+      
+      const updatedUser = await storage.updateUser(id, userData.data);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(updatedUser);
+    } catch (error) {
+      console.error(`Error updating user with ID ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+  
+  app.delete("/api/users/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+      
+      const success = await storage.deleteUser(id);
+      if (!success) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error(`Error deleting user with ID ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+  
+  // User-Tenant relationship management
+  app.get("/api/user-tenants", async (req: Request, res: Response) => {
+    try {
+      const userTenants = await storage.getAllUserTenants();
+      res.json(userTenants);
+    } catch (error) {
+      console.error("Error fetching user-tenant relationships:", error);
+      res.status(500).json({ error: "Failed to fetch user-tenant relationships" });
+    }
+  });
+  
+  app.post("/api/user-tenants", async (req: Request, res: Response) => {
+    try {
+      const userTenantData = insertUserTenantSchema.safeParse(req.body);
+      
+      if (!userTenantData.success) {
+        return res.status(400).json({ error: "Invalid user-tenant data", details: userTenantData.error.format() });
+      }
+      
+      // Check if the user and tenant exist
+      const user = await storage.getUser(userTenantData.data.userId);
+      const tenant = await storage.getTenant(userTenantData.data.tenantId);
+      
+      if (!user || !tenant) {
+        return res.status(404).json({ error: "User or tenant not found" });
+      }
+      
+      const userTenant = await storage.createUserTenant(userTenantData.data);
+      res.status(201).json(userTenant);
+    } catch (error) {
+      console.error("Error creating user-tenant relationship:", error);
+      res.status(500).json({ error: "Failed to create user-tenant relationship" });
+    }
+  });
+  
+  app.put("/api/user-tenants/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid user-tenant ID" });
+      }
+      
+      // Allow partial updates of role and isAdmin
+      const updateSchema = z.object({
+        role: z.string().optional(),
+        isAdmin: z.boolean().optional(),
+      });
+      
+      const updateData = updateSchema.safeParse(req.body);
+      
+      if (!updateData.success) {
+        return res.status(400).json({ error: "Invalid update data", details: updateData.error.format() });
+      }
+      
+      const updatedUserTenant = await storage.updateUserTenant(id, updateData.data);
+      if (!updatedUserTenant) {
+        return res.status(404).json({ error: "User-tenant relationship not found" });
+      }
+      
+      res.json(updatedUserTenant);
+    } catch (error) {
+      console.error(`Error updating user-tenant relationship with ID ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to update user-tenant relationship" });
+    }
+  });
+  
+  app.delete("/api/user-tenants/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid user-tenant ID" });
+      }
+      
+      const success = await storage.deleteUserTenant(id);
+      if (!success) {
+        return res.status(404).json({ error: "User-tenant relationship not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error(`Error deleting user-tenant relationship with ID ${req.params.id}:`, error);
+      res.status(500).json({ error: "Failed to delete user-tenant relationship" });
     }
   });
 
