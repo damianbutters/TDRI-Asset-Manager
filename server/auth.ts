@@ -73,10 +73,13 @@ export function setupAuth(app: Express) {
       }
 
       // Get the user
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, result.userId!));
+      const query = `
+        SELECT * FROM users 
+        WHERE id = $1
+      `;
+      
+      const userResult = await pool.query(query, [result.userId]);
+      const user = userResult.rows[0];
 
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -86,7 +89,7 @@ export function setupAuth(app: Express) {
       req.session.userId = user.id;
       req.session.username = user.username;
       req.session.isAuthenticated = true;
-      req.session.currentTenantId = user.currentTenantId;
+      req.session.currentTenantId = user.current_tenant_id;
 
       // Redirect to the main application
       return res.redirect('/');

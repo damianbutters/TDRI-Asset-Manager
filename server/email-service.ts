@@ -25,7 +25,14 @@ if (SENDGRID_API_KEY) {
 export async function sendMagicLinkEmail(email: string): Promise<boolean> {
   try {
     // Find user by email
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const query = `
+      SELECT * FROM users 
+      WHERE email = $1
+    `;
+    
+    const result = await pool.query(query, [email]);
+    const user = result.rows[0];
+    
     if (!user) {
       console.error(`No user found with email: ${email}`);
       return false;
@@ -98,10 +105,13 @@ export async function verifyMagicLinkToken(token: string): Promise<{
 }> {
   try {
     // Find the magic link in the database
-    const [magicLink] = await db
-      .select()
-      .from(magicLinks)
-      .where(eq(magicLinks.token, token));
+    const query = `
+      SELECT * FROM magic_links 
+      WHERE token = $1
+    `;
+    
+    const result = await pool.query(query, [token]);
+    const magicLink = result.rows[0];
     
     if (!magicLink) {
       return { valid: false, error: 'Invalid token' };
@@ -113,18 +123,21 @@ export async function verifyMagicLinkToken(token: string): Promise<{
     }
     
     // Check if the token has expired
-    if (new Date() > magicLink.expiresAt) {
+    if (new Date() > new Date(magicLink.expires_at)) {
       return { valid: false, error: 'Token has expired' };
     }
     
     // Mark the token as used
-    await db
-      .update(magicLinks)
-      .set({ used: true })
-      .where(eq(magicLinks.id, magicLink.id));
+    const updateQuery = `
+      UPDATE magic_links
+      SET used = true
+      WHERE id = $1
+    `;
+    
+    await pool.query(updateQuery, [magicLink.id]);
     
     // Return success with the user ID
-    return { valid: true, userId: magicLink.userId };
+    return { valid: true, userId: magicLink.user_id };
   } catch (error) {
     console.error('Error verifying magic link token:', error);
     return { valid: false, error: 'Server error' };
