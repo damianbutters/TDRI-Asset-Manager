@@ -34,6 +34,10 @@ export interface IStorage {
   removeUserFromTenant(userId: number, tenantId: number): Promise<boolean>;
   updateUserTenantRole(userId: number, tenantId: number, role: string, isAdmin: boolean): Promise<boolean>;
   setUserCurrentTenant(userId: number, tenantId: number | null): Promise<User | undefined>;
+  getAllUserTenants(): Promise<UserTenant[]>;
+  createUserTenant(userTenant: { userId: number, tenantId: number, role: string, isAdmin: boolean }): Promise<UserTenant>;
+  updateUserTenant(id: number, userTenant: Partial<{ role: string, isAdmin: boolean }>): Promise<UserTenant | undefined>;
+  deleteUserTenant(id: number): Promise<boolean>;
   
   // Tenant-Asset operations
   assignRoadAssetToTenant(tenantId: number, roadAssetId: number): Promise<boolean>;
@@ -44,10 +48,12 @@ export interface IStorage {
   getTenantRoadwayAssets(tenantId: number): Promise<RoadwayAsset[]>;
   
   // User operations
+  getUsers(): Promise<User[]>;
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: number): Promise<boolean>;
   
   // Road asset operations
   getRoadAssets(): Promise<RoadAsset[]>;
