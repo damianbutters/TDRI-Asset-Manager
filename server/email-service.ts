@@ -1,6 +1,6 @@
 import sgMail from '@sendgrid/mail';
 import { randomBytes } from 'crypto';
-import { db } from './db';
+import { db, pool } from './db';
 import { magicLinks, users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
