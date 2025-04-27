@@ -35,61 +35,29 @@ export function setupAuth(app: Express) {
   // Magic link login request
   app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
-      const { email, password } = req.body;
+      const { email } = req.body;
 
       if (!email) {
         return res.status(400).json({ error: 'Email is required' });
       }
 
-      // For development, enable direct login without email verification
-      if (process.env.NODE_ENV === 'development') {
-        // Just get the user by email
-        const query = `SELECT * FROM users WHERE email = $1`;
-        const userResult = await pool.query(query, [email]);
-        const user = userResult.rows[0];
-        
-        if (!user) {
-          console.log(`Login attempt for non-existent email: ${email}`);
-          return res.status(401).json({ error: 'Invalid email or password' });
-        }
-        
-        // Set up the session
-        req.session.userId = user.id;
-        req.session.username = user.username;
-        req.session.isAuthenticated = true;
-        req.session.currentTenantId = user.current_tenant_id;
-        
-        console.log("DEV LOGIN: Session data set:", {
-          userId: user.id,
-          username: user.username,
-          isAuthenticated: true,
-          currentTenantId: user.current_tenant_id
-        });
-        
-        // Save session and return success
-        return req.session.save((err) => {
-          if (err) {
-            console.error("Session save error:", err);
-            return res.status(500).json({ error: 'Session error' });
-          }
-          
+      // Send magic link email
+      const success = await sendMagicLinkEmail(email);
+      
+      if (success) {
+        // In development, provide a more detailed message
+        if (process.env.NODE_ENV === 'development') {
           return res.status(200).json({ 
-            id: user.id,
-            username: user.username,
-            message: 'Login successful' 
+            message: 'Magic link created. Check server logs for the login link.',
+            dev: true
           });
-        });
-      } else {
-        // Production flow - use magic links
-        const success = await sendMagicLinkEmail(email);
-        
-        if (success) {
+        } else {
           return res.status(200).json({ 
             message: 'If an account with that email exists, a magic link has been sent' 
           });
-        } else {
-          return res.status(500).json({ error: 'Failed to send magic link' });
         }
+      } else {
+        return res.status(500).json({ error: 'Failed to send magic link' });
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -183,52 +151,4 @@ export function setupAuth(app: Express) {
       return res.status(200).json({ message: 'Logged out successfully' });
     });
   });
-  
-  // Development-only direct login endpoint for testing
-  if (process.env.NODE_ENV === 'development') {
-    app.get('/api/auth/dev-login/:userId', async (req: Request, res: Response) => {
-      try {
-        const userId = parseInt(req.params.userId, 10);
-        if (isNaN(userId)) {
-          return res.status(400).json({ error: 'Invalid user ID' });
-        }
-        
-        // Get the user
-        const query = `SELECT * FROM users WHERE id = $1`;
-        const userResult = await pool.query(query, [userId]);
-        const user = userResult.rows[0];
-        
-        if (!user) {
-          return res.status(404).json({ error: 'User not found' });
-        }
-        
-        // Set up the session
-        req.session.userId = user.id;
-        req.session.username = user.username;
-        req.session.isAuthenticated = true;
-        req.session.currentTenantId = user.current_tenant_id;
-        
-        console.log("DEV LOGIN: Session data set:", {
-          userId: user.id,
-          username: user.username,
-          isAuthenticated: true,
-          currentTenantId: user.current_tenant_id
-        });
-        
-        // Save the session and redirect
-        req.session.save((err) => {
-          if (err) {
-            console.error("Error saving session:", err);
-            return res.status(500).json({ error: 'Session error' });
-          }
-          
-          // Redirect to the main application
-          return res.redirect('/');
-        });
-      } catch (error) {
-        console.error('Dev login error:', error);
-        return res.status(500).json({ error: 'Server error' });
-      }
-    });
-  }
 }
