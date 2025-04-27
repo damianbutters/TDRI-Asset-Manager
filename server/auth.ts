@@ -151,4 +151,52 @@ export function setupAuth(app: Express) {
       return res.status(200).json({ message: 'Logged out successfully' });
     });
   });
+  
+  // Development-only direct login endpoint for testing
+  if (process.env.NODE_ENV === 'development') {
+    app.get('/api/auth/dev-login/:userId', async (req: Request, res: Response) => {
+      try {
+        const userId = parseInt(req.params.userId, 10);
+        if (isNaN(userId)) {
+          return res.status(400).json({ error: 'Invalid user ID' });
+        }
+        
+        // Get the user
+        const query = `SELECT * FROM users WHERE id = $1`;
+        const userResult = await pool.query(query, [userId]);
+        const user = userResult.rows[0];
+        
+        if (!user) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+        
+        // Set up the session
+        req.session.userId = user.id;
+        req.session.username = user.username;
+        req.session.isAuthenticated = true;
+        req.session.currentTenantId = user.current_tenant_id;
+        
+        console.log("DEV LOGIN: Session data set:", {
+          userId: user.id,
+          username: user.username,
+          isAuthenticated: true,
+          currentTenantId: user.current_tenant_id
+        });
+        
+        // Save the session and redirect
+        req.session.save((err) => {
+          if (err) {
+            console.error("Error saving session:", err);
+            return res.status(500).json({ error: 'Session error' });
+          }
+          
+          // Redirect to the main application
+          return res.redirect('/');
+        });
+      } catch (error) {
+        console.error('Dev login error:', error);
+        return res.status(500).json({ error: 'Server error' });
+      }
+    });
+  }
 }
