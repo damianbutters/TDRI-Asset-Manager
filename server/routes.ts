@@ -4,6 +4,10 @@ import { z } from "zod";
 import * as zfd from "zod-form-data";
 import { storage } from "./storage";
 import * as schema from "@shared/schema";
+import crypto from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import { sendMagicLinkEmail } from "./email-service";
 import { 
   insertRoadAssetSchema, 
   insertMaintenanceTypeSchema, 
@@ -18,11 +22,11 @@ import {
   insertUserSchema,
   insertUserTenantSchema,
   User,
+  users,
   Tenant,
   UserTenant
 } from "@shared/schema";
 import { weatherService } from "./weather-service";
-import { db } from "./db";
 import { sql } from "drizzle-orm";
 
 /**
@@ -167,6 +171,7 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
     };
   }
 }
+
 import { setupAuth } from './auth';
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -2474,12 +2479,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if username already exists
-      const existingUser = await storage.getUserByUsername(userData.data.username);
-      if (existingUser) {
-        return res.status(409).json({ error: "Username already exists" });
+      if (userData.data.username) {
+        const existingUser = await storage.getUserByUsername(userData.data.username);
+        if (existingUser) {
+          return res.status(409).json({ error: "Username already exists" });
+        }
+      }
+
+      // Check if email already exists (if provided)
+      if (userData.data.email) {
+        const existingUserByEmail = await db.select().from(users).where(eq(users.email, userData.data.email)).limit(1);
+        if (existingUserByEmail.length > 0) {
+          return res.status(409).json({ error: "Email address already exists" });
+        }
+      }
+      
+      // For new passwordless users, generate a random temporary password
+      // It will be never used since the user will log in with magic links
+      if (!userData.data.password && userData.data.email) {
+        const randomPassword = crypto.randomBytes(16).toString('hex');
+        userData.data.password = randomPassword;
       }
       
       const user = await storage.createUser(userData.data);
+
+      // If email is provided, try to send a welcome email with magic link
+      if (userData.data.email) {
+        try {
+          await sendMagicLinkEmail(userData.data.email);
+          console.log(`Magic link email sent to new user: ${userData.data.email}`);
+        } catch (emailError) {
+          console.error("Failed to send welcome email to new user:", emailError);
+          // We don't return an error here, user creation was successful
+        }
+      }
+      
       res.status(201).json(user);
     } catch (error) {
       console.error("Error creating user:", error);

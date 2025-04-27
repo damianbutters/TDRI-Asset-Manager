@@ -223,23 +223,19 @@ export default function UserManagement() {
   const onUserSubmit = (data: z.infer<typeof userSchema>) => {
     const formData = { ...data };
     
-    // Only include password if it has a value (for updates)
-    if (!formData.password) {
-      delete formData.password;
-    }
-    
     if (selectedUser) {
       updateUserMutation.mutate({ id: selectedUser.id, data: formData });
     } else {
-      if (!formData.password) {
-        toast({
-          title: "Password required",
-          description: "Please provide a password for the new user",
-          variant: "destructive",
-        });
-        return;
-      }
-      createUserMutation.mutate(formData);
+      // Generate a random username based on the email
+      const username = data.email.split('@')[0] + '-' + Math.floor(Math.random() * 10000);
+      
+      // Add username to form data for the API
+      const newUserData = {
+        ...formData,
+        username,
+      };
+      
+      createUserMutation.mutate(newUserData);
     }
   };
 
@@ -261,11 +257,10 @@ export default function UserManagement() {
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
     userForm.reset({
-      username: user.username,
       fullName: user.fullName,
+      email: user.email || '',
       role: user.role,
       isSystemAdmin: user.isSystemAdmin || false,
-      password: "", // Don't populate password on edit
     });
     setIsUserDialogOpen(true);
   };
@@ -274,9 +269,8 @@ export default function UserManagement() {
   const handleCreateUser = () => {
     setSelectedUser(null);
     userForm.reset({
-      username: "",
-      password: "",
       fullName: "",
+      email: "",
       role: "",
       isSystemAdmin: false,
     });
@@ -551,38 +545,25 @@ export default function UserManagement() {
             <form onSubmit={userForm.handleSubmit(onUserSubmit)} className="space-y-4">
               <FormField
                 control={userForm.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={userForm.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{selectedUser ? "New Password (leave blank to keep current)" : "Password"}</FormLabel>
-                    <FormControl>
-                      <Input type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={userForm.control}
                 name="fullName"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
                       <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Address</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
