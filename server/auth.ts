@@ -35,29 +35,61 @@ export function setupAuth(app: Express) {
   // Magic link login request
   app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
-      const { email } = req.body;
+      const { email, password } = req.body;
 
       if (!email) {
         return res.status(400).json({ error: 'Email is required' });
       }
 
-      // Send magic link email
-      const success = await sendMagicLinkEmail(email);
-      
-      if (success) {
-        // In development, provide a more detailed message
-        if (process.env.NODE_ENV === 'development') {
+      // For development, enable direct login without email verification
+      if (process.env.NODE_ENV === 'development') {
+        // Just get the user by email
+        const query = `SELECT * FROM users WHERE email = $1`;
+        const userResult = await pool.query(query, [email]);
+        const user = userResult.rows[0];
+        
+        if (!user) {
+          console.log(`Login attempt for non-existent email: ${email}`);
+          return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        
+        // Set up the session
+        req.session.userId = user.id;
+        req.session.username = user.username;
+        req.session.isAuthenticated = true;
+        req.session.currentTenantId = user.current_tenant_id;
+        
+        console.log("DEV LOGIN: Session data set:", {
+          userId: user.id,
+          username: user.username,
+          isAuthenticated: true,
+          currentTenantId: user.current_tenant_id
+        });
+        
+        // Save session and return success
+        return req.session.save((err) => {
+          if (err) {
+            console.error("Session save error:", err);
+            return res.status(500).json({ error: 'Session error' });
+          }
+          
           return res.status(200).json({ 
-            message: 'Magic link created. Check server logs for the login link.',
-            dev: true
+            id: user.id,
+            username: user.username,
+            message: 'Login successful' 
           });
-        } else {
+        });
+      } else {
+        // Production flow - use magic links
+        const success = await sendMagicLinkEmail(email);
+        
+        if (success) {
           return res.status(200).json({ 
             message: 'If an account with that email exists, a magic link has been sent' 
           });
+        } else {
+          return res.status(500).json({ error: 'Failed to send magic link' });
         }
-      } else {
-        return res.status(500).json({ error: 'Failed to send magic link' });
       }
     } catch (error) {
       console.error('Login error:', error);

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -32,19 +32,29 @@ export default function AuthPage() {
       const res = await apiRequest("POST", "/api/auth/login", data);
       return res.json();
     },
-    onSuccess: () => {
-      setEmailSent(true);
-      toast({
-        title: "Magic link sent",
-        description: "Check your email for a magic link to log in.",
-      });
+    onSuccess: (data) => {
+      if (data.id) {
+        // In development, we get directly logged in without magic link
+        queryClient.setQueryData(["/api/auth/user"], data);
+        toast({
+          title: "Login successful",
+          description: `Welcome back, ${data.username}!`,
+        });
+        navigate("/");
+      } else {
+        setEmailSent(true);
+        toast({
+          title: "Magic link sent",
+          description: "Check your email for a magic link to log in.",
+        });
+      }
     },
     onError: (error) => {
       console.error("Login error:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to send magic link. Please try again.",
+        description: "Login failed. Please check your email and try again.",
       });
     },
   });
