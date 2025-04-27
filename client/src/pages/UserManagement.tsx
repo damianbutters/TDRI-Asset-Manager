@@ -303,7 +303,7 @@ export default function UserManagement() {
 
   // Handle delete user
   const handleDeleteUser = (user: User) => {
-    if (confirm(`Are you sure you want to delete the user ${user.fullName}? This action cannot be undone.`)) {
+    if (confirm(`Are you sure you want to delete the user ${user.username}? This action cannot be undone.`)) {
       deleteUserMutation.mutate(user.id);
     }
   };
@@ -318,6 +318,10 @@ export default function UserManagement() {
   // Table columns for users
   const userColumns = useMemo<ColumnDef<User>[]>(
     () => [
+      {
+        accessorKey: "username",
+        header: "Username",
+      },
       {
         accessorKey: "fullName",
         header: "Full Name",
@@ -404,8 +408,8 @@ export default function UserManagement() {
           const user = users.find(u => u.id === row.original.userId);
           return user ? (
             <div>
-              <div className="font-medium">{user.fullName}</div>
-              <div className="text-sm text-gray-500">{user.email || user.username}</div>
+              <div className="font-medium">{user.username}</div>
+              <div className="text-sm text-gray-500">{user.fullName}</div>
             </div>
           ) : "Unknown";
         },
@@ -638,7 +642,7 @@ export default function UserManagement() {
                       <SelectContent>
                         {users.map((user) => (
                           <SelectItem key={user.id} value={user.id.toString()}>
-                            {user.fullName} ({user.email || user.username})
+                            {user.username} ({user.fullName})
                           </SelectItem>
                         ))}
                       </SelectContent>
