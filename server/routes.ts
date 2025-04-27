@@ -5,7 +5,7 @@ import * as zfd from "zod-form-data";
 import { storage } from "./storage";
 import * as schema from "@shared/schema";
 import crypto from "crypto";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { eq } from "drizzle-orm";
 import { sendMagicLinkEmail } from "./email-service";
 import { 
@@ -2478,30 +2478,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid user data", details: userData.error.format() });
       }
       
-      // Check if username already exists
-      if (userData.data.username) {
-        const existingUser = await storage.getUserByUsername(userData.data.username);
-        if (existingUser) {
+      // Generate a random username from email if not provided
+      let username = userData.data.username;
+      if (!username && userData.data.email) {
+        const emailPrefix = userData.data.email.split('@')[0];
+        const randomSuffix = crypto.randomBytes(4).toString('hex');
+        username = `${emailPrefix}_${randomSuffix}`;
+      }
+      
+      // Check if username already exists using direct SQL
+      if (username) {
+        const existingUserQuery = `
+          SELECT * FROM users WHERE username = $1
+        `;
+        const existingUserResult = await pool.query(existingUserQuery, [username]);
+        
+        if (existingUserResult.rows.length > 0) {
           return res.status(409).json({ error: "Username already exists" });
         }
       }
 
       // Check if email already exists (if provided)
       if (userData.data.email) {
-        const existingUserByEmail = await db.select().from(users).where(eq(users.email, userData.data.email)).limit(1);
-        if (existingUserByEmail.length > 0) {
+        const existingEmailQuery = `
+          SELECT * FROM users WHERE email = $1
+        `;
+        const existingEmailResult = await pool.query(existingEmailQuery, [userData.data.email]);
+        
+        if (existingEmailResult.rows.length > 0) {
           return res.status(409).json({ error: "Email address already exists" });
         }
       }
       
       // For new passwordless users, generate a random temporary password
       // It will be never used since the user will log in with magic links
-      if (!userData.data.password && userData.data.email) {
-        const randomPassword = crypto.randomBytes(16).toString('hex');
-        userData.data.password = randomPassword;
+      let password = userData.data.password;
+      if (!password && userData.data.email) {
+        password = crypto.randomBytes(16).toString('hex');
       }
       
-      const user = await storage.createUser(userData.data);
+      // Insert the user using direct SQL
+      const createUserQuery = `
+        INSERT INTO users (
+          username, 
+          password, 
+          full_name, 
+          role, 
+          email, 
+          is_system_admin
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, username, full_name, role, email, is_system_admin AS "isSystemAdmin"
+      `;
+      
+      const userResult = await pool.query(createUserQuery, [
+        username,
+        password,
+        userData.data.fullName,
+        userData.data.role,
+        userData.data.email,
+        userData.data.isSystemAdmin || false
+      ]);
+      
+      const user = userResult.rows[0];
 
       // If email is provided, try to send a welcome email with magic link
       if (userData.data.email) {
