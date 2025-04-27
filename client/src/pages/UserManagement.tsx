@@ -23,9 +23,8 @@ import { useTenant } from "@/hooks/use-tenant";
 
 // Form validation schema for creating/updating users
 const userSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  password: z.string().min(5, "Password must be at least 5 characters").optional(),
   fullName: z.string().min(3, "Full name must be at least 3 characters"),
+  email: z.string().email("Please enter a valid email address"),
   role: z.string().min(2, "Role must be at least 2 characters"),
   isSystemAdmin: z.boolean().optional().default(false),
 });
@@ -66,9 +65,8 @@ export default function UserManagement() {
   const userForm = useForm<z.infer<typeof userSchema>>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      username: "",
-      password: "",
       fullName: "",
+      email: "",
       role: "",
       isSystemAdmin: false,
     },
