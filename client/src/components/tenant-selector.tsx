@@ -62,7 +62,7 @@ export function TenantSelector() {
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0">
+        <PopoverContent className="w-[200px] p-0 z-50" align="start" side="top">
           <Command>
             <CommandInput placeholder="Search tenant..." className="h-9" />
             <CommandEmpty>No tenant found.</CommandEmpty>
