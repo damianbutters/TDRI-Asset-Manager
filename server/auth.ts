@@ -21,12 +21,13 @@ export function setupAuth(app: Express) {
   app.use(
     session({
       secret: process.env.SESSION_SECRET || randomBytes(32).toString('hex'),
-      resave: false,
-      saveUninitialized: false,
+      resave: true,
+      saveUninitialized: true,
       cookie: {
-        secure: process.env.NODE_ENV === 'production',
+        secure: false, // Set to false for development
         httpOnly: true,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        sameSite: 'lax'
       },
     })
   );
@@ -93,14 +94,28 @@ export function setupAuth(app: Express) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      // Set up the session
+      // Set up the session with save callback to ensure it's stored before redirect
       req.session.userId = user.id;
       req.session.username = user.username;
       req.session.isAuthenticated = true;
       req.session.currentTenantId = user.current_tenant_id;
-
-      // Redirect to the main application
-      return res.redirect('/');
+      
+      console.log("Session data set:", {
+        userId: user.id,
+        username: user.username,
+        isAuthenticated: true,
+        currentTenantId: user.current_tenant_id
+      });
+      
+      req.session.save((err) => {
+        if (err) {
+          console.error("Error saving session:", err);
+          return res.status(500).json({ error: 'Session error' });
+        }
+        
+        // Redirect to the main application
+        return res.redirect('/');
+      });
     } catch (error) {
       console.error('Token verification error:', error);
       return res.status(500).json({ error: 'Server error' });
@@ -109,10 +124,14 @@ export function setupAuth(app: Express) {
 
   // Get current user information
   app.get('/api/auth/user', (req: Request, res: Response) => {
+    console.log("Session data in auth/user:", req.session);
+    
     if (!req.session.isAuthenticated) {
+      console.log("User not authenticated, session ID:", req.sessionID);
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
+    console.log("User authenticated, returning user data");
     return res.status(200).json({
       id: req.session.userId,
       username: req.session.username,
