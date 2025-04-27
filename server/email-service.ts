@@ -1,8 +1,8 @@
 import sgMail from '@sendgrid/mail';
 import { randomBytes } from 'crypto';
-import { db, pool } from './db';
+import { db } from './db';
 import { magicLinks, users } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 // Check if SendGrid API key exists
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
@@ -40,13 +40,12 @@ export async function sendMagicLinkEmail(email: string): Promise<boolean> {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
     
-    // Store the token in the database
-    await db.insert(magicLinks).values({
-      userId: user.id,
-      token,
-      expiresAt,
-      used: false
-    });
+    // Instead of using the Drizzle schema which might not match the database, use SQL directly
+    // This avoids issues with missing columns like created_at
+    await db.execute(sql`
+      INSERT INTO magic_links (user_id, token, expires_at, used) 
+      VALUES (${user.id}, ${token}, ${expiresAt}, false)
+    `);
     
     // Create the magic link URL
     const magicLinkUrl = `${APP_URL}/api/auth/verify?token=${token}`;
@@ -107,31 +106,39 @@ export async function verifyMagicLinkToken(token: string): Promise<{
   error?: string;
 }> {
   try {
-    // Find the magic link in the database using Drizzle ORM
-    const magicLinkResults = await db.select().from(magicLinks).where(eq(magicLinks.token, token));
-    const magicLink = magicLinkResults[0];
+    // Find the magic link in the database using direct SQL
+    const result = await db.execute(sql`
+      SELECT id, user_id, token, expires_at, used 
+      FROM magic_links 
+      WHERE token = ${token}
+    `);
+    
+    // Extract the magic link from the results
+    const magicLink = result.rows && result.rows.length > 0 ? result.rows[0] : null;
     
     if (!magicLink) {
       return { valid: false, error: 'Invalid token' };
     }
     
     // Check if the token has already been used
-    if (magicLink.used) {
+    if (magicLink.used === true) {
       return { valid: false, error: 'Token has already been used' };
     }
     
     // Check if the token has expired
-    if (new Date() > new Date(magicLink.expiresAt)) {
+    if (new Date() > new Date(magicLink.expires_at)) {
       return { valid: false, error: 'Token has expired' };
     }
     
-    // Mark the token as used
-    await db.update(magicLinks)
-      .set({ used: true })
-      .where(eq(magicLinks.id, magicLink.id));
+    // Mark the token as used with direct SQL
+    await db.execute(sql`
+      UPDATE magic_links 
+      SET used = true 
+      WHERE id = ${magicLink.id}
+    `);
     
     // Return success with the user ID
-    return { valid: true, userId: magicLink.userId };
+    return { valid: true, userId: magicLink.user_id };
   } catch (error) {
     console.error('Error verifying magic link token:', error);
     return { valid: false, error: 'Server error' };
