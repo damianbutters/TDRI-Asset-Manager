@@ -1941,7 +1941,7 @@ export class DatabaseStorage implements IStorage {
     // Use direct SQL query to avoid ORM schema discrepancies
     const query = `
       SELECT 
-        user_tenant_id AS id, 
+        id, 
         user_id AS "userId", 
         tenant_id AS "tenantId", 
         role, 
@@ -1974,7 +1974,7 @@ export class DatabaseStorage implements IStorage {
     const insertQuery = `
       INSERT INTO user_tenants (user_id, tenant_id, role, is_admin, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING user_tenant_id AS id, user_id AS "userId", tenant_id AS "tenantId", role, is_admin AS "isAdmin"
+      RETURNING id, user_id AS "userId", tenant_id AS "tenantId", role, is_admin AS "isAdmin"
     `;
     
     const result = await this.pool.query(insertQuery, [userId, tenantId, role, isAdmin, now, now]);
@@ -1983,7 +1983,7 @@ export class DatabaseStorage implements IStorage {
   
   async updateUserTenant(id: number, updates: Partial<{ role: string, isAdmin: boolean }>): Promise<UserTenant | undefined> {
     // Check if the user-tenant relationship exists using direct SQL
-    const checkQuery = `SELECT * FROM user_tenants WHERE user_tenant_id = $1`;
+    const checkQuery = `SELECT * FROM user_tenants WHERE id = $1`;
     const checkResult = await this.pool.query(checkQuery, [id]);
     
     if (checkResult.rows.length === 0) {
@@ -2016,8 +2016,8 @@ export class DatabaseStorage implements IStorage {
     const updateQuery = `
       UPDATE user_tenants
       SET ${updateFields}
-      WHERE user_tenant_id = $1
-      RETURNING user_tenant_id AS id, user_id AS "userId", tenant_id AS "tenantId", role, is_admin AS "isAdmin"
+      WHERE id = $1
+      RETURNING id, user_id AS "userId", tenant_id AS "tenantId", role, is_admin AS "isAdmin"
     `;
     
     const result = await this.pool.query(updateQuery, params);
@@ -2026,7 +2026,7 @@ export class DatabaseStorage implements IStorage {
   
   async deleteUserTenant(id: number): Promise<boolean> {
     // Delete the user-tenant relationship using direct SQL
-    const deleteQuery = `DELETE FROM user_tenants WHERE user_tenant_id = $1`;
+    const deleteQuery = `DELETE FROM user_tenants WHERE id = $1`;
     const result = await this.pool.query(deleteQuery, [id]);
     
     return result.rowCount > 0;
