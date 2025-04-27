@@ -107,14 +107,9 @@ export async function verifyMagicLinkToken(token: string): Promise<{
   error?: string;
 }> {
   try {
-    // Find the magic link in the database
-    const query = `
-      SELECT * FROM magic_links 
-      WHERE token = $1
-    `;
-    
-    const result = await pool.query(query, [token]);
-    const magicLink = result.rows[0];
+    // Find the magic link in the database using Drizzle ORM
+    const magicLinkResults = await db.select().from(magicLinks).where(eq(magicLinks.token, token));
+    const magicLink = magicLinkResults[0];
     
     if (!magicLink) {
       return { valid: false, error: 'Invalid token' };
@@ -126,21 +121,17 @@ export async function verifyMagicLinkToken(token: string): Promise<{
     }
     
     // Check if the token has expired
-    if (new Date() > new Date(magicLink.expires_at)) {
+    if (new Date() > new Date(magicLink.expiresAt)) {
       return { valid: false, error: 'Token has expired' };
     }
     
     // Mark the token as used
-    const updateQuery = `
-      UPDATE magic_links
-      SET used = true
-      WHERE id = $1
-    `;
-    
-    await pool.query(updateQuery, [magicLink.id]);
+    await db.update(magicLinks)
+      .set({ used: true })
+      .where(eq(magicLinks.id, magicLink.id));
     
     // Return success with the user ID
-    return { valid: true, userId: magicLink.user_id };
+    return { valid: true, userId: magicLink.userId };
   } catch (error) {
     console.error('Error verifying magic link token:', error);
     return { valid: false, error: 'Server error' };
