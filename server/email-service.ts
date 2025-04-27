@@ -24,9 +24,12 @@ if (SENDGRID_API_KEY) {
  */
 export async function sendMagicLinkEmail(email: string): Promise<boolean> {
   try {
-    // Find user by email
-    const userResults = await db.select().from(users).where(eq(users.email, email));
-    const user = userResults[0];
+    // Find user by email using direct SQL
+    const findUserQuery = `
+      SELECT * FROM users WHERE email = $1
+    `;
+    const userResult = await pool.query(findUserQuery, [email]);
+    const user = userResult.rows[0];
     
     if (!user) {
       console.error(`No user found with email: ${email}`);
@@ -40,13 +43,12 @@ export async function sendMagicLinkEmail(email: string): Promise<boolean> {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
     
-    // Insert the magic link using Drizzle ORM
-    await db.insert(magicLinks).values({
-      userId: user.id,
-      token,
-      expiresAt,
-      used: false
-    });
+    // Insert the magic link using direct SQL
+    const insertTokenQuery = `
+      INSERT INTO magic_links (user_id, token, expires_at, used)
+      VALUES ($1, $2, $3, $4)
+    `;
+    await pool.query(insertTokenQuery, [user.id, token, expiresAt, false]);
     
     // Create the magic link URL
     const magicLinkUrl = `${APP_URL}/api/auth/verify?token=${token}`;
@@ -107,9 +109,12 @@ export async function verifyMagicLinkToken(token: string): Promise<{
   error?: string;
 }> {
   try {
-    // Find the magic link in the database using Drizzle ORM
-    const tokenResults = await db.select().from(magicLinks).where(eq(magicLinks.token, token));
-    const magicLink = tokenResults[0];
+    // Find the magic link in the database using direct SQL
+    const findTokenQuery = `
+      SELECT * FROM magic_links WHERE token = $1
+    `;
+    const tokenResult = await pool.query(findTokenQuery, [token]);
+    const magicLink = tokenResult.rows[0];
     
     if (!magicLink) {
       return { valid: false, error: 'Invalid token' };
@@ -121,17 +126,18 @@ export async function verifyMagicLinkToken(token: string): Promise<{
     }
     
     // Check if the token has expired
-    if (new Date() > new Date(magicLink.expiresAt)) {
+    if (new Date() > new Date(magicLink.expires_at)) {
       return { valid: false, error: 'Token has expired' };
     }
     
     // Mark the token as used
-    await db.update(magicLinks)
-      .set({ used: true })
-      .where(eq(magicLinks.id, magicLink.id));
+    const updateTokenQuery = `
+      UPDATE magic_links SET used = true WHERE id = $1
+    `;
+    await pool.query(updateTokenQuery, [magicLink.id]);
     
     // Return success with the user ID
-    return { valid: true, userId: magicLink.userId };
+    return { valid: true, userId: magicLink.user_id };
   } catch (error) {
     console.error('Error verifying magic link token:', error);
     return { valid: false, error: 'Server error' };
