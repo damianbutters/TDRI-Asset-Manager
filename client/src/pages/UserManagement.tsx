@@ -284,7 +284,7 @@ export default function UserManagement() {
       userId: userTenant.userId,
       tenantId: userTenant.tenantId,
       role: userTenant.role,
-      isAdmin: userTenant.isAdmin,
+      isAdmin: userTenant.isAdmin || false, // Ensure it's always a boolean
     });
     setIsUserTenantDialogOpen(true);
   };

@@ -24,14 +24,9 @@ if (SENDGRID_API_KEY) {
  */
 export async function sendMagicLinkEmail(email: string): Promise<boolean> {
   try {
-    // Find user by email
-    const query = `
-      SELECT * FROM users 
-      WHERE email = $1
-    `;
-    
-    const result = await pool.query(query, [email]);
-    const user = result.rows[0];
+    // Find user by email using Drizzle ORM
+    const userResults = await db.select().from(users).where(eq(users.email, email));
+    const user = userResults[0];
     
     if (!user) {
       console.error(`No user found with email: ${email}`);
