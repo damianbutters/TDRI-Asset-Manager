@@ -16,7 +16,7 @@ import {
   assetInspections, AssetInspection, InsertAssetInspection,
   assetMaintenanceRecords, AssetMaintenanceRecord, InsertAssetMaintenanceRecord
 } from "@shared/schema";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
@@ -684,33 +684,70 @@ export class MemStorage implements IStorage {
   }
   
   async setUserCurrentTenant(userId: number, tenantId: number | null): Promise<User | undefined> {
-    const user = await this.getUser(userId);
+    // Use direct SQL query to check if user exists
+    const userQuery = `
+      SELECT 
+        id, 
+        username, 
+        password, 
+        full_name AS "fullName", 
+        role, 
+        email, 
+        is_system_admin AS "isSystemAdmin", 
+        current_tenant_id AS "currentTenantId"
+      FROM users 
+      WHERE id = $1
+    `;
+    
+    const userResult = await pool.query(userQuery, [userId]);
+    const user = userResult.rows[0];
     
     if (!user) {
       return undefined;
     }
     
     if (tenantId !== null) {
-      const tenant = await this.getTenant(tenantId);
+      // Check if tenant exists
+      const tenantQuery = `SELECT * FROM tenants WHERE id = $1`;
+      const tenantResult = await pool.query(tenantQuery, [tenantId]);
+      const tenant = tenantResult.rows[0];
+      
       if (!tenant) {
         return undefined;
       }
       
       // Check if user has access to this tenant
-      const key = `${userId}-${tenantId}`;
-      if (!this.userTenants.has(key)) {
+      const userTenantQuery = `
+        SELECT * FROM user_tenants 
+        WHERE user_id = $1 AND tenant_id = $2
+      `;
+      const userTenantResult = await pool.query(userTenantQuery, [userId, tenantId]);
+      
+      if (userTenantResult.rows.length === 0) {
         return undefined;
       }
     }
     
-    const updatedUser: User = {
-      ...user,
-      currentTenantId: tenantId,
-      updatedAt: new Date()
-    };
+    // Update the user's current tenant
+    const updateQuery = `
+      UPDATE users
+      SET current_tenant_id = $1, updated_at = $2
+      WHERE id = $3
+      RETURNING 
+        id, 
+        username, 
+        password, 
+        full_name AS "fullName", 
+        role, 
+        email, 
+        is_system_admin AS "isSystemAdmin", 
+        current_tenant_id AS "currentTenantId"
+    `;
     
-    this.users.set(userId, updatedUser);
-    return updatedUser;
+    const now = new Date();
+    const updateResult = await pool.query(updateQuery, [tenantId, now, userId]);
+    
+    return updateResult.rows[0];
   }
   
   // Tenant-Asset operations
@@ -1791,31 +1828,87 @@ export class DatabaseStorage implements IStorage {
   }
   
   async updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined> {
+    // Check if user exists
     const existingUser = await this.getUser(id);
     if (!existingUser) {
       return undefined;
     }
     
-    const [updatedUser] = await db.update(users)
-      .set({
-        ...user,
-        updatedAt: new Date()
-      })
-      .where(eq(users.id, id))
-      .returning();
+    // Build the update query dynamically based on what fields are being updated
+    let updateFields = '';
+    const params = [id];
+    let paramIndex = 2;
     
-    return updatedUser;
+    if (user.username !== undefined) {
+      updateFields += `username = $${paramIndex}, `;
+      params.push(user.username);
+      paramIndex++;
+    }
+    
+    if (user.password !== undefined) {
+      updateFields += `password = $${paramIndex}, `;
+      params.push(user.password);
+      paramIndex++;
+    }
+    
+    if (user.fullName !== undefined) {
+      updateFields += `full_name = $${paramIndex}, `;
+      params.push(user.fullName);
+      paramIndex++;
+    }
+    
+    if (user.role !== undefined) {
+      updateFields += `role = $${paramIndex}, `;
+      params.push(user.role);
+      paramIndex++;
+    }
+    
+    if (user.email !== undefined) {
+      updateFields += `email = $${paramIndex}, `;
+      params.push(user.email);
+      paramIndex++;
+    }
+    
+    if (user.isSystemAdmin !== undefined) {
+      updateFields += `is_system_admin = $${paramIndex}, `;
+      params.push(user.isSystemAdmin);
+      paramIndex++;
+    }
+    
+    // Always update the updated_at timestamp
+    const now = new Date();
+    updateFields += `updated_at = $${paramIndex}`;
+    params.push(now);
+    
+    // Update the user using direct SQL
+    const updateQuery = `
+      UPDATE users
+      SET ${updateFields}
+      WHERE id = $1
+      RETURNING 
+        id, 
+        username, 
+        password, 
+        full_name AS "fullName", 
+        role, 
+        email, 
+        is_system_admin AS "isSystemAdmin", 
+        current_tenant_id AS "currentTenantId"
+    `;
+    
+    const result = await pool.query(updateQuery, params);
+    return result.rows[0];
   }
   
   async deleteUser(id: number): Promise<boolean> {
-    // First, remove all user-tenant associations
-    await db.delete(userTenants)
-      .where(eq(userTenants.userId, id));
+    // First, remove all user-tenant associations using direct SQL
+    const deleteAssociationsQuery = `DELETE FROM user_tenants WHERE user_id = $1`;
+    await pool.query(deleteAssociationsQuery, [id]);
     
-    // Then delete the user
-    const result = await db.delete(users)
-      .where(eq(users.id, id));
-      
+    // Then delete the user using direct SQL
+    const deleteUserQuery = `DELETE FROM users WHERE id = $1`;
+    const result = await pool.query(deleteUserQuery, [id]);
+    
     return result.rowCount > 0;
   }
   
