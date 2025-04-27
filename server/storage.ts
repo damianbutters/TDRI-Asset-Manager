@@ -1707,18 +1707,87 @@ export class DatabaseStorage implements IStorage {
   
   // User methods
   async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    // Use direct SQL query to avoid ORM schema discrepancies
+    const query = `
+      SELECT 
+        id, 
+        username, 
+        password, 
+        full_name AS "fullName", 
+        role, 
+        email, 
+        is_system_admin AS "isSystemAdmin", 
+        current_tenant_id AS "currentTenantId"
+      FROM users 
+      WHERE id = $1
+    `;
+    
+    const result = await pool.query(query, [id]);
+    return result.rows[0];
   }
   
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
+    // Use direct SQL query to avoid ORM schema discrepancies
+    const query = `
+      SELECT 
+        id, 
+        username, 
+        password, 
+        full_name AS "fullName", 
+        role, 
+        email, 
+        is_system_admin AS "isSystemAdmin", 
+        current_tenant_id AS "currentTenantId"
+      FROM users 
+      WHERE username = $1
+    `;
+    
+    const result = await pool.query(query, [username]);
+    return result.rows[0];
   }
   
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+    // Use direct SQL query to avoid ORM schema discrepancies
+    const {
+      username,
+      password,
+      fullName,
+      role,
+      email,
+      isSystemAdmin
+    } = insertUser;
+    
+    const query = `
+      INSERT INTO users (
+        username, 
+        password, 
+        full_name, 
+        role, 
+        email, 
+        is_system_admin
+      ) 
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING 
+        id, 
+        username, 
+        password, 
+        full_name AS "fullName", 
+        role, 
+        email, 
+        is_system_admin AS "isSystemAdmin", 
+        current_tenant_id AS "currentTenantId"
+    `;
+    
+    const result = await pool.query(query, [
+      username,
+      password,
+      fullName,
+      role,
+      email,
+      isSystemAdmin || false
+    ]);
+    
+    return result.rows[0];
   }
   
   async updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined> {
@@ -1751,62 +1820,117 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(users.username);
+    // Use direct SQL query to avoid ORM schema discrepancies
+    const query = `
+      SELECT 
+        id, 
+        username, 
+        password, 
+        full_name AS "fullName", 
+        role, 
+        email, 
+        is_system_admin AS "isSystemAdmin", 
+        current_tenant_id AS "currentTenantId"
+      FROM users 
+      ORDER BY username
+    `;
+    
+    const result = await pool.query(query);
+    return result.rows;
   }
   
   async getAllUserTenants(): Promise<UserTenant[]> {
-    return await db.select().from(userTenants);
+    // Use direct SQL query to avoid ORM schema discrepancies
+    const query = `
+      SELECT 
+        user_tenant_id AS id, 
+        user_id AS "userId", 
+        tenant_id AS "tenantId", 
+        role, 
+        is_admin AS "isAdmin"
+      FROM user_tenants
+    `;
+    
+    const result = await pool.query(query);
+    return result.rows;
   }
   
   async createUserTenant(userTenant: { userId: number, tenantId: number, role: string, isAdmin: boolean }): Promise<UserTenant> {
     const { userId, tenantId, role, isAdmin } = userTenant;
     
-    // Make sure user and tenant exist
-    const user = await this.getUser(userId);
-    const tenant = await this.getTenant(tenantId);
+    // Make sure user and tenant exist using direct SQL
+    const userQuery = `SELECT * FROM users WHERE id = $1`;
+    const userResult = await pool.query(userQuery, [userId]);
+    const user = userResult.rows[0];
+    
+    const tenantQuery = `SELECT * FROM tenants WHERE id = $1`;
+    const tenantResult = await pool.query(tenantQuery, [tenantId]);
+    const tenant = tenantResult.rows[0];
     
     if (!user || !tenant) {
       throw new Error("User or tenant does not exist");
     }
     
-    const [newUserTenant] = await db.insert(userTenants)
-      .values({
-        userId,
-        tenantId,
-        role,
-        isAdmin,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
-      .returning();
-      
-    return newUserTenant;
+    // Insert the new user-tenant relationship using direct SQL
+    const now = new Date();
+    const insertQuery = `
+      INSERT INTO user_tenants (user_id, tenant_id, role, is_admin, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING user_tenant_id AS id, user_id AS "userId", tenant_id AS "tenantId", role, is_admin AS "isAdmin"
+    `;
+    
+    const result = await pool.query(insertQuery, [userId, tenantId, role, isAdmin, now, now]);
+    return result.rows[0];
   }
   
   async updateUserTenant(id: number, updates: Partial<{ role: string, isAdmin: boolean }>): Promise<UserTenant | undefined> {
-    // Get the existing user tenant
-    const [existingUserTenant] = await db.select().from(userTenants).where(eq(userTenants.id, id));
+    // Check if the user-tenant relationship exists using direct SQL
+    const checkQuery = `SELECT * FROM user_tenants WHERE user_tenant_id = $1`;
+    const checkResult = await pool.query(checkQuery, [id]);
     
-    if (!existingUserTenant) {
+    if (checkResult.rows.length === 0) {
       return undefined;
     }
     
-    // Update the user tenant
-    const [updatedUserTenant] = await db.update(userTenants)
-      .set({
-        ...updates,
-        updatedAt: new Date()
-      })
-      .where(eq(userTenants.id, id))
-      .returning();
-      
-    return updatedUserTenant;
+    // Build the update query dynamically based on what fields are being updated
+    let updateFields = '';
+    const params = [id];
+    let paramIndex = 2;
+    
+    if (updates.role !== undefined) {
+      updateFields += `role = $${paramIndex}, `;
+      params.push(updates.role);
+      paramIndex++;
+    }
+    
+    if (updates.isAdmin !== undefined) {
+      updateFields += `is_admin = $${paramIndex}, `;
+      params.push(updates.isAdmin);
+      paramIndex++;
+    }
+    
+    // Always update the updated_at timestamp
+    const now = new Date();
+    updateFields += `updated_at = $${paramIndex}`;
+    params.push(now);
+    
+    // Update the user-tenant relationship using direct SQL
+    const updateQuery = `
+      UPDATE user_tenants
+      SET ${updateFields}
+      WHERE user_tenant_id = $1
+      RETURNING user_tenant_id AS id, user_id AS "userId", tenant_id AS "tenantId", role, is_admin AS "isAdmin"
+    `;
+    
+    const result = await pool.query(updateQuery, params);
+    return result.rows[0];
   }
   
   async deleteUserTenant(id: number): Promise<boolean> {
-    const result = await db.delete(userTenants)
-      .where(eq(userTenants.id, id));
-      
+    // Delete the user-tenant relationship using direct SQL
+    const deleteQuery = `DELETE FROM user_tenants WHERE user_tenant_id = $1`;
+    const result = await pool.query(deleteQuery, [id]);
+    
     return result.rowCount > 0;
   }
   
