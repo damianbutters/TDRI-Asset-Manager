@@ -1,6 +1,6 @@
 import { Express, Request, Response } from 'express';
 import { sendMagicLinkEmail, verifyMagicLinkToken } from './email-service';
-import { db } from './db';
+import { db, pool } from './db';
 import { users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import session from 'express-session';
@@ -44,9 +44,17 @@ export function setupAuth(app: Express) {
       const success = await sendMagicLinkEmail(email);
       
       if (success) {
-        return res.status(200).json({ 
-          message: 'If an account with that email exists, a magic link has been sent' 
-        });
+        // In development, provide a more detailed message
+        if (process.env.NODE_ENV === 'development') {
+          return res.status(200).json({ 
+            message: 'Magic link created. Check server logs for the login link.',
+            dev: true
+          });
+        } else {
+          return res.status(200).json({ 
+            message: 'If an account with that email exists, a magic link has been sent' 
+          });
+        }
       } else {
         return res.status(500).json({ error: 'Failed to send magic link' });
       }

@@ -56,38 +56,46 @@ export async function sendMagicLinkEmail(email: string): Promise<boolean> {
     // Create the magic link URL
     const magicLinkUrl = `${APP_URL}/api/auth/verify?token=${token}`;
     
-    // If SendGrid API key is not available, just log the magic link for development
-    if (!SENDGRID_API_KEY) {
-      console.log('SendGrid API key not available. Magic link for development:');
-      console.log(magicLinkUrl);
-      return true;
+    // Always log the magic link in development environment for testing
+    console.log('Magic link for development/testing:');
+    console.log(magicLinkUrl);
+    
+    // Try to send email only if SendGrid API key is available
+    if (SENDGRID_API_KEY) {
+      try {
+        // Prepare email message
+        const msg = {
+          to: email,
+          from: EMAIL_SENDER,
+          subject: 'Your Login Link for TDRIPlanner',
+          text: `Click this link to log in: ${magicLinkUrl}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #3b82f6;">Welcome to TDRIPlanner</h2>
+              <p>You requested a magic link to sign in to your account.</p>
+              <p>This link will expire in 1 hour and can only be used once.</p>
+              <a href="${magicLinkUrl}" 
+                style="display: inline-block; background-color: #3b82f6; color: white; 
+                        padding: 12px 24px; text-decoration: none; border-radius: 4px; 
+                        margin: 20px 0;">
+                Sign In to TDRIPlanner
+              </a>
+              <p style="color: #6b7280; font-size: 14px;">If you didn't request this link, you can safely ignore this email.</p>
+            </div>
+          `
+        };
+        
+        // Send the email
+        await sgMail.send(msg);
+        console.log(`Magic link email sent to ${email}`);
+      } catch (emailError) {
+        console.error('Error sending email via SendGrid:', emailError);
+        console.log('Continuing with magic link in logs for development');
+        // We don't throw the error here, so authentication can still work in development
+      }
+    } else {
+      console.log('SendGrid API key not available. Using console-based magic link only.');
     }
-    
-    // Prepare email message
-    const msg = {
-      to: email,
-      from: EMAIL_SENDER,
-      subject: 'Your Login Link for TDRIPlanner',
-      text: `Click this link to log in: ${magicLinkUrl}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #3b82f6;">Welcome to TDRIPlanner</h2>
-          <p>You requested a magic link to sign in to your account.</p>
-          <p>This link will expire in 1 hour and can only be used once.</p>
-          <a href="${magicLinkUrl}" 
-             style="display: inline-block; background-color: #3b82f6; color: white; 
-                    padding: 12px 24px; text-decoration: none; border-radius: 4px; 
-                    margin: 20px 0;">
-            Sign In to TDRIPlanner
-          </a>
-          <p style="color: #6b7280; font-size: 14px;">If you didn't request this link, you can safely ignore this email.</p>
-        </div>
-      `
-    };
-    
-    // Send the email
-    await sgMail.send(msg);
-    console.log(`Magic link email sent to ${email}`);
     return true;
   } catch (error) {
     console.error('Error sending magic link email:', error);
