@@ -1,7 +1,7 @@
 import sgMail from '@sendgrid/mail';
 import { randomBytes } from 'crypto';
 import { db, pool } from './db';
-import { users } from '@shared/schema';
+import { users, magicLinks } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 // Check if SendGrid API key exists
@@ -24,19 +24,14 @@ if (SENDGRID_API_KEY) {
  */
 export async function sendMagicLinkEmail(email: string): Promise<boolean> {
   try {
-    // Find user by email using raw SQL to avoid schema issues
-    const findUserQuery = `
-      SELECT * FROM users
-      WHERE email = $1
-    `;
-    const userResult = await pool.query(findUserQuery, [email]);
+    // Find user by email
+    const userResults = await db.select().from(users).where(eq(users.email, email));
+    const user = userResults[0];
     
-    if (userResult.rows.length === 0) {
+    if (!user) {
       console.error(`No user found with email: ${email}`);
       return false;
     }
-    
-    const user = userResult.rows[0];
 
     // Generate a secure random token
     const token = randomBytes(32).toString('hex');
@@ -45,12 +40,13 @@ export async function sendMagicLinkEmail(email: string): Promise<boolean> {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
     
-    // Insert the magic link using raw SQL
-    const createTokenQuery = `
-      INSERT INTO magic_links (user_id, token, expires_at, used) 
-      VALUES ($1, $2, $3, $4)
-    `;
-    await pool.query(createTokenQuery, [user.id, token, expiresAt, false]);
+    // Insert the magic link using Drizzle ORM
+    await db.insert(magicLinks).values({
+      userId: user.id,
+      token,
+      expiresAt,
+      used: false
+    });
     
     // Create the magic link URL
     const magicLinkUrl = `${APP_URL}/api/auth/verify?token=${token}`;
@@ -111,45 +107,31 @@ export async function verifyMagicLinkToken(token: string): Promise<{
   error?: string;
 }> {
   try {
-    // Find the token using raw SQL
-    const findTokenQuery = `
-      SELECT id, user_id, token, expires_at, used 
-      FROM magic_links 
-      WHERE token = $1
-    `;
+    // Find the magic link in the database using Drizzle ORM
+    const tokenResults = await db.select().from(magicLinks).where(eq(magicLinks.token, token));
+    const magicLink = tokenResults[0];
     
-    const result = await pool.query(findTokenQuery, [token]);
-    
-    if (result.rows.length === 0) {
+    if (!magicLink) {
       return { valid: false, error: 'Invalid token' };
     }
     
-    const magicLink = result.rows[0];
-    
     // Check if the token has already been used
-    if (magicLink.used === true) {
+    if (magicLink.used) {
       return { valid: false, error: 'Token has already been used' };
     }
     
     // Check if the token has expired
-    const now = new Date();
-    const expires = new Date(magicLink.expires_at);
-    
-    if (now > expires) {
+    if (new Date() > new Date(magicLink.expiresAt)) {
       return { valid: false, error: 'Token has expired' };
     }
     
     // Mark the token as used
-    const updateTokenQuery = `
-      UPDATE magic_links 
-      SET used = true 
-      WHERE id = $1
-    `;
-    
-    await pool.query(updateTokenQuery, [magicLink.id]);
+    await db.update(magicLinks)
+      .set({ used: true })
+      .where(eq(magicLinks.id, magicLink.id));
     
     // Return success with the user ID
-    return { valid: true, userId: magicLink.user_id };
+    return { valid: true, userId: magicLink.userId };
   } catch (error) {
     console.error('Error verifying magic link token:', error);
     return { valid: false, error: 'Server error' };
