@@ -699,7 +699,7 @@ export class MemStorage implements IStorage {
       WHERE id = $1
     `;
     
-    const userResult = await pool.query(userQuery, [userId]);
+    const userResult = await this.pool.query(userQuery, [userId]);
     const user = userResult.rows[0];
     
     if (!user) {
@@ -709,7 +709,7 @@ export class MemStorage implements IStorage {
     if (tenantId !== null) {
       // Check if tenant exists
       const tenantQuery = `SELECT * FROM tenants WHERE id = $1`;
-      const tenantResult = await pool.query(tenantQuery, [tenantId]);
+      const tenantResult = await this.pool.query(tenantQuery, [tenantId]);
       const tenant = tenantResult.rows[0];
       
       if (!tenant) {
@@ -721,7 +721,7 @@ export class MemStorage implements IStorage {
         SELECT * FROM user_tenants 
         WHERE user_id = $1 AND tenant_id = $2
       `;
-      const userTenantResult = await pool.query(userTenantQuery, [userId, tenantId]);
+      const userTenantResult = await this.pool.query(userTenantQuery, [userId, tenantId]);
       
       if (userTenantResult.rows.length === 0) {
         return undefined;
@@ -745,7 +745,7 @@ export class MemStorage implements IStorage {
     `;
     
     const now = new Date();
-    const updateResult = await pool.query(updateQuery, [tenantId, now, userId]);
+    const updateResult = await this.pool.query(updateQuery, [tenantId, now, userId]);
     
     return updateResult.rows[0];
   }
@@ -1540,6 +1540,11 @@ export class MemStorage implements IStorage {
 
 // DatabaseStorage implementation
 export class DatabaseStorage implements IStorage {
+  private pool;
+  
+  constructor() {
+    this.pool = pool;
+  }
   // Tenant operations
   async getTenants(): Promise<Tenant[]> {
     return await db.select().from(tenants);
@@ -1928,7 +1933,7 @@ export class DatabaseStorage implements IStorage {
       ORDER BY username
     `;
     
-    const result = await pool.query(query);
+    const result = await this.pool.query(query);
     return result.rows;
   }
   
@@ -1944,7 +1949,7 @@ export class DatabaseStorage implements IStorage {
       FROM user_tenants
     `;
     
-    const result = await pool.query(query);
+    const result = await this.pool.query(query);
     return result.rows;
   }
   
@@ -1953,11 +1958,11 @@ export class DatabaseStorage implements IStorage {
     
     // Make sure user and tenant exist using direct SQL
     const userQuery = `SELECT * FROM users WHERE id = $1`;
-    const userResult = await pool.query(userQuery, [userId]);
+    const userResult = await this.pool.query(userQuery, [userId]);
     const user = userResult.rows[0];
     
     const tenantQuery = `SELECT * FROM tenants WHERE id = $1`;
-    const tenantResult = await pool.query(tenantQuery, [tenantId]);
+    const tenantResult = await this.pool.query(tenantQuery, [tenantId]);
     const tenant = tenantResult.rows[0];
     
     if (!user || !tenant) {
@@ -1972,14 +1977,14 @@ export class DatabaseStorage implements IStorage {
       RETURNING user_tenant_id AS id, user_id AS "userId", tenant_id AS "tenantId", role, is_admin AS "isAdmin"
     `;
     
-    const result = await pool.query(insertQuery, [userId, tenantId, role, isAdmin, now, now]);
+    const result = await this.pool.query(insertQuery, [userId, tenantId, role, isAdmin, now, now]);
     return result.rows[0];
   }
   
   async updateUserTenant(id: number, updates: Partial<{ role: string, isAdmin: boolean }>): Promise<UserTenant | undefined> {
     // Check if the user-tenant relationship exists using direct SQL
     const checkQuery = `SELECT * FROM user_tenants WHERE user_tenant_id = $1`;
-    const checkResult = await pool.query(checkQuery, [id]);
+    const checkResult = await this.pool.query(checkQuery, [id]);
     
     if (checkResult.rows.length === 0) {
       return undefined;
@@ -2015,14 +2020,14 @@ export class DatabaseStorage implements IStorage {
       RETURNING user_tenant_id AS id, user_id AS "userId", tenant_id AS "tenantId", role, is_admin AS "isAdmin"
     `;
     
-    const result = await pool.query(updateQuery, params);
+    const result = await this.pool.query(updateQuery, params);
     return result.rows[0];
   }
   
   async deleteUserTenant(id: number): Promise<boolean> {
     // Delete the user-tenant relationship using direct SQL
     const deleteQuery = `DELETE FROM user_tenants WHERE user_tenant_id = $1`;
-    const result = await pool.query(deleteQuery, [id]);
+    const result = await this.pool.query(deleteQuery, [id]);
     
     return result.rowCount > 0;
   }
