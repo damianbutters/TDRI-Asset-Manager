@@ -880,31 +880,15 @@ const MoistureHotspots: React.FC = () => {
                     </div>
                     <div className="rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm" style={{ height: '400px' }}>
                       {hotspot.latitude && hotspot.longitude ? (
-                        <div className="relative h-full">
-                          {/* Use a direct Google Maps Street View URL that doesn't require an API key */}
-                          <iframe
-                            title={`Street View for hotspot #${hotspot.id}`}
-                            width="100%"
-                            height="100%"
-                            frameBorder="0"
-                            style={{ border: 0 }}
-                            src={`https://www.google.com/maps/embed?pb=!4v1746014863837!6m8!1m7!1s0!2m2!1d${hotspot.latitude}!2d${hotspot.longitude}!3f0!4f0!5f0.5`}
-                            allowFullScreen
-                          ></iframe>
-                          
-                          {/* Fallback message that will be shown if iframe fails to load */}
-                          <div className="absolute inset-0 flex items-center justify-center bg-gray-100/80 opacity-0 hover:opacity-100 transition-opacity">
-                            <a 
-                              href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${hotspot.latitude},${hotspot.longitude}&heading=0&pitch=0&fov=90`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-                            >
-                              <ExternalLink className="h-4 w-4 mr-2" />
-                              Open in Google Maps
-                            </a>
-                          </div>
-                        </div>
+                        <iframe
+                          title={`Live Street View for hotspot #${hotspot.id}`}
+                          width="100%"
+                          height="100%"
+                          frameBorder="0"
+                          style={{ border: 0 }}
+                          src={`https://www.google.com/maps/embed/v1/streetview?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&location=${hotspot.latitude},${hotspot.longitude}&heading=0&pitch=0&fov=90`}
+                          allowFullScreen
+                        />
                       ) : (
                         <div className="h-full flex items-center justify-center bg-gray-100">
                           <p className="text-gray-500">Street View not available at this location</p>
@@ -912,7 +896,7 @@ const MoistureHotspots: React.FC = () => {
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                      Street View snapshot. Hover and click to open interactive 360° view in Google Maps.
+                      Interactive 360° Street View. Use your mouse to look around and explore the environment.
                     </p>
                   </div>
                 </div>
