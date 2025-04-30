@@ -332,10 +332,10 @@ const MoistureHotspots: React.FC = () => {
                 continue;
               }
               
-              // Add direction label
+              // Add direction label - using integer division without Math.floor to match UI
               const directions = ['North', 'East', 'South', 'West'];
               const directionName = image.direction !== undefined ? 
-                directions[Math.floor(image.direction / 90) % 4] : 'View';
+                directions[image.direction / 90] || 'View' : 'View';
                 
               doc.setFontSize(8);
               doc.text(`${directionName} View`, xPos, yPosTop - 2);
