@@ -143,17 +143,62 @@ const MoistureHotspots: React.FC = () => {
         ];
       });
       
-      // Use autoTable plugin
-      (doc as any).autoTable({
-        startY: 100,
-        head: [tableColumns],
-        body: tableRows,
-        theme: 'striped',
-        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-        styles: { fontSize: 10 },
-      });
+      // Create a simple table without the plugin first
+      try {
+        // Try using autoTable function from the plugin
+        if (typeof doc.autoTable === 'function') {
+          doc.autoTable({
+            startY: 100,
+            head: [tableColumns],
+            body: tableRows,
+            theme: 'striped',
+            headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+            styles: { fontSize: 10 },
+          });
+        } else {
+          // Fallback to manual table rendering if autoTable is not available
+          console.log("AutoTable not available, falling back to manual table");
+          const startY = 100;
+          const cellWidth = 35;
+          const cellHeight = 10;
+          const margin = 14;
+          
+          // Draw header
+          doc.setFillColor(41, 128, 185);
+          doc.setTextColor(255, 255, 255);
+          doc.setFont("helvetica", 'bold');
+          
+          tableColumns.forEach((header, i) => {
+            doc.rect(margin + (i * cellWidth), startY, cellWidth, cellHeight, 'F');
+            doc.text(header, margin + 5 + (i * cellWidth), startY + 7);
+          });
+          
+          // Draw rows
+          doc.setTextColor(0, 0, 0);
+          doc.setFont("helvetica", 'normal');
+          
+          tableRows.forEach((row, rowIndex) => {
+            const rowY = startY + ((rowIndex + 1) * cellHeight);
+            
+            // Alternate row background for striped effect
+            if (rowIndex % 2 === 0) {
+              doc.setFillColor(240, 240, 240);
+              doc.rect(margin, rowY, cellWidth * tableColumns.length, cellHeight, 'F');
+            }
+            
+            row.forEach((cell, cellIndex) => {
+              doc.text(String(cell), margin + 5 + (cellIndex * cellWidth), rowY + 7);
+            });
+          });
+        }
+      } catch (error) {
+        console.error("Error creating table:", error);
+        // Add a note about table generation error
+        doc.text("Error generating table: " + (error instanceof Error ? error.message : String(error)), 14, 100);
+      }
       
-      let yPosition = (doc as any).lastAutoTable.finalY + 15;
+      // Calculate position for next content
+      let yPosition = 100 + ((tableRows.length + 1) * 10) + 15;
       
       // Add map visualization section
       doc.text('Hotspot Distribution Map:', 14, yPosition);
