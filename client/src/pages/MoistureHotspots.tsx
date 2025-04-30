@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '@/hooks/use-tenant';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +24,11 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+
+// Leaflet imports for map visualization
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { LatLngBounds, LatLng, LatLngTuple } from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 interface RoadAsset {
   id: number;
@@ -317,60 +322,14 @@ const MoistureHotspots: React.FC = () => {
                 <CardTitle>Hotspot Distribution</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[200px] bg-gray-100 rounded-md p-4 relative">
-                  {/* Simple visualization of moisture hotspots using colored dots */}
-                  {hotspotsData && hotspotsData.hotspots.map((hotspot, index) => {
-                    // Calculate position based on latitude and longitude differences
-                    // This is a simplified visualization - not geographically accurate
-                    const baseLatitude = hotspotsData.hotspots.reduce((min, h) => 
-                      Math.min(min, h.latitude), Infinity);
-                    const baseLongitude = hotspotsData.hotspots.reduce((min, h) => 
-                      Math.min(min, h.longitude), Infinity);
-                    
-                    const maxLatitude = hotspotsData.hotspots.reduce((max, h) => 
-                      Math.max(max, h.latitude), -Infinity);
-                    const maxLongitude = hotspotsData.hotspots.reduce((max, h) => 
-                      Math.max(max, h.longitude), -Infinity);
-                    
-                    // Normalize to container size (with padding)
-                    const latRange = maxLatitude - baseLatitude || 0.0001; // Avoid division by zero
-                    const longRange = maxLongitude - baseLongitude || 0.0001;
-                    
-                    const top = 10 + ((hotspot.latitude - baseLatitude) / latRange) * 170;
-                    const left = 10 + ((hotspot.longitude - baseLongitude) / longRange) * 170;
-                    
-                    // Calculate color based on moisture (redder = higher moisture)
-                    const intensity = Math.min(100, (hotspot.moistureValue / hotspotsData.threshold) * 100);
-                    const colorValue = Math.round(255 * (intensity / 100));
-                    
-                    return (
-                      <div
-                        key={hotspot.id}
-                        className="absolute cursor-pointer rounded-full shadow-md border border-white"
-                        style={{
-                          top: `${top}%`,
-                          left: `${left}%`,
-                          transform: 'translate(-50%, -50%)',
-                          width: '16px',
-                          height: '16px',
-                          backgroundColor: `rgb(${colorValue}, ${255 - colorValue}, 0)`,
-                        }}
-                        title={`Hotspot #${hotspot.id}: ${hotspot.moistureValue.toFixed(1)}%`}
-                      />
-                    );
-                  })}
-                  
-                  {/* Legend */}
-                  <div className="absolute bottom-2 right-2 bg-white p-2 rounded-md text-xs">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                      <span>Low moisture</span>
+                <div className="h-[300px] rounded-md relative">
+                  {hotspotsData && hotspotsData.hotspots.length > 0 ? (
+                    <MapHotspots hotspots={hotspotsData.hotspots} threshold={hotspotsData.threshold} />
+                  ) : (
+                    <div className="h-full flex items-center justify-center bg-gray-100">
+                      <p className="text-gray-500">No hotspots data available</p>
                     </div>
-                    <div className="flex items-center mt-1">
-                      <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-                      <span>High moisture</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -466,6 +425,135 @@ const MoistureHotspots: React.FC = () => {
         </Card>
       )}
     </div>
+  );
+};
+
+// MapHotspots component to display hotspots on a Leaflet map
+interface MapHotspotsProps {
+  hotspots: MoistureReading[];
+  threshold: number;
+}
+
+// Internal component that adjusts the map's view to the bounds
+const MapBoundsComponent = ({ bounds }: { bounds: [[number, number], [number, number]] | undefined }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (bounds) {
+      map.fitBounds(bounds);
+    }
+  }, [map, bounds]);
+  
+  return null;
+};
+
+const MapHotspots: React.FC<MapHotspotsProps> = ({ hotspots, threshold }) => {
+  // Calculate center point
+  const center = useMemo((): LatLngTuple => {
+    if (!hotspots || hotspots.length === 0) return [40.7128, -74.0060]; // Default: NYC
+    
+    const lats = hotspots.map(h => h.latitude);
+    const lngs = hotspots.map(h => h.longitude);
+    
+    const centerLat = lats.reduce((sum, lat) => sum + lat, 0) / lats.length;
+    const centerLng = lngs.reduce((sum, lng) => sum + lng, 0) / lngs.length;
+    
+    return [centerLat, centerLng];
+  }, [hotspots]);
+  
+  // Create map bounds that include all hotspots
+  const bounds = useMemo(() => {
+    if (!hotspots || hotspots.length === 0) return undefined;
+    
+    const lats = hotspots.map(h => h.latitude);
+    const lngs = hotspots.map(h => h.longitude);
+    
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    
+    // Add padding to the bounds
+    const latPadding = (maxLat - minLat) * 0.2 || 0.01; // Ensure minimum padding
+    const lngPadding = (maxLng - minLng) * 0.2 || 0.01;
+    
+    return [
+      [minLat - latPadding, minLng - lngPadding],
+      [maxLat + latPadding, maxLng + lngPadding]
+    ] as [[number, number], [number, number]];
+  }, [hotspots]);
+  
+  if (!hotspots || hotspots.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-100">
+        <p className="text-gray-500">No hotspot data available</p>
+      </div>
+    );
+  }
+  
+  return (
+    <MapContainer
+      center={center}
+      zoom={14}
+      style={{ height: '100%', width: '100%', borderRadius: '0.375rem' }}
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      
+      {hotspots.map((hotspot) => {
+        // Calculate color based on moisture (redder = higher moisture)
+        const intensity = Math.min(100, (hotspot.moistureValue / threshold) * 100);
+        const r = Math.round(255 * (intensity / 100));
+        const g = Math.round(255 * (1 - (intensity / 100)));
+        const b = 0;
+        
+        return (
+          <CircleMarker
+            key={hotspot.id}
+            center={[hotspot.latitude, hotspot.longitude]}
+            radius={8}
+            fillColor={`rgb(${r}, ${g}, ${b})`}
+            color="white"
+            weight={1}
+            fillOpacity={0.8}
+          >
+            <Popup>
+              <div className="p-1">
+                <div className="font-bold">Hotspot #{hotspot.id}</div>
+                <div className="text-sm">Moisture: {hotspot.moistureValue.toFixed(1)}%</div>
+                <div className="text-sm">Date: {format(new Date(hotspot.readingDate), 'MMM d, yyyy')}</div>
+                <div className="text-sm">Depth: {hotspot.depth} cm</div>
+                {hotspot.googleMapsUrl && (
+                  <a 
+                    href={hotspot.googleMapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-blue-600 flex items-center mt-1"
+                  >
+                    <MapPin className="h-3 w-3 mr-1" />
+                    View in Google Maps
+                  </a>
+                )}
+              </div>
+            </Popup>
+          </CircleMarker>
+        );
+      })}
+      
+      {/* Legend */}
+      <div className="absolute bottom-2 right-2 z-[1000] bg-white px-2 py-1 rounded-md shadow-md text-xs">
+        <div className="flex items-center">
+          <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+          <span>Low moisture</span>
+        </div>
+        <div className="flex items-center mt-1">
+          <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+          <span>High moisture</span>
+        </div>
+      </div>
+    </MapContainer>
   );
 };
 
