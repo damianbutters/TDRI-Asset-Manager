@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 // Define enhanced PDF type with autoTable
 interface AutoTableOptions {
@@ -123,6 +124,9 @@ const MoistureHotspots: React.FC = () => {
     enabled: !!selectedRoadId,
   });
 
+  // Reference to the map container for capturing
+  const mapRef = useRef<HTMLDivElement>(null);
+  
   const handleGeneratePdf = async () => {
     if (!hotspotsData) return;
     
@@ -133,6 +137,29 @@ const MoistureHotspots: React.FC = () => {
       
       // Create a new PDF document with enhanced type
       const doc = new jsPDF() as EnhancedJsPDF;
+      
+      // Capture the map view first before generating the rest of the PDF
+      let mapImageData: string | null = null;
+      
+      // Try to capture the map element if it exists
+      if (mapRef.current) {
+        try {
+          console.log("Capturing map view...");
+          const mapCanvas = await html2canvas(mapRef.current, {
+            logging: false,
+            useCORS: true,
+            scale: 1.5, // Higher quality
+            backgroundColor: '#f8f9fa'
+          });
+          
+          mapImageData = mapCanvas.toDataURL('image/jpeg', 0.85);
+          console.log("Map view captured successfully");
+        } catch (mapError) {
+          console.error("Error capturing map:", mapError);
+        }
+      } else {
+        console.log("Map reference not found, skipping map capture");
+      }
       
       // Add title and summary
       doc.setFontSize(20);
@@ -301,15 +328,52 @@ const MoistureHotspots: React.FC = () => {
       // Calculate position for next content
       let yPosition = 40 + ((tableRows.length + 1) * 10) + 15;
       
-      // Add map visualization section
+      // Add map visualization section with captured image
       doc.setFontSize(14);
       doc.setFont("helvetica", 'bold');
-      doc.text('Hotspot Distribution', 14, yPosition);
+      doc.text('Hotspot Distribution Map', 14, yPosition);
       doc.setFont("helvetica", 'normal');
       doc.setFontSize(12);
       yPosition += 10;
-      doc.text('(Refer to interactive map in application for detailed visualization)', 14, yPosition);
-      yPosition += 15;
+      
+      // Add the captured map image if available
+      if (mapImageData) {
+        try {
+          // Add a frame around the map image
+          doc.setDrawColor(100, 100, 100);
+          doc.setFillColor(245, 245, 245);
+          doc.rect(14, yPosition, 180, 90, 'FD');
+          
+          // Add the map image
+          doc.addImage(
+            mapImageData, 
+            'JPEG', 
+            16, // x position
+            yPosition + 2, // y position
+            176, // width
+            86, // height
+            'map_image', // alias
+            'MEDIUM' // compression
+          );
+          
+          // Add a legend below the map
+          yPosition += 95;
+          doc.setFontSize(8);
+          doc.setTextColor(80, 80, 80);
+          doc.text('* Map shows hotspot locations with color-coded moisture intensity.', 16, yPosition);
+          doc.text('* Red markers indicate higher moisture concentration areas.', 16, yPosition + 4);
+          yPosition += 15;
+        } catch (imgError) {
+          console.error('Error adding map image to PDF:', imgError);
+          doc.text('Map image could not be added to the report.', 16, yPosition);
+          yPosition += 10;
+        }
+      } else {
+        doc.text('Interactive map not available for the report.', 16, yPosition);
+        yPosition += 10;
+      }
+      
+      yPosition += 5;
       
       // Add visual documentation section title
       doc.text('Hotspot Visual Documentation:', 14, yPosition);
