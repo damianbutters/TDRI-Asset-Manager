@@ -309,6 +309,13 @@ const MoistureHotspots: React.FC = () => {
             const imagesPerRow = 2;
             const padding = 8;
             
+            // Log street view images for debugging
+            console.log("Street View Images:", JSON.stringify(hotspot.streetViewImages.map(img => ({ 
+              direction: img.direction, 
+              url: img.url ? "yes" : "no",
+              base64: img.base64 ? "yes" : "no"
+            }))));
+            
             // Process street view images
             for (let i = 0; i < hotspot.streetViewImages.length; i++) {
               const image = hotspot.streetViewImages[i];
@@ -332,10 +339,20 @@ const MoistureHotspots: React.FC = () => {
                 continue;
               }
               
-              // Add direction label - using integer division without Math.floor to match UI
+              // Debugging the direction value
+              console.log(`Image ${i} direction:`, image.direction, 
+                "Index:", Math.floor(image.direction / 90), 
+                "Direction name:", directions[Math.floor(image.direction / 90)]);
+              
+              // Add direction label with explicit index calculation
               const directions = ['North', 'East', 'South', 'West'];
-              const directionName = image.direction !== undefined ? 
-                directions[image.direction / 90] || 'View' : 'View';
+              let directionIndex = 0; // Default to North
+              
+              if (image.direction !== undefined) {
+                directionIndex = Math.floor(image.direction / 90) % 4;
+              }
+              
+              const directionName = directions[directionIndex];
                 
               doc.setFontSize(8);
               doc.text(`${directionName} View`, xPos, yPosTop - 2);
