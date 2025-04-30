@@ -25,6 +25,28 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
+// Define enhanced PDF type with autoTable
+interface AutoTableOptions {
+  startY: number;
+  head: string[][];
+  body: any[][];
+  theme: string;
+  headStyles: {
+    fillColor: number[];
+    textColor: number;
+  };
+  styles: {
+    fontSize: number;
+  };
+}
+
+interface EnhancedJsPDF extends jsPDF {
+  autoTable?: (options: AutoTableOptions) => void;
+  lastAutoTable?: {
+    finalY: number;
+  };
+}
+
 // Leaflet imports for map visualization
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { LatLngBounds, LatLng, LatLngTuple } from 'leaflet';
@@ -109,8 +131,8 @@ const MoistureHotspots: React.FC = () => {
     try {
       console.log("Starting PDF generation");
       
-      // Create a new PDF document
-      const doc = new jsPDF();
+      // Create a new PDF document with enhanced type
+      const doc = new jsPDF() as EnhancedJsPDF;
       
       // Add title and summary
       doc.setFontSize(20);
@@ -268,7 +290,103 @@ const MoistureHotspots: React.FC = () => {
           yPosition += 10;
         }
         
-        yPosition += 8;
+        // Add street view images if available
+        if (hotspot.streetViewImages && hotspot.streetViewImages.length > 0) {
+          yPosition += 5;
+          doc.text('Street View Images:', 16, yPosition);
+          yPosition += 8;
+          
+          try {
+            // Calculate image layout
+            const imageWidth = 80;
+            const imageHeight = 60;
+            const imagesPerRow = 2;
+            const padding = 10;
+            
+            // Process street view images
+            for (let i = 0; i < hotspot.streetViewImages.length; i++) {
+              const image = hotspot.streetViewImages[i];
+              
+              // Skip if image data is missing
+              if (!image || !image.url) continue;
+              
+              // Calculate position for this image
+              const col = i % imagesPerRow;
+              const row = Math.floor(i / imagesPerRow);
+              const xPos = 16 + (col * (imageWidth + padding));
+              const yPosTop = yPosition + (row * (imageHeight + 20));
+              
+              // Check if we need a new page
+              if (yPosTop + imageHeight > 280) {
+                doc.addPage();
+                yPosition = 20;
+                // Reset the row counter after page break
+                i = i - col; // Reset to beginning of current row
+                continue;
+              }
+              
+              // Add direction label
+              const directions = ['North', 'East', 'South', 'West'];
+              const directionName = image.direction !== undefined ? 
+                directions[Math.floor(image.direction / 90) % 4] : 'View';
+                
+              doc.setFontSize(8);
+              doc.text(`${directionName} View`, xPos, yPosTop - 2);
+              doc.setFontSize(12);
+              
+              // Add image if base64 data is available (preferred for PDF embedding)
+              if (image.base64) {
+                try {
+                  // Remove the data URL prefix if it exists
+                  const base64Data = image.base64.startsWith('data:image') ?
+                    image.base64.split(',')[1] : image.base64;
+                    
+                  doc.addImage(
+                    base64Data, 
+                    'JPEG', 
+                    xPos, 
+                    yPosTop, 
+                    imageWidth, 
+                    imageHeight,
+                    `img_${hotspot.id}_${i}`,
+                    'MEDIUM'
+                  );
+                } catch (imgError) {
+                  console.error('Error adding image to PDF:', imgError);
+                  doc.setFillColor(240, 240, 240);
+                  doc.rect(xPos, yPosTop, imageWidth, imageHeight, 'F');
+                  doc.text('Image unavailable', xPos + 10, yPosTop + (imageHeight / 2));
+                }
+              } else if (image.url) {
+                // If no base64 but URL is available, add a placeholder with link
+                doc.setFillColor(240, 240, 240);
+                doc.rect(xPos, yPosTop, imageWidth, imageHeight, 'F');
+                doc.text('Image available online', xPos + 10, yPosTop + (imageHeight / 2));
+                
+                // Add link to the image
+                doc.link(xPos, yPosTop, imageWidth, imageHeight, { url: image.url });
+              }
+              
+              // Adjust yPosition based on the last row
+              if (col === imagesPerRow - 1 || i === hotspot.streetViewImages.length - 1) {
+                // If this is the last image in a row or the last image overall
+                // and we're in the first column, update yPosition
+                if (col === imagesPerRow - 1 || i === hotspot.streetViewImages.length - 1) {
+                  yPosition = yPosTop + imageHeight + 15;
+                }
+              }
+            }
+          } catch (svError) {
+            console.error('Error processing street view images:', svError);
+            doc.text('Street view images could not be processed', 16, yPosition);
+            yPosition += 8;
+          }
+        } else {
+          doc.text('No street view images available', 16, yPosition);
+          yPosition += 8;
+        }
+        
+        yPosition += 10;
       }
       
       console.log("PDF created, preparing to save");
