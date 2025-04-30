@@ -102,6 +102,7 @@ const MoistureHotspots: React.FC = () => {
     setIsGeneratingPdf(true);
     
     try {
+      console.log("Starting PDF generation");
       const doc = new jsPDF();
       
       // Add title and summary
@@ -139,79 +140,55 @@ const MoistureHotspots: React.FC = () => {
       doc.text('Hotspot Visual Documentation:', 14, yPosition);
       yPosition += 10;
       
+      // Google Maps URLs without images for now - simpler approach
       for (const hotspot of hotspotsData.hotspots) {
-        if (hotspot.streetViewImages && hotspot.streetViewImages.length > 0) {
-          // Check if we need a new page
-          if (yPosition > 250) {
-            doc.addPage();
-            yPosition = 20;
-          }
-          
-          doc.text(`Hotspot #${hotspot.id} (${hotspot.moistureValue.toFixed(2)}%)`, 14, yPosition);
-          yPosition += 8;
-          
-          // Add Google Maps link
+        // Check if we need a new page
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.text(`Hotspot #${hotspot.id} (${hotspot.moistureValue.toFixed(2)}%)`, 14, yPosition);
+        yPosition += 8;
+        
+        doc.text(`Coordinates: ${hotspot.latitude.toFixed(6)}, ${hotspot.longitude.toFixed(6)}`, 14, yPosition);
+        yPosition += 8;
+        
+        // Add Google Maps link
+        if (hotspot.googleMapsUrl) {
           doc.setTextColor(0, 0, 255);
           doc.text('View on Google Maps', 14, yPosition);
           doc.setTextColor(0, 0, 0);
           
           // Add link annotation
-          doc.link(14, yPosition - 5, 50, 5, { url: hotspot.googleMapsUrl || '' });
+          doc.link(14, yPosition - 5, 50, 5, { url: hotspot.googleMapsUrl });
           yPosition += 15;
-          
-          // Street view images with direction labels
-          let hasImages = false;
-          const directions = ['North', 'East', 'South', 'West'];
-          
-          for (let i = 0; i < Math.min(2, hotspot.streetViewImages.length); i++) {
-            const image = hotspot.streetViewImages[i];
-            if (image.base64) {
-              // Only process first two images per hotspot to save space
-              if (i === 0) {
-                hasImages = true;
-              }
-              
-              const directionName = directions[image.direction / 90] || 'View';
-              
-              // Check if we need a new page
-              if (yPosition > 180) {
-                doc.addPage();
-                yPosition = 20;
-              }
-              
-              try {
-                doc.text(`${directionName} View`, 14 + (i * 100), yPosition);
-                doc.addImage(
-                  'data:image/jpeg;base64,' + image.base64,
-                  'JPEG',
-                  14 + (i * 100),
-                  yPosition + 5,
-                  80,
-                  60
-                );
-              } catch (e) {
-                console.error('Error adding image to PDF:', e);
-              }
-            }
-          }
-          
-          // Move position down past images or to next hotspot
-          yPosition += hasImages ? 80 : 15;
         }
+        
+        yPosition += 10;
       }
       
+      console.log("PDF created, preparing to save");
+      
       // Save the PDF
-      doc.save(`moisture-hotspots-${hotspotsData.roadAsset.name.replace(/\\s+/g, '-')}.pdf`);
+      const fileName = `moisture-hotspots-${hotspotsData.roadAsset.name.replace(/\s+/g, '-')}.pdf`;
+      doc.save(fileName);
       
       toast({
         title: 'Report Generated',
-        description: 'Your moisture hotspots report has been downloaded.',
+        description: `Your moisture hotspots report "${fileName}" has been downloaded.`,
       });
     } catch (error) {
       console.error('Error generating PDF:', error);
+      
+      // More detailed error
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+      }
+      
       toast({
         title: 'Error',
-        description: 'Failed to generate PDF report.',
+        description: 'Failed to generate PDF report. Check console for details.',
         variant: 'destructive',
       });
     } finally {
@@ -340,9 +317,60 @@ const MoistureHotspots: React.FC = () => {
                 <CardTitle>Hotspot Distribution</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[200px] flex items-center justify-center bg-gray-100 rounded-md">
-                  {/* We'll implement a more complex visualization in the future */}
-                  <p className="text-gray-500">Hotspot visualization coming soon</p>
+                <div className="h-[200px] bg-gray-100 rounded-md p-4 relative">
+                  {/* Simple visualization of moisture hotspots using colored dots */}
+                  {hotspotsData && hotspotsData.hotspots.map((hotspot, index) => {
+                    // Calculate position based on latitude and longitude differences
+                    // This is a simplified visualization - not geographically accurate
+                    const baseLatitude = hotspotsData.hotspots.reduce((min, h) => 
+                      Math.min(min, h.latitude), Infinity);
+                    const baseLongitude = hotspotsData.hotspots.reduce((min, h) => 
+                      Math.min(min, h.longitude), Infinity);
+                    
+                    const maxLatitude = hotspotsData.hotspots.reduce((max, h) => 
+                      Math.max(max, h.latitude), -Infinity);
+                    const maxLongitude = hotspotsData.hotspots.reduce((max, h) => 
+                      Math.max(max, h.longitude), -Infinity);
+                    
+                    // Normalize to container size (with padding)
+                    const latRange = maxLatitude - baseLatitude || 0.0001; // Avoid division by zero
+                    const longRange = maxLongitude - baseLongitude || 0.0001;
+                    
+                    const top = 10 + ((hotspot.latitude - baseLatitude) / latRange) * 170;
+                    const left = 10 + ((hotspot.longitude - baseLongitude) / longRange) * 170;
+                    
+                    // Calculate color based on moisture (redder = higher moisture)
+                    const intensity = Math.min(100, (hotspot.moistureValue / hotspotsData.threshold) * 100);
+                    const colorValue = Math.round(255 * (intensity / 100));
+                    
+                    return (
+                      <div
+                        key={hotspot.id}
+                        className="absolute cursor-pointer rounded-full shadow-md border border-white"
+                        style={{
+                          top: `${top}%`,
+                          left: `${left}%`,
+                          transform: 'translate(-50%, -50%)',
+                          width: '16px',
+                          height: '16px',
+                          backgroundColor: `rgb(${colorValue}, ${255 - colorValue}, 0)`,
+                        }}
+                        title={`Hotspot #${hotspot.id}: ${hotspot.moistureValue.toFixed(1)}%`}
+                      />
+                    );
+                  })}
+                  
+                  {/* Legend */}
+                  <div className="absolute bottom-2 right-2 bg-white p-2 rounded-md text-xs">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                      <span>Low moisture</span>
+                    </div>
+                    <div className="flex items-center mt-1">
+                      <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                      <span>High moisture</span>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
