@@ -233,74 +233,137 @@ const MoistureHotspots: React.FC = () => {
       yPosition += 10;
       
       // Add hotspot details with improved formatting and safety checks
+      let isFirstHotspot = true;
       for (const hotspot of (hotspotsData.hotspots || [])) {
         // Skip if hotspot data is invalid
         if (!hotspot) continue;
         
-        // Check if we need a new page
-        if (yPosition > 250) {
+        // Start each hotspot on a new page (except the first one which follows the summary)
+        if (!isFirstHotspot) {
           doc.addPage();
           yPosition = 20;
+        } else {
+          isFirstHotspot = false;
         }
         
-        // Add hotspot header with colored background
-        doc.setFillColor(220, 220, 220);
-        doc.rect(14, yPosition - 4, 180, 10, 'F');
+        // Create a more professional header for each hotspot
+        // Large hotspot header
+        doc.setFillColor(41, 128, 185); // Blue header background
+        doc.rect(0, 0, 210, 25, 'F'); // Full-width header
+        
+        doc.setTextColor(255, 255, 255); // White text
+        doc.setFontSize(20);
         doc.setFont("helvetica", 'bold');
         
         // Safe id and moisture value handling
         const id = hotspot.id || 'N/A';
         const moistureValue = hotspot.moistureValue !== undefined ? 
-          hotspot.moistureValue.toFixed(2) : 'N/A';
-        doc.text(`Hotspot #${id} (${moistureValue}%)`, 16, yPosition);
+          hotspot.moistureValue.toFixed(1) : 'N/A';
+        
+        doc.text(`Hotspot #${id}`, 16, 16);
+        
+        // Add moisture value on the right
+        const moistureText = `Moisture: ${moistureValue}%`;
+        const moistureTextWidth = doc.getTextWidth(moistureText);
+        doc.text(moistureText, 195 - moistureTextWidth, 16);
+        
+        // Reset text color and font
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", 'normal');
+        
+        // Start content below header
+        yPosition = 35;
+        
+        // Add a subtitle with the road name
+        doc.setFontSize(14);
+        doc.setFont("helvetica", 'bold');
+        doc.text(`${hotspotsData.roadAsset.name}`, 16, yPosition);
         doc.setFont("helvetica", 'normal');
         yPosition += 10;
         
-        // Safe coordinates handling
-        const latitude = hotspot.latitude !== undefined ? hotspot.latitude.toFixed(6) : 'N/A';
-        const longitude = hotspot.longitude !== undefined ? hotspot.longitude.toFixed(6) : 'N/A';
-        doc.text(`Location: ${latitude}, ${longitude}`, 16, yPosition);
-        yPosition += 7;
+        // Add a horizontal separator line
+        doc.setDrawColor(200, 200, 200);
+        doc.line(16, yPosition, 195, yPosition);
+        yPosition += 10;
+        
+        // Create a box with key information
+        doc.setFontSize(12);
+        
+        // Use a more structured layout
+        const infoBoxY = yPosition;
+        doc.setFillColor(245, 245, 245);
+        doc.rect(16, infoBoxY, 180, 40, 'F');
         
         // Safe date handling
         let formattedDate = 'N/A';
         if (hotspot.readingDate) {
           try {
-            formattedDate = format(new Date(hotspot.readingDate), 'MMM d, yyyy');
+            formattedDate = format(new Date(hotspot.readingDate), 'MMMM d, yyyy');
           } catch (e) {
             console.error('Error formatting date:', e);
           }
         }
-        doc.text(`Date: ${formattedDate}`, 16, yPosition);
-        yPosition += 7;
+        
+        // Safe coordinates handling
+        const latitude = hotspot.latitude !== undefined ? hotspot.latitude.toFixed(6) : 'N/A';
+        const longitude = hotspot.longitude !== undefined ? hotspot.longitude.toFixed(6) : 'N/A';
         
         // Safe depth handling
         const depth = hotspot.depth !== undefined ? hotspot.depth.toFixed(1) : 'N/A';
-        doc.text(`Measurement depth: ${depth} cm`, 16, yPosition);
-        yPosition += 7;
+        
+        // Create a nicely formatted info table
+        doc.setFont("helvetica", 'bold');
+        doc.text("Date:", 25, infoBoxY + 12);
+        doc.text("Location:", 25, infoBoxY + 22);
+        doc.text("Depth:", 25, infoBoxY + 32);
+        
+        doc.setFont("helvetica", 'normal');
+        doc.text(formattedDate, 70, infoBoxY + 12);
+        doc.text(`${latitude}, ${longitude}`, 70, infoBoxY + 22);
+        doc.text(`${depth} cm`, 70, infoBoxY + 32);
+        
+        yPosition = infoBoxY + 50;
         
         // Add Google Maps link if available
         if (hotspot.googleMapsUrl) {
-          doc.setTextColor(0, 0, 255);
-          doc.text('View on Google Maps', 16, yPosition);
+          doc.setTextColor(0, 80, 255);
+          doc.setFont("helvetica", 'bold');
+          const gmLinkText = 'View location on Google Maps';
+          doc.text(gmLinkText, 16, yPosition);
+          
+          // Add underline manually
+          const textWidth = doc.getTextWidth(gmLinkText);
+          doc.setDrawColor(0, 80, 255);
+          doc.line(16, yPosition + 1, 16 + textWidth, yPosition + 1);
+          
+          // Reset text appearance
           doc.setTextColor(0, 0, 0);
+          doc.setFont("helvetica", 'normal');
           
           // Add link annotation
-          doc.link(16, yPosition - 5, 50, 5, { url: hotspot.googleMapsUrl });
-          yPosition += 10;
+          doc.link(16, yPosition - 5, 80, 5, { url: hotspot.googleMapsUrl });
+          yPosition += 15;
         }
         
         // Add street view images if available
         if (hotspot.streetViewImages && hotspot.streetViewImages.length > 0) {
           yPosition += 5;
           
-          // Add a title with background highlight for the street view section
-          doc.setFillColor(230, 240, 255);
-          doc.rect(14, yPosition - 6, 170, 10, 'F');
+          // Add a more professional section header for street view images
+          doc.setFillColor(41, 128, 185, 0.1);  // Light blue background
+          doc.rect(14, yPosition - 6, 180, 14, 'F');
+          doc.setDrawColor(41, 128, 185);       // Blue border
+          doc.rect(14, yPosition - 6, 180, 14, 'S');
+          
+          // Add a small icon-like element before the text
+          doc.setFillColor(41, 128, 185);
+          doc.circle(22, yPosition + 1, 3, 'F');
+          
           doc.setFont("helvetica", 'bold');
-          doc.text('Street View Images (360° Views):', 16, yPosition);
+          doc.text('Street View Images (360° Views)', 28, yPosition + 2);
           doc.setFont("helvetica", 'normal');
-          yPosition += 12;
+          yPosition += 18;
           
           try {
             // Define fixed locations for images to ensure consistent placement regardless of data order
@@ -321,7 +384,7 @@ const MoistureHotspots: React.FC = () => {
             ];
             
             // Get image data by direction
-            const imagesByDirection = {};
+            const imagesByDirection: Record<string, any> = {};
             for (const image of hotspot.streetViewImages || []) {
               if (image && image.direction !== undefined) {
                 // Convert direction to string key (0, 90, 180, 270)
@@ -337,7 +400,7 @@ const MoistureHotspots: React.FC = () => {
               const pos = positions[i];
               const direction = directionValues[i];
               const dirKey = direction.toString();
-              const image = imagesByDirection[dirKey];
+              const image = imagesByDirection[dirKey] || null;
               
               // Draw the frame and label even if there's no image
               doc.setFontSize(8);
