@@ -68,14 +68,14 @@ interface HotspotsResponse {
 
 const MoistureHotspots: React.FC = () => {
   const { toast } = useToast();
-  const { selectedTenant } = useTenant();
+  const { currentTenant } = useTenant();
   const [selectedRoadId, setSelectedRoadId] = useState<string>('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
   // Fetch road assets
   const { data: roadAssets, isLoading: isLoadingRoads } = useQuery({
-    queryKey: ['/api/road-assets', selectedTenant?.id],
-    enabled: !!selectedTenant,
+    queryKey: ['/api/road-assets', currentTenant?.id],
+    enabled: !!currentTenant,
   });
 
   // Fetch hotspots data when a road is selected
@@ -112,7 +112,7 @@ const MoistureHotspots: React.FC = () => {
       doc.text(`Road: ${hotspotsData.roadAsset.name}`, 14, 30);
       doc.text(`Location: ${hotspotsData.roadAsset.location || 'N/A'}`, 14, 38);
       doc.text(`Date: ${format(new Date(), 'MMMM d, yyyy')}`, 14, 46);
-      doc.text(`Tenant: ${selectedTenant?.name || 'All'}`, 14, 54);
+      doc.text(`Tenant: ${currentTenant?.name || 'All'}`, 14, 54);
       
       // Summary information
       doc.text('Report Summary:', 14, 66);
@@ -250,7 +250,7 @@ const MoistureHotspots: React.FC = () => {
                   <SelectValue placeholder="Select a road asset" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roadAssets?.map((road: RoadAsset) => (
+                  {Array.isArray(roadAssets) && roadAssets.map((road: RoadAsset) => (
                     <SelectItem key={road.id} value={road.id.toString()}>
                       {road.name}
                     </SelectItem>

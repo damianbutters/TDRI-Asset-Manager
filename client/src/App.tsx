@@ -64,6 +64,7 @@ function App() {
                   <ProtectedRoute path="/deterioration-models" component={DeteriorationModels} />
                   <ProtectedRoute path="/budget-planning" component={BudgetPlanning} />
                   <ProtectedRoute path="/map-view" component={MapView} />
+                  <ProtectedRoute path="/moisture-hotspots" component={MoistureHotspots} />
                   <ProtectedRoute path="/import-export" component={ImportExport} />
                   <ProtectedRoute path="/audit-logs" component={AuditLogs} />
                   <ProtectedRoute path="/asset-inventory" component={AssetInventory} />

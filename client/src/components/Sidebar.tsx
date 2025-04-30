@@ -15,6 +15,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
     { path: "/road-assets", name: "Road Assets", icon: "road" },
     { path: "/asset-inventory", name: "Asset Inventory", icon: "clipboard-list" },
     { path: "/maintenance", name: "Maintenance", icon: "tools" },
+    { path: "/moisture-hotspots", name: "Moisture Hotspots", icon: "water" },
     { path: "/policies", name: "Policies", icon: "file-alt" },
     { path: "/deterioration-models", name: "Deterioration Models", icon: "chart-line" },
     { path: "/budget-planning", name: "Budget Planning", icon: "money-bill-wave" },
