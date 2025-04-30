@@ -492,68 +492,78 @@ const MapHotspots: React.FC<MapHotspotsProps> = ({ hotspots, threshold }) => {
   }
   
   return (
-    <MapContainer
-      center={center}
-      zoom={14}
-      style={{ height: '100%', width: '100%', borderRadius: '0.375rem' }}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      
-      {hotspots.map((hotspot) => {
-        // Calculate color based on moisture (redder = higher moisture)
-        const intensity = Math.min(100, (hotspot.moistureValue / threshold) * 100);
-        const r = Math.round(255 * (intensity / 100));
-        const g = Math.round(255 * (1 - (intensity / 100)));
-        const b = 0;
+    <div className="relative h-full">
+      <MapContainer
+        center={center}
+        zoom={14}
+        style={{ height: '100%', width: '100%', borderRadius: '0.375rem' }}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
         
-        return (
-          <CircleMarker
-            key={hotspot.id}
-            center={[hotspot.latitude, hotspot.longitude]}
-            radius={8}
-            fillColor={`rgb(${r}, ${g}, ${b})`}
-            color="white"
-            weight={1}
-            fillOpacity={0.8}
-          >
-            <Popup>
-              <div className="p-1">
-                <div className="font-bold">Hotspot #{hotspot.id}</div>
-                <div className="text-sm">Moisture: {hotspot.moistureValue.toFixed(1)}%</div>
-                <div className="text-sm">Date: {format(new Date(hotspot.readingDate), 'MMM d, yyyy')}</div>
-                <div className="text-sm">Depth: {hotspot.depth} cm</div>
-                {hotspot.googleMapsUrl && (
-                  <a 
-                    href={hotspot.googleMapsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-blue-600 flex items-center mt-1"
-                  >
-                    <MapPin className="h-3 w-3 mr-1" />
-                    View in Google Maps
-                  </a>
-                )}
-              </div>
-            </Popup>
-          </CircleMarker>
-        );
-      })}
+        {/* Add map bounds handler component */}
+        <MapBoundsComponent bounds={bounds} />
+        
+        {hotspots.map((hotspot) => {
+          // Calculate color based on moisture (redder = higher moisture)
+          const intensity = Math.min(100, (hotspot.moistureValue / threshold) * 100);
+          const r = Math.round(255 * (intensity / 100));
+          const g = Math.round(255 * (1 - (intensity / 100)));
+          const b = 0;
+          
+          return (
+            <CircleMarker
+              key={hotspot.id}
+              center={[hotspot.latitude, hotspot.longitude]}
+              radius={8}
+              fillColor={`rgb(${r}, ${g}, ${b})`}
+              color="white"
+              weight={1}
+              fillOpacity={0.8}
+            >
+              <Popup>
+                <div className="p-1">
+                  <div className="font-bold">Hotspot #{hotspot.id}</div>
+                  <div className="text-sm">Moisture: {hotspot.moistureValue.toFixed(1)}%</div>
+                  <div className="text-sm">Date: {format(new Date(hotspot.readingDate), 'MMM d, yyyy')}</div>
+                  <div className="text-sm">Depth: {hotspot.depth} cm</div>
+                  {hotspot.googleMapsUrl && (
+                    <a 
+                      href={hotspot.googleMapsUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-blue-600 flex items-center mt-1"
+                    >
+                      <MapPin className="h-3 w-3 mr-1" />
+                      View in Google Maps
+                    </a>
+                  )}
+                </div>
+              </Popup>
+            </CircleMarker>
+          );
+        })}
+      </MapContainer>
       
-      {/* Legend */}
-      <div className="absolute bottom-2 right-2 z-[1000] bg-white px-2 py-1 rounded-md shadow-md text-xs">
+      {/* Map legend positioned over the map */}
+      <div className="absolute bottom-3 right-3 z-[1000] bg-white px-3 py-2 rounded-md shadow-md text-xs">
+        <div className="font-medium mb-1">Moisture Level</div>
         <div className="flex items-center">
           <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-          <span>Low moisture</span>
+          <span>Low</span>
+        </div>
+        <div className="flex items-center mt-1">
+          <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
+          <span>Medium</span>
         </div>
         <div className="flex items-center mt-1">
           <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-          <span>High moisture</span>
+          <span>High</span>
         </div>
       </div>
-    </MapContainer>
+    </div>
   );
 };
 
