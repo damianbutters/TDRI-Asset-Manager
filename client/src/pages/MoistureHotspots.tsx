@@ -293,15 +293,21 @@ const MoistureHotspots: React.FC = () => {
         // Add street view images if available
         if (hotspot.streetViewImages && hotspot.streetViewImages.length > 0) {
           yPosition += 5;
-          doc.text('Street View Images:', 16, yPosition);
-          yPosition += 8;
+          
+          // Add a title with background highlight for the street view section
+          doc.setFillColor(230, 240, 255);
+          doc.rect(14, yPosition - 6, 170, 10, 'F');
+          doc.setFont("helvetica", 'bold');
+          doc.text('Street View Images (360° Views):', 16, yPosition);
+          doc.setFont("helvetica", 'normal');
+          yPosition += 12;
           
           try {
-            // Calculate image layout
-            const imageWidth = 80;
-            const imageHeight = 60;
+            // Calculate image layout for a 2x2 grid on one page
+            const imageWidth = 65;
+            const imageHeight = 50;
             const imagesPerRow = 2;
-            const padding = 10;
+            const padding = 8;
             
             // Process street view images
             for (let i = 0; i < hotspot.streetViewImages.length; i++) {
@@ -310,11 +316,12 @@ const MoistureHotspots: React.FC = () => {
               // Skip if image data is missing
               if (!image || !image.url) continue;
               
-              // Calculate position for this image
+              // Calculate position for this image in a 2x2 grid
               const col = i % imagesPerRow;
               const row = Math.floor(i / imagesPerRow);
-              const xPos = 16 + (col * (imageWidth + padding));
-              const yPosTop = yPosition + (row * (imageHeight + 20));
+              // Center the images on the page and add proper spacing
+              const xPos = col === 0 ? 20 : 110; // First column at x=20, second at x=110
+              const yPosTop = yPosition + (row * (imageHeight + 15));
               
               // Check if we need a new page
               if (yPosTop + imageHeight > 280) {
@@ -333,6 +340,10 @@ const MoistureHotspots: React.FC = () => {
               doc.setFontSize(8);
               doc.text(`${directionName} View`, xPos, yPosTop - 2);
               doc.setFontSize(12);
+              
+              // Add a border frame around the image area
+              doc.setDrawColor(100, 100, 100);
+              doc.rect(xPos, yPosTop, imageWidth, imageHeight, 'S');
               
               // Add image if base64 data is available (preferred for PDF embedding)
               if (image.base64) {
@@ -355,13 +366,17 @@ const MoistureHotspots: React.FC = () => {
                   console.error('Error adding image to PDF:', imgError);
                   doc.setFillColor(240, 240, 240);
                   doc.rect(xPos, yPosTop, imageWidth, imageHeight, 'F');
-                  doc.text('Image unavailable', xPos + 10, yPosTop + (imageHeight / 2));
+                  doc.setFontSize(9);
+                  doc.text('Image unavailable', xPos + imageWidth/2, yPosTop + (imageHeight / 2), { align: 'center' });
+                  doc.setFontSize(12);
                 }
               } else if (image.url) {
                 // If no base64 but URL is available, add a placeholder with link
                 doc.setFillColor(240, 240, 240);
                 doc.rect(xPos, yPosTop, imageWidth, imageHeight, 'F');
-                doc.text('Image available online', xPos + 10, yPosTop + (imageHeight / 2));
+                doc.setFontSize(9);
+                doc.text('Image available online', xPos + imageWidth/2, yPosTop + (imageHeight / 2), { align: 'center' });
+                doc.setFontSize(12);
                 
                 // Add link to the image
                 doc.link(xPos, yPosTop, imageWidth, imageHeight, { url: image.url });
