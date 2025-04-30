@@ -27,6 +27,7 @@ import {
   UserTenant
 } from "@shared/schema";
 import { weatherService } from "./weather-service";
+import { getStreetViewImages, getGoogleMapsUrl, Direction } from "./street-view-service";
 import { sql } from "drizzle-orm";
 
 /**
@@ -1497,6 +1498,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(moistureReadings);
     } catch (error) {
       console.error("Error getting moisture readings:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  
+  // Get moisture hotspots (top 5% moisture readings) for a specific road asset
+  app.get("/api/road-assets/:id/moisture-hotspots", async (req: Request, res: Response) => {
+    try {
+      const roadAssetId = parseInt(req.params.id);
+      if (isNaN(roadAssetId)) {
+        return res.status(400).json({ message: "Invalid road asset ID" });
+      }
+
+      const roadAsset = await storage.getRoadAsset(roadAssetId);
+      if (!roadAsset) {
+        return res.status(404).json({ message: "Road asset not found" });
+      }
+
+      // Get all moisture readings for this road asset
+      const readings = await storage.getMoistureReadings(roadAssetId);
+      
+      if (readings.length === 0) {
+        return res.status(404).json({ error: "No moisture readings found for this road asset" });
+      }
+      
+      // Sort readings by moisture value in descending order
+      const sortedReadings = [...readings].sort((a, b) => b.moistureValue - a.moistureValue);
+      
+      // Calculate the number of readings that represent the top 5%
+      const topPercentageCount = Math.max(1, Math.ceil(sortedReadings.length * 0.05));
+      
+      // Get the top 5% readings
+      const hotspots = sortedReadings.slice(0, topPercentageCount);
+
+      // Check if we should include Street View images from Google Maps
+      const includeStreetView = req.query.includeStreetView === 'true';
+      
+      // Array to hold the enhanced hotspots with street view data if requested
+      const enhancedHotspots = await Promise.all(
+        hotspots.map(async (hotspot) => {
+          // Include Google Maps URL for each hotspot
+          const googleMapsUrl = getGoogleMapsUrl(hotspot.latitude, hotspot.longitude);
+          
+          // If Street View images are requested and we have the API key
+          let streetViewImages = [];
+          if (includeStreetView && process.env.GOOGLE_MAPS_API_KEY) {
+            try {
+              streetViewImages = await getStreetViewImages(hotspot.latitude, hotspot.longitude);
+            } catch (err) {
+              console.error(`Error fetching Street View images for hotspot at (${hotspot.latitude}, ${hotspot.longitude}):`, err);
+            }
+          }
+          
+          return {
+            ...hotspot,
+            googleMapsUrl,
+            streetViewImages: includeStreetView ? streetViewImages : undefined
+          };
+        })
+      );
+      
+      res.json({
+        roadAsset,
+        hotspots: enhancedHotspots,
+        totalReadings: readings.length,
+        hotspotCount: hotspots.length,
+        threshold: hotspots[hotspots.length - 1]?.moistureValue || 0
+      });
+    } catch (error) {
+      console.error("Error getting moisture hotspots:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

@@ -16,6 +16,7 @@ import ImportExport from "@/pages/ImportExport";
 import AuditLogs from "@/pages/AuditLogs";
 import AssetInventory from "@/pages/AssetInventory";
 import UserManagement from "@/pages/UserManagement";
+import MoistureHotspots from "@/pages/MoistureHotspots";
 import AuthPage from "@/pages/AuthPage";
 import { useState, useEffect } from "react";
 import { TenantProvider } from "@/hooks/use-tenant";
