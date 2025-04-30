@@ -165,12 +165,91 @@ const MoistureHotspots: React.FC = () => {
         ];
       });
       
-      // Create a simple table without the plugin first
+      // Create a professional cover page
+      // Blue background banner at top
+      doc.setFillColor(41, 128, 185);
+      doc.rect(0, 0, 210, 40, 'F');
+      
+      // Report title on cover page
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont("helvetica", 'bold');
+      doc.text("Moisture Hotspots Report", 105, 25, { align: "center" });
+      
+      // Road name subtitle
+      doc.setFontSize(18);
+      doc.text(hotspotsData.roadAsset.name, 105, 60, { align: "center" });
+      
+      // Add the current date
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", 'normal');
+      const currentDate = format(new Date(), 'MMMM d, yyyy');
+      doc.text(`Generated on: ${currentDate}`, 105, 75, { align: "center" });
+      
+      // Add organization info if available
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(14);
+      doc.text("TDRIPlanner", 105, 95, { align: "center" });
+      doc.setFontSize(12);
+      doc.text("Road Asset Management System", 105, 105, { align: "center" });
+      
+      // Add summary box
+      doc.setFillColor(245, 245, 245);
+      doc.setDrawColor(200, 200, 200);
+      doc.rect(30, 130, 150, 100, 'FD');
+      
+      // Summary heading
+      doc.setFontSize(16);
+      doc.setFont("helvetica", 'bold');
+      doc.text("Summary", 105, 145, { align: "center" });
+      doc.setFont("helvetica", 'normal');
+      doc.setFontSize(12);
+      
+      // Summary content
+      const summaryItems = [
+        { label: "Total Readings", value: hotspotsData.totalReadings.toString() },
+        { label: "Hotspot Count (Top 5%)", value: hotspotsData.hotspotCount.toString() },
+        { label: "Moisture Threshold", value: `${hotspotsData.threshold.toFixed(2)}%` },
+        { label: "Road Length", value: `${hotspotsData.roadAsset.length} meters` },
+        { label: "Road Material", value: hotspotsData.roadAsset.material || "N/A" }
+      ];
+      
+      let summaryY = 165;
+      summaryItems.forEach(item => {
+        doc.setFont("helvetica", 'bold');
+        doc.text(item.label + ":", 45, summaryY);
+        doc.setFont("helvetica", 'normal');
+        doc.text(item.value, 160, summaryY, { align: "right" });
+        summaryY += 12;
+      });
+      
+      // Add a footer note
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text("This report contains detailed information about moisture hotspots", 105, 250, { align: "center" });
+      doc.text("Review the following pages for individual hotspot data", 105, 260, { align: "center" });
+      
+      // Move to the data section
+      doc.addPage();
+      
+      // Data section header
+      doc.setFillColor(41, 128, 185);
+      doc.rect(0, 0, 210, 25, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", 'bold');
+      doc.text("Detailed Moisture Readings", 16, 16);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", 'normal');
+      doc.setFontSize(12);
+      
+      // Create the data table
       try {
         // Try using autoTable function from the plugin
         if (typeof doc.autoTable === 'function') {
           doc.autoTable({
-            startY: 100,
+            startY: 35,
             head: [tableColumns],
             body: tableRows,
             theme: 'striped',
@@ -180,7 +259,7 @@ const MoistureHotspots: React.FC = () => {
         } else {
           // Fallback to manual table rendering if autoTable is not available
           console.log("AutoTable not available, falling back to manual table");
-          const startY = 100;
+          const startY = 35;
           const cellWidth = 35;
           const cellHeight = 10;
           const margin = 14;
@@ -220,31 +299,32 @@ const MoistureHotspots: React.FC = () => {
       }
       
       // Calculate position for next content
-      let yPosition = 100 + ((tableRows.length + 1) * 10) + 15;
+      let yPosition = 40 + ((tableRows.length + 1) * 10) + 15;
       
       // Add map visualization section
-      doc.text('Hotspot Distribution Map:', 14, yPosition);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", 'bold');
+      doc.text('Hotspot Distribution', 14, yPosition);
+      doc.setFont("helvetica", 'normal');
+      doc.setFontSize(12);
       yPosition += 10;
       doc.text('(Refer to interactive map in application for detailed visualization)', 14, yPosition);
       yPosition += 15;
       
-      // Add visual documentation section
+      // Add visual documentation section title
       doc.text('Hotspot Visual Documentation:', 14, yPosition);
       yPosition += 10;
+      doc.text('(Each hotspot is presented on a separate page)', 14, yPosition);
       
+      // Always start a new page for all hotspots, including the first one
       // Add hotspot details with improved formatting and safety checks
-      let isFirstHotspot = true;
       for (const hotspot of (hotspotsData.hotspots || [])) {
         // Skip if hotspot data is invalid
         if (!hotspot) continue;
         
-        // Start each hotspot on a new page (except the first one which follows the summary)
-        if (!isFirstHotspot) {
-          doc.addPage();
-          yPosition = 20;
-        } else {
-          isFirstHotspot = false;
-        }
+        // Create a new page for each hotspot
+        doc.addPage();
+        yPosition = 20;
         
         // Create a more professional header for each hotspot
         // Large hotspot header
