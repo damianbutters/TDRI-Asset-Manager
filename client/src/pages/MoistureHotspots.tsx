@@ -303,113 +303,109 @@ const MoistureHotspots: React.FC = () => {
           yPosition += 12;
           
           try {
-            // Calculate image layout for a 2x2 grid on one page
+            // Define fixed locations for images to ensure consistent placement regardless of data order
+            const directions = ['North', 'East', 'South', 'West'];
+            const directionValues = [0, 90, 180, 270];
+            
+            // Calculate image layout for the 2x2 grid
             const imageWidth = 65;
             const imageHeight = 50;
-            const imagesPerRow = 2;
             const padding = 8;
             
-            // Log street view images for debugging
-            console.log("Street View Images:", JSON.stringify(hotspot.streetViewImages.map(img => ({ 
-              direction: img.direction, 
-              url: img.url ? "yes" : "no",
-              base64: img.base64 ? "yes" : "no"
-            }))));
+            // Fixed positions for the 2x2 grid
+            const positions = [
+              { x: 20, y: yPosition, name: 'North' },   // Top-left (North)
+              { x: 110, y: yPosition, name: 'East' },   // Top-right (East)
+              { x: 20, y: yPosition + imageHeight + 15, name: 'South' }, // Bottom-left (South)
+              { x: 110, y: yPosition + imageHeight + 15, name: 'West' }  // Bottom-right (West)
+            ];
             
-            // Process street view images
-            for (let i = 0; i < hotspot.streetViewImages.length; i++) {
-              const image = hotspot.streetViewImages[i];
-              
-              // Skip if image data is missing
-              if (!image || !image.url) continue;
-              
-              // Calculate position for this image in a 2x2 grid
-              const col = i % imagesPerRow;
-              const row = Math.floor(i / imagesPerRow);
-              // Center the images on the page and add proper spacing
-              const xPos = col === 0 ? 20 : 110; // First column at x=20, second at x=110
-              const yPosTop = yPosition + (row * (imageHeight + 15));
-              
-              // Check if we need a new page
-              if (yPosTop + imageHeight > 280) {
-                doc.addPage();
-                yPosition = 20;
-                // Reset the row counter after page break
-                i = i - col; // Reset to beginning of current row
-                continue;
+            // Get image data by direction
+            const imagesByDirection = {};
+            for (const image of hotspot.streetViewImages || []) {
+              if (image && image.direction !== undefined) {
+                // Convert direction to string key (0, 90, 180, 270)
+                const dirKey = image.direction.toString();
+                imagesByDirection[dirKey] = image;
               }
+            }
+            
+            console.log("Images by direction:", Object.keys(imagesByDirection).join(', '));
+            
+            // For each position in our grid, find and place the corresponding directional image
+            for (let i = 0; i < positions.length; i++) {
+              const pos = positions[i];
+              const direction = directionValues[i];
+              const dirKey = direction.toString();
+              const image = imagesByDirection[dirKey];
               
-              // Debugging the direction value
-              console.log(`Image ${i} direction:`, image.direction, 
-                "Index:", Math.floor(image.direction / 90), 
-                "Direction name:", directions[Math.floor(image.direction / 90)]);
-              
-              // Add direction label with explicit index calculation
-              const directions = ['North', 'East', 'South', 'West'];
-              let directionIndex = 0; // Default to North
-              
-              if (image.direction !== undefined) {
-                directionIndex = Math.floor(image.direction / 90) % 4;
-              }
-              
-              const directionName = directions[directionIndex];
-                
+              // Draw the frame and label even if there's no image
               doc.setFontSize(8);
-              doc.text(`${directionName} View`, xPos, yPosTop - 2);
+              doc.text(`${pos.name} View`, pos.x, pos.y - 2);
               doc.setFontSize(12);
               
               // Add a border frame around the image area
               doc.setDrawColor(100, 100, 100);
-              doc.rect(xPos, yPosTop, imageWidth, imageHeight, 'S');
+              doc.rect(pos.x, pos.y, imageWidth, imageHeight, 'S');
               
-              // Add image if base64 data is available (preferred for PDF embedding)
-              if (image.base64) {
-                try {
-                  // Remove the data URL prefix if it exists
-                  const base64Data = image.base64.startsWith('data:image') ?
-                    image.base64.split(',')[1] : image.base64;
-                    
-                  doc.addImage(
-                    base64Data, 
-                    'JPEG', 
-                    xPos, 
-                    yPosTop, 
-                    imageWidth, 
-                    imageHeight,
-                    `img_${hotspot.id}_${i}`,
-                    'MEDIUM'
-                  );
-                } catch (imgError) {
-                  console.error('Error adding image to PDF:', imgError);
-                  doc.setFillColor(240, 240, 240);
-                  doc.rect(xPos, yPosTop, imageWidth, imageHeight, 'F');
-                  doc.setFontSize(9);
-                  doc.text('Image unavailable', xPos + imageWidth/2, yPosTop + (imageHeight / 2), { align: 'center' });
-                  doc.setFontSize(12);
-                }
-              } else if (image.url) {
-                // If no base64 but URL is available, add a placeholder with link
-                doc.setFillColor(240, 240, 240);
-                doc.rect(xPos, yPosTop, imageWidth, imageHeight, 'F');
-                doc.setFontSize(9);
-                doc.text('Image available online', xPos + imageWidth/2, yPosTop + (imageHeight / 2), { align: 'center' });
-                doc.setFontSize(12);
+              // If we have an image for this direction, add it
+              if (image) {
+                console.log(`Found image for ${pos.name} (${direction})`);
                 
-                // Add link to the image
-                doc.link(xPos, yPosTop, imageWidth, imageHeight, { url: image.url });
-              }
-              
-              // Adjust yPosition based on the last row
-              if (col === imagesPerRow - 1 || i === hotspot.streetViewImages.length - 1) {
-                // If this is the last image in a row or the last image overall
-                // and we're in the first column, update yPosition
-                if (col === imagesPerRow - 1 || i === hotspot.streetViewImages.length - 1) {
-                  yPosition = yPosTop + imageHeight + 15;
+                if (image.base64) {
+                  try {
+                    // Remove the data URL prefix if it exists
+                    const base64Data = image.base64.startsWith('data:image') ?
+                      image.base64.split(',')[1] : image.base64;
+                      
+                    doc.addImage(
+                      base64Data, 
+                      'JPEG', 
+                      pos.x, 
+                      pos.y, 
+                      imageWidth, 
+                      imageHeight,
+                      `img_${hotspot.id}_${i}`,
+                      'MEDIUM'
+                    );
+                  } catch (imgError) {
+                    console.error(`Error adding ${pos.name} image to PDF:`, imgError);
+                    doc.setFillColor(240, 240, 240);
+                    doc.rect(pos.x, pos.y, imageWidth, imageHeight, 'F');
+                    doc.setFontSize(9);
+                    doc.text('Image unavailable', pos.x + imageWidth/2, pos.y + (imageHeight / 2), { align: 'center' });
+                    doc.setFontSize(12);
+                  }
+                } else if (image.url) {
+                  // If no base64 but URL is available, add a placeholder with link
+                  doc.setFillColor(240, 240, 240);
+                  doc.rect(pos.x, pos.y, imageWidth, imageHeight, 'F');
+                  doc.setFontSize(9);
+                  doc.text('Image available online', pos.x + imageWidth/2, pos.y + (imageHeight / 2), { align: 'center' });
+                  doc.setFontSize(12);
+                  
+                  // Add link to the image
+                  doc.link(pos.x, pos.y, imageWidth, imageHeight, { url: image.url });
                 }
+              } else {
+                // No image found for this direction
+                console.log(`No image found for ${pos.name} (${direction})`);
+                doc.setFillColor(240, 240, 240);
+                doc.rect(pos.x, pos.y, imageWidth, imageHeight, 'F');
+                doc.setFontSize(9);
+                doc.text('No view available', pos.x + imageWidth/2, pos.y + (imageHeight / 2), { align: 'center' });
+                doc.setFontSize(12);
               }
             }
+            
+            // Update the yPosition to below the grid (after both rows)
+            yPosition = positions[2].y + imageHeight + 15; // Use the South (bottom) row position + height + padding
           } catch (svError) {
             console.error('Error processing street view images:', svError);
+            // Log detailed error information
+            if (svError instanceof Error) {
+              console.error('Error details:', svError.message, svError.stack);
+            }
             doc.text('Street view images could not be processed', 16, yPosition);
             yPosition += 8;
           }
