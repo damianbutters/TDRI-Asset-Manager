@@ -122,21 +122,26 @@ const MoistureHotspots: React.FC = () => {
       doc.text(`Date: ${format(new Date(), 'MMMM d, yyyy')}`, 14, 46);
       doc.text(`Tenant: ${currentTenant?.name || 'All'}`, 14, 54);
       
-      // Summary information
+      // Summary information with null/undefined checks
       doc.text('Report Summary:', 14, 66);
-      doc.text(`• Total moisture readings: ${hotspotsData.totalReadings}`, 20, 74);
-      doc.text(`• Number of hotspots identified: ${hotspotsData.hotspotCount}`, 20, 82);
-      doc.text(`• Moisture threshold for hotspots: ${hotspotsData.threshold.toFixed(2)}%`, 20, 90);
+      doc.text(`• Total moisture readings: ${hotspotsData.totalReadings || 0}`, 20, 74);
+      doc.text(`• Number of hotspots identified: ${hotspotsData.hotspotCount || 0}`, 20, 82);
+      doc.text(`• Moisture threshold for hotspots: ${(hotspotsData.threshold || 0).toFixed(2)}%`, 20, 90);
       
-      // Add hotspots table with improved formatting
+      // Add hotspots table with improved formatting and safety checks
       const tableColumns = ['ID', 'Date', 'Moisture %', 'Depth (cm)', 'Coordinates'];
-      const tableRows = hotspotsData.hotspots.map(spot => [
-        spot.id.toString(),
-        format(new Date(spot.readingDate), 'MM/dd/yyyy'),
-        spot.moistureValue.toFixed(2),
-        spot.depth.toFixed(1),
-        `${spot.latitude.toFixed(6)}, ${spot.longitude.toFixed(6)}`
-      ]);
+      const tableRows = (hotspotsData.hotspots || []).map(spot => {
+        if (!spot) return ['N/A', 'N/A', 'N/A', 'N/A', 'N/A'];
+        
+        return [
+          spot.id ? spot.id.toString() : 'N/A',
+          spot.readingDate ? format(new Date(spot.readingDate), 'MM/dd/yyyy') : 'N/A',
+          spot.moistureValue !== undefined ? spot.moistureValue.toFixed(2) : 'N/A',
+          spot.depth !== undefined ? spot.depth.toFixed(1) : 'N/A',
+          (spot.latitude !== undefined && spot.longitude !== undefined) ? 
+            `${spot.latitude.toFixed(6)}, ${spot.longitude.toFixed(6)}` : 'N/A'
+        ];
+      });
       
       // Use autoTable plugin
       (doc as any).autoTable({
@@ -160,8 +165,11 @@ const MoistureHotspots: React.FC = () => {
       doc.text('Hotspot Visual Documentation:', 14, yPosition);
       yPosition += 10;
       
-      // Add hotspot details with improved formatting
-      for (const hotspot of hotspotsData.hotspots) {
+      // Add hotspot details with improved formatting and safety checks
+      for (const hotspot of (hotspotsData.hotspots || [])) {
+        // Skip if hotspot data is invalid
+        if (!hotspot) continue;
+        
         // Check if we need a new page
         if (yPosition > 250) {
           doc.addPage();
@@ -171,19 +179,37 @@ const MoistureHotspots: React.FC = () => {
         // Add hotspot header with colored background
         doc.setFillColor(220, 220, 220);
         doc.rect(14, yPosition - 4, 180, 10, 'F');
-        doc.setFont(undefined, 'bold');
-        doc.text(`Hotspot #${hotspot.id} (${hotspot.moistureValue.toFixed(2)}%)`, 16, yPosition);
-        doc.setFont(undefined, 'normal');
+        doc.setFont("helvetica", 'bold');
+        
+        // Safe id and moisture value handling
+        const id = hotspot.id || 'N/A';
+        const moistureValue = hotspot.moistureValue !== undefined ? 
+          hotspot.moistureValue.toFixed(2) : 'N/A';
+        doc.text(`Hotspot #${id} (${moistureValue}%)`, 16, yPosition);
+        doc.setFont("helvetica", 'normal');
         yPosition += 10;
         
-        // Add coordinates
-        doc.text(`Location: ${hotspot.latitude.toFixed(6)}, ${hotspot.longitude.toFixed(6)}`, 16, yPosition);
+        // Safe coordinates handling
+        const latitude = hotspot.latitude !== undefined ? hotspot.latitude.toFixed(6) : 'N/A';
+        const longitude = hotspot.longitude !== undefined ? hotspot.longitude.toFixed(6) : 'N/A';
+        doc.text(`Location: ${latitude}, ${longitude}`, 16, yPosition);
         yPosition += 7;
         
-        // Add date and depth
-        doc.text(`Date: ${format(new Date(hotspot.readingDate), 'MMM d, yyyy')}`, 16, yPosition);
+        // Safe date handling
+        let formattedDate = 'N/A';
+        if (hotspot.readingDate) {
+          try {
+            formattedDate = format(new Date(hotspot.readingDate), 'MMM d, yyyy');
+          } catch (e) {
+            console.error('Error formatting date:', e);
+          }
+        }
+        doc.text(`Date: ${formattedDate}`, 16, yPosition);
         yPosition += 7;
-        doc.text(`Measurement depth: ${hotspot.depth.toFixed(1)} cm`, 16, yPosition);
+        
+        // Safe depth handling
+        const depth = hotspot.depth !== undefined ? hotspot.depth.toFixed(1) : 'N/A';
+        doc.text(`Measurement depth: ${depth} cm`, 16, yPosition);
         yPosition += 7;
         
         // Add Google Maps link if available
