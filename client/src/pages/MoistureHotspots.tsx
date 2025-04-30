@@ -108,6 +108,8 @@ const MoistureHotspots: React.FC = () => {
     
     try {
       console.log("Starting PDF generation");
+      
+      // Create a new PDF document
       const doc = new jsPDF();
       
       // Add title and summary
@@ -126,26 +128,39 @@ const MoistureHotspots: React.FC = () => {
       doc.text(`• Number of hotspots identified: ${hotspotsData.hotspotCount}`, 20, 82);
       doc.text(`• Moisture threshold for hotspots: ${hotspotsData.threshold.toFixed(2)}%`, 20, 90);
       
-      // Add hotspots table
+      // Add hotspots table with improved formatting
+      const tableColumns = ['ID', 'Date', 'Moisture %', 'Depth (cm)', 'Coordinates'];
+      const tableRows = hotspotsData.hotspots.map(spot => [
+        spot.id.toString(),
+        format(new Date(spot.readingDate), 'MM/dd/yyyy'),
+        spot.moistureValue.toFixed(2),
+        spot.depth.toFixed(1),
+        `${spot.latitude.toFixed(6)}, ${spot.longitude.toFixed(6)}`
+      ]);
+      
+      // Use autoTable plugin
       (doc as any).autoTable({
         startY: 100,
-        head: [['ID', 'Date', 'Moisture %', 'Depth (cm)', 'Coordinates']],
-        body: hotspotsData.hotspots.map(spot => [
-          spot.id,
-          format(new Date(spot.readingDate), 'MM/dd/yyyy'),
-          spot.moistureValue.toFixed(2),
-          spot.depth.toFixed(1),
-          `${spot.latitude.toFixed(6)}, ${spot.longitude.toFixed(6)}`
-        ]),
+        head: [tableColumns],
+        body: tableRows,
+        theme: 'striped',
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+        styles: { fontSize: 10 },
       });
       
       let yPosition = (doc as any).lastAutoTable.finalY + 15;
       
-      // Add street view images for each hotspot if available
+      // Add map visualization section
+      doc.text('Hotspot Distribution Map:', 14, yPosition);
+      yPosition += 10;
+      doc.text('(Refer to interactive map in application for detailed visualization)', 14, yPosition);
+      yPosition += 15;
+      
+      // Add visual documentation section
       doc.text('Hotspot Visual Documentation:', 14, yPosition);
       yPosition += 10;
       
-      // Google Maps URLs without images for now - simpler approach
+      // Add hotspot details with improved formatting
       for (const hotspot of hotspotsData.hotspots) {
         // Check if we need a new page
         if (yPosition > 250) {
@@ -153,29 +168,41 @@ const MoistureHotspots: React.FC = () => {
           yPosition = 20;
         }
         
-        doc.text(`Hotspot #${hotspot.id} (${hotspot.moistureValue.toFixed(2)}%)`, 14, yPosition);
-        yPosition += 8;
+        // Add hotspot header with colored background
+        doc.setFillColor(220, 220, 220);
+        doc.rect(14, yPosition - 4, 180, 10, 'F');
+        doc.setFont(undefined, 'bold');
+        doc.text(`Hotspot #${hotspot.id} (${hotspot.moistureValue.toFixed(2)}%)`, 16, yPosition);
+        doc.setFont(undefined, 'normal');
+        yPosition += 10;
         
-        doc.text(`Coordinates: ${hotspot.latitude.toFixed(6)}, ${hotspot.longitude.toFixed(6)}`, 14, yPosition);
-        yPosition += 8;
+        // Add coordinates
+        doc.text(`Location: ${hotspot.latitude.toFixed(6)}, ${hotspot.longitude.toFixed(6)}`, 16, yPosition);
+        yPosition += 7;
         
-        // Add Google Maps link
+        // Add date and depth
+        doc.text(`Date: ${format(new Date(hotspot.readingDate), 'MMM d, yyyy')}`, 16, yPosition);
+        yPosition += 7;
+        doc.text(`Measurement depth: ${hotspot.depth.toFixed(1)} cm`, 16, yPosition);
+        yPosition += 7;
+        
+        // Add Google Maps link if available
         if (hotspot.googleMapsUrl) {
           doc.setTextColor(0, 0, 255);
-          doc.text('View on Google Maps', 14, yPosition);
+          doc.text('View on Google Maps', 16, yPosition);
           doc.setTextColor(0, 0, 0);
           
           // Add link annotation
-          doc.link(14, yPosition - 5, 50, 5, { url: hotspot.googleMapsUrl });
-          yPosition += 15;
+          doc.link(16, yPosition - 5, 50, 5, { url: hotspot.googleMapsUrl });
+          yPosition += 10;
         }
         
-        yPosition += 10;
+        yPosition += 8;
       }
       
       console.log("PDF created, preparing to save");
       
-      // Save the PDF
+      // Save the PDF with a descriptive filename
       const fileName = `moisture-hotspots-${hotspotsData.roadAsset.name.replace(/\s+/g, '-')}.pdf`;
       doc.save(fileName);
       
@@ -186,14 +213,14 @@ const MoistureHotspots: React.FC = () => {
     } catch (error) {
       console.error('Error generating PDF:', error);
       
-      // More detailed error
+      // More detailed error logging
       if (error instanceof Error) {
-        console.error('Error details:', error.message);
+        console.error('Error details:', error.message, error.stack);
       }
       
       toast({
         title: 'Error',
-        description: 'Failed to generate PDF report. Check console for details.',
+        description: 'Failed to generate PDF report. Please try again.',
         variant: 'destructive',
       });
     } finally {
