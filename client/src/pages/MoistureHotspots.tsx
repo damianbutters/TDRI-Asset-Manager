@@ -775,7 +775,9 @@ const MoistureHotspots: React.FC = () => {
               <CardContent>
                 <div className="h-[300px] rounded-md relative">
                   {hotspotsData && hotspotsData.hotspots.length > 0 ? (
-                    <MapHotspots hotspots={hotspotsData.hotspots} threshold={hotspotsData.threshold} />
+                    <div ref={mapRef}>
+                      <MapHotspots hotspots={hotspotsData.hotspots} threshold={hotspotsData.threshold} />
+                    </div>
                   ) : (
                     <div className="h-full flex items-center justify-center bg-gray-100">
                       <p className="text-gray-500">No hotspots data available</p>
@@ -857,6 +859,45 @@ const MoistureHotspots: React.FC = () => {
                         </div>
                       );
                     })}
+                  </div>
+                  
+                  {/* Add Live Street View Embed */}
+                  <div className="col-span-1 md:col-span-3 p-4 bg-gray-50">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-sm font-semibold">Live Street View</h4>
+                      {hotspot.googleMapsUrl && (
+                        <a 
+                          href={hotspot.googleMapsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                        >
+                          <MapPin className="h-3 w-3 mr-1" />
+                          Open in Google Maps
+                          <ExternalLink className="h-3 w-3 ml-1" />
+                        </a>
+                      )}
+                    </div>
+                    <div className="rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm" style={{ height: '400px' }}>
+                      {hotspot.latitude && hotspot.longitude ? (
+                        <iframe
+                          title={`Live Street View for hotspot #${hotspot.id}`}
+                          width="100%"
+                          height="100%"
+                          frameBorder="0"
+                          style={{ border: 0 }}
+                          src={`https://www.google.com/maps/embed/v1/streetview?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}&location=${hotspot.latitude},${hotspot.longitude}&heading=0&pitch=0&fov=90`}
+                          allowFullScreen
+                        />
+                      ) : (
+                        <div className="h-full flex items-center justify-center bg-gray-100">
+                          <p className="text-gray-500">Street View not available at this location</p>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Interactive 360° Street View. Use your mouse to look around and explore the environment.
+                    </p>
                   </div>
                 </div>
               </Card>
