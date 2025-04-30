@@ -773,7 +773,7 @@ const MoistureHotspots: React.FC = () => {
                 <CardTitle>Hotspot Distribution</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px] rounded-md relative" ref={mapRef}>
+                <div className="h-[300px] rounded-md relative">
                   {hotspotsData && hotspotsData.hotspots.length > 0 ? (
                     <MapHotspots hotspots={hotspotsData.hotspots} threshold={hotspotsData.threshold} />
                   ) : (
