@@ -6,7 +6,43 @@ import { eq } from 'drizzle-orm';
 
 // Check if SendGrid API key exists
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const APP_URL = process.env.APP_URL || 'http://localhost:5000';
+
+// Dynamically determine the app URL based on environment
+const getAppUrl = () => {
+  // Check for explicit APP_URL environment variable first
+  if (process.env.APP_URL) {
+    return process.env.APP_URL;
+  }
+  
+  // Check for Replit deployment domain
+  if (process.env.REPLIT_DOMAINS) {
+    const domains = process.env.REPLIT_DOMAINS.split(',');
+    if (domains.length > 0) {
+      return `https://${domains[0]}`;
+    }
+  }
+  
+  // Check for other common deployment environment variables
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  if (process.env.RAILWAY_STATIC_URL) {
+    return process.env.RAILWAY_STATIC_URL;
+  }
+  
+  if (process.env.RENDER_EXTERNAL_URL) {
+    return process.env.RENDER_EXTERNAL_URL;
+  }
+  
+  // Fallback to localhost for development
+  return 'http://localhost:5000';
+};
+
+const APP_URL = getAppUrl();
+
+// Log the detected URL for debugging
+console.log('Detected APP_URL:', APP_URL);
 
 // Define email sender - customize this as needed
 const EMAIL_SENDER = 'support@tdrisolutions.com';
