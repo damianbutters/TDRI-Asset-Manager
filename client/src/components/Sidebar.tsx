@@ -84,10 +84,10 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">
-                {user?.username || 'Guest User'}
+                {user?.fullName || 'Guest User'}
               </p>
               <p className="text-xs text-neutral-textSecondary">
-                Road Manager
+                {user?.role || 'Road Manager'}
               </p>
             </div>
           </div>
