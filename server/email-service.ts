@@ -85,8 +85,21 @@ export async function sendMagicLinkEmail(email: string): Promise<boolean> {
         // Send the email
         await sgMail.send(msg);
         console.log(`Magic link email sent to ${email}`);
-      } catch (emailError) {
-        console.error('Error sending email via SendGrid:', emailError);
+      } catch (emailError: any) {
+        console.error('=== SendGrid Email Error Details ===');
+        console.error('Error code:', emailError.code);
+        console.error('Error message:', emailError.message);
+        console.error('Response body:', emailError.response?.body);
+        console.error('Response status:', emailError.response?.status);
+        console.error('Full error:', emailError);
+        
+        if (emailError.code === 403) {
+          console.error('FORBIDDEN ERROR: This likely means:');
+          console.error('1. The sender email "no-reply@tdri-planner.com" is not verified in SendGrid');
+          console.error('2. Your SendGrid account needs sender authentication setup');
+          console.error('3. Domain authentication may be required');
+        }
+        
         console.log('Continuing with magic link in logs for development');
         // We don't throw the error here, so authentication can still work in development
       }
