@@ -21,7 +21,7 @@ async function testSendGridConfig() {
   try {
     const msg = {
       to: 'test@example.com', // This won't actually send since it's a test email
-      from: 'no-reply@tdri-planner.com',
+      from: 'support@tdrisolutions.com',
       subject: 'SendGrid Test',
       text: 'This is a test email to validate SendGrid configuration.',
       html: '<p>This is a test email to validate SendGrid configuration.</p>',

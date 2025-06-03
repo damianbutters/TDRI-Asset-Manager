@@ -9,7 +9,7 @@ const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const APP_URL = process.env.APP_URL || 'http://localhost:5000';
 
 // Define email sender - customize this as needed
-const EMAIL_SENDER = 'no-reply@tdri-planner.com';
+const EMAIL_SENDER = 'support@tdrisolutions.com';
 
 // Setup SendGrid client if API key is available
 if (SENDGRID_API_KEY) {
@@ -89,13 +89,13 @@ export async function sendMagicLinkEmail(email: string): Promise<boolean> {
         console.error('=== SendGrid Email Error Details ===');
         console.error('Error code:', emailError.code);
         console.error('Error message:', emailError.message);
-        console.error('Response body:', emailError.response?.body);
         console.error('Response status:', emailError.response?.status);
-        console.error('Full error:', emailError);
+        console.error('Response body errors:', JSON.stringify(emailError.response?.body?.errors, null, 2));
+        console.error('Full response body:', JSON.stringify(emailError.response?.body, null, 2));
         
         if (emailError.code === 403) {
           console.error('FORBIDDEN ERROR: This likely means:');
-          console.error('1. The sender email "no-reply@tdri-planner.com" is not verified in SendGrid');
+          console.error('1. The sender email "support@tdrisolutions.com" is not verified in SendGrid');
           console.error('2. Your SendGrid account needs sender authentication setup');
           console.error('3. Domain authentication may be required');
         }
