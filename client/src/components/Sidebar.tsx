@@ -70,8 +70,8 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
         </ul>
       </nav>
 
-      {/* Tenant selection control - positioned in the fixed part of the sidebar */}
-      <div className="fixed bottom-20 left-0 w-64 z-10">
+      {/* Tenant selection control - positioned above user section */}
+      <div className="absolute bottom-32 left-0 w-64 p-4 border-t border-gray-200">
         <TenantSelector />
       </div>
       
