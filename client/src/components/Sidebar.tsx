@@ -1,6 +1,9 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { TenantSelector } from "@/components/tenant-selector";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { LogOut, User } from "lucide-react";
 
 interface SidebarProps {
   mobileMenuOpen: boolean;
@@ -9,6 +12,7 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarProps) {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
   
   const navItems = [
     { path: "/", name: "Dashboard", icon: "tachometer-alt" },
@@ -72,14 +76,32 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
       </div>
       
       <div className="absolute bottom-0 w-64 border-t border-gray-200">
-        <div className="flex items-center p-4">
-          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-            <span className="text-gray-500">JR</span>
+        <div className="p-4 space-y-3">
+          {/* User Information */}
+          <div className="flex items-center">
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+              <User className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">
+                {user?.username || 'Guest User'}
+              </p>
+              <p className="text-xs text-neutral-textSecondary">
+                Road Manager
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium">John Rodriguez</p>
-            <p className="text-xs text-neutral-textSecondary">Road Manager</p>
-          </div>
+          
+          {/* Logout Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
         </div>
       </div>
     </aside>

@@ -20,6 +20,7 @@ import MoistureHotspots from "@/pages/MoistureHotspots";
 import AuthPage from "@/pages/AuthPage";
 import { useState, useEffect } from "react";
 import { TenantProvider } from "@/hooks/use-tenant";
+import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
 
 function App() {
@@ -30,10 +31,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <TenantProvider>
-          {isAuthPage ? (
-            <Route path="/auth" component={AuthPage} />
-          ) : (
+        <AuthProvider>
+          <TenantProvider>
+            {isAuthPage ? (
+              <Route path="/auth" component={AuthPage} />
+            ) : (
             <div className="flex h-screen overflow-hidden bg-neutral-bg text-neutral-text">
               {/* Sidebar */}
               <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
@@ -75,7 +77,8 @@ function App() {
               </main>
             </div>
           )}
-        </TenantProvider>
+          </TenantProvider>
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
