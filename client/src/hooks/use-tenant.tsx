@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Tenant } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "./use-auth";
 
 type TenantContextType = {
   tenants: Tenant[];
@@ -16,6 +17,7 @@ export const TenantContext = createContext<TenantContextType | null>(null);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
 
   // Fetch all available tenants for the current user
@@ -26,14 +28,14 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   } = useQuery<Tenant[], Error>({
     queryKey: ["/api/tenants"],
     staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!user, // Only fetch when user is authenticated
   });
 
   // Set current tenant mutation
   const setCurrentTenantMutation = useMutation({
     mutationFn: async (tenantId: number | null) => {
-      // Assuming we have a user ID 1 for now - in a real app this would come from auth
-      const userId = 1;
-      const res = await apiRequest("PUT", `/api/users/${userId}/current-tenant`, { tenantId });
+      if (!user) throw new Error("User not authenticated");
+      const res = await apiRequest("PUT", `/api/users/${user.id}/current-tenant`, { tenantId });
       return await res.json();
     },
     onSuccess: () => {
@@ -65,13 +67,23 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     setCurrentTenantMutation.mutate(tenantId);
   };
 
-  // Set initial current tenant if available and not already set
+  // Set initial current tenant based on user's currentTenantId
   useEffect(() => {
-    if (tenants.length > 0 && !currentTenant) {
-      // Start with the first tenant by default
-      setCurrentTenant(tenants[0]);
+    if (user && tenants.length > 0 && !currentTenant) {
+      if (user.currentTenantId) {
+        const userCurrentTenant = tenants.find(t => t.id === user.currentTenantId);
+        if (userCurrentTenant) {
+          setCurrentTenant(userCurrentTenant);
+        } else {
+          // Fallback to first tenant if user's current tenant not found
+          setCurrentTenant(tenants[0]);
+        }
+      } else {
+        // No current tenant set, use first available
+        setCurrentTenant(tenants[0]);
+      }
     }
-  }, [tenants, currentTenant]);
+  }, [user, tenants, currentTenant]);
 
   return (
     <TenantContext.Provider
