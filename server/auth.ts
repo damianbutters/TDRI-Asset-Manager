@@ -133,12 +133,21 @@ export function setupAuth(app: Express) {
     }
 
     try {
-      // Fetch complete user data from database using direct query
+      // Fetch complete user data from database using only existing columns
       if (!req.session.userId) {
         return res.status(401).json({ error: 'Invalid session' });
       }
       
-      const userQuery = await db.select().from(users).where(eq(users.id, req.session.userId));
+      const userQuery = await db.select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        fullName: users.fullName,
+        role: users.role,
+        isSystemAdmin: users.isSystemAdmin,
+        currentTenantId: users.currentTenantId
+      }).from(users).where(eq(users.id, req.session.userId));
+      
       const user = userQuery[0];
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
