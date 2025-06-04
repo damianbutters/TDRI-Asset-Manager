@@ -180,6 +180,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   // Tenant Management
   app.get("/api/tenants", async (req: Request, res: Response) => {
+    // Check authentication
+    if (!req.session?.isAuthenticated || !req.session?.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
     try {
       const tenants = await storage.getTenants();
       res.json(tenants);
