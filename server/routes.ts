@@ -2517,13 +2517,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // User Management endpoints
   app.get("/api/users", async (req: Request, res: Response) => {
+    console.log("GET /api/users - Session data:", req.session);
+    
     // Check authentication
     if (!req.session?.isAuthenticated || !req.session?.userId) {
+      console.log("GET /api/users - Authentication failed");
       return res.status(401).json({ error: "Authentication required" });
     }
 
     try {
+      console.log("GET /api/users - Fetching users...");
       const users = await storage.getUsers();
+      console.log(`GET /api/users - Retrieved ${users.length} users`);
       res.json(users);
     } catch (error) {
       console.error("Error fetching users:", error);
