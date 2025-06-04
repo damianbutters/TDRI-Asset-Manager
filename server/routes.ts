@@ -186,11 +186,42 @@ declare global {
 }
 
 // Middleware to check authentication and get user's tenant access
-const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated || !req.isAuthenticated()) {
-    return res.status(401).json({ error: "Authentication required" });
+const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Check if user is authenticated via session
+    if (!req.session?.isAuthenticated || !req.session?.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get user data from database
+    const userQuery = `
+      SELECT 
+        id, 
+        username, 
+        password, 
+        full_name AS "fullName", 
+        role, 
+        email, 
+        is_system_admin AS "isSystemAdmin", 
+        current_tenant_id AS "currentTenantId"
+      FROM users 
+      WHERE id = $1
+    `;
+    
+    const result = await pool.query(userQuery, [req.session.userId]);
+    const user = result.rows[0];
+    
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // Attach user to request object
+    (req as any).user = user;
+    next();
+  } catch (error) {
+    console.error('Error in requireAuth middleware:', error);
+    res.status(500).json({ error: "Authentication error" });
   }
-  next();
 };
 
 // Middleware to get user's accessible tenants
