@@ -5,7 +5,6 @@ import { users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import session from 'express-session';
 import { randomBytes } from 'crypto';
-import { storage } from './storage';
 
 // Define the session interface to include user information
 declare module 'express-session' {
@@ -124,7 +123,7 @@ export function setupAuth(app: Express) {
   });
 
   // Get current user information
-  app.get('/api/auth/user', async (req: Request, res: Response) => {
+  app.get('/api/auth/user', (req: Request, res: Response) => {
     console.log("Session data in auth/user:", req.session);
     
     if (!req.session.isAuthenticated) {
@@ -132,41 +131,12 @@ export function setupAuth(app: Express) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    try {
-      // Fetch complete user data from database using only existing columns
-      if (!req.session.userId) {
-        return res.status(401).json({ error: 'Invalid session' });
-      }
-      
-      const userQuery = await db.select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        fullName: users.fullName,
-        role: users.role,
-        isSystemAdmin: users.isSystemAdmin,
-        currentTenantId: users.currentTenantId
-      }).from(users).where(eq(users.id, req.session.userId));
-      
-      const user = userQuery[0];
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      console.log("User authenticated, returning user data");
-      return res.status(200).json({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        isSystemAdmin: user.isSystemAdmin,
-        currentTenantId: req.session.currentTenantId,
-      });
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      return res.status(500).json({ error: 'Server error' });
-    }
+    console.log("User authenticated, returning user data");
+    return res.status(200).json({
+      id: req.session.userId,
+      username: req.session.username,
+      currentTenantId: req.session.currentTenantId,
+    });
   });
 
   // Logout
