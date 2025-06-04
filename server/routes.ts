@@ -484,22 +484,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Road Assets - filter by user's accessible tenants
-  app.get("/api/road-assets", async (req: Request, res: Response) => {
+  app.get("/api/road-assets", requireAuth, getUserTenants, async (req: Request, res: Response) => {
     try {
-      // If user is not authenticated, return empty array
-      if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
-        return res.json([]);
-      }
-
       let accessibleAssets = [];
 
       // System admins can see all assets
-      if (req.user.isSystemAdmin) {
+      if ((req.user as any).isSystemAdmin) {
         accessibleAssets = await storage.getRoadAssets();
       } else {
         // Regular users can only see assets from tenants they're assigned to
-        const userTenantRelationships = await storage.getUserTenants(req.user.id);
-        const tenantIds = userTenantRelationships.map(ut => ut.tenantId);
+        const tenantIds = (req.userTenantIds as number[]) || [];
         
         if (tenantIds.length > 0) {
           // Get assets for all accessible tenants
@@ -690,9 +684,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Maintenance Projects
-  app.get("/api/maintenance-projects", async (req: Request, res: Response) => {
+  app.get("/api/maintenance-projects", requireAuth, getUserTenants, async (req: Request, res: Response) => {
     try {
-      const projects = await storage.getMaintenanceProjects();
+      let projects = [];
+
+      // System admins can see all projects
+      if ((req.user as any).isSystemAdmin) {
+        projects = await storage.getMaintenanceProjects();
+      } else {
+        // Regular users can only see projects from tenants they're assigned to
+        const tenantIds = (req.userTenantIds as number[]) || [];
+        
+        if (tenantIds.length > 0) {
+          projects = await storage.getMaintenanceProjectsByTenants(tenantIds);
+        }
+      }
+
       res.json(projects);
     } catch (error) {
       console.error("Error getting maintenance projects:", error);

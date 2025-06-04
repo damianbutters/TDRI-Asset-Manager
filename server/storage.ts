@@ -57,6 +57,7 @@ export interface IStorage {
   
   // Road asset operations
   getRoadAssets(): Promise<RoadAsset[]>;
+  getRoadAssetsByTenants(tenantIds: number[]): Promise<RoadAsset[]>;
   getRoadAsset(id: number): Promise<RoadAsset | undefined>;
   getRoadAssetByAssetId(assetId: string): Promise<RoadAsset | undefined>;
   createRoadAsset(asset: InsertRoadAsset): Promise<RoadAsset>;
@@ -72,6 +73,7 @@ export interface IStorage {
   
   // Maintenance project operations
   getMaintenanceProjects(): Promise<MaintenanceProject[]>;
+  getMaintenanceProjectsByTenants(tenantIds: number[]): Promise<MaintenanceProject[]>;
   getMaintenanceProject(id: number): Promise<MaintenanceProject | undefined>;
   createMaintenanceProject(project: InsertMaintenanceProject): Promise<MaintenanceProject>;
   updateMaintenanceProject(id: number, project: Partial<InsertMaintenanceProject>): Promise<MaintenanceProject | undefined>;
@@ -974,6 +976,19 @@ export class MemStorage implements IStorage {
       // Otherwise return all road assets
       return Array.from(this.roadAssets.values());
     }
+  }
+
+  async getRoadAssetsByTenants(tenantIds: number[]): Promise<RoadAsset[]> {
+    const roadAssetIds = new Set<number>();
+    
+    for (const [key, association] of this.tenantRoadAssets.entries()) {
+      if (tenantIds.includes(association.tenantId)) {
+        roadAssetIds.add(association.roadAssetId);
+      }
+    }
+    
+    return Array.from(this.roadAssets.values())
+      .filter(asset => roadAssetIds.has(asset.id));
   }
   
   async getRoadAsset(id: number): Promise<RoadAsset | undefined> {
@@ -2036,18 +2051,27 @@ export class DatabaseStorage implements IStorage {
   async getRoadAssets(tenantId?: number): Promise<RoadAsset[]> {
     if (tenantId) {
       // If tenantId is provided, only return road assets for that tenant
-      const result = await db.select({
-        roadAsset: roadAssets
-      })
-      .from(tenantRoadAssets)
-      .innerJoin(roadAssets, eq(tenantRoadAssets.roadAssetId, roadAssets.id))
-      .where(eq(tenantRoadAssets.tenantId, tenantId));
-      
-      return result.map(r => r.roadAsset);
+      return await db.select().from(roadAssets).where(eq(roadAssets.tenantId, tenantId));
     } else {
       // Otherwise return all road assets
       return await db.select().from(roadAssets);
     }
+  }
+
+  async getRoadAssetsByTenants(tenantIds: number[]): Promise<RoadAsset[]> {
+    if (tenantIds.length === 0) {
+      return [];
+    }
+    
+    // Use SQL IN clause to get assets for multiple tenants
+    const query = `
+      SELECT * FROM road_assets 
+      WHERE tenant_id = ANY($1)
+      ORDER BY name
+    `;
+    
+    const result = await this.pool.query(query, [tenantIds]);
+    return result.rows;
   }
   
   async getRoadAsset(id: number): Promise<RoadAsset | undefined> {
