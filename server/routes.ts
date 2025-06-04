@@ -175,14 +175,82 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
 
 import { setupAuth } from './auth';
 
+// Extend Express Request interface to include user tenant data
+declare global {
+  namespace Express {
+    interface Request {
+      userTenants?: any[];
+      userTenantIds?: number[];
+    }
+  }
+}
+
+// Middleware to check authentication and get user's tenant access
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+};
+
+// Middleware to get user's accessible tenants
+const getUserTenants = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // System admins can access all tenants
+    if (req.user.isSystemAdmin) {
+      req.userTenants = await storage.getTenants();
+      req.userTenantIds = req.userTenants.map(t => t.id);
+    } else {
+      // Regular users can only access tenants they're assigned to
+      const userTenantRelationships = await storage.getUserTenants(req.user.id);
+      req.userTenantIds = userTenantRelationships.map(ut => ut.tenantId);
+      req.userTenants = await Promise.all(
+        req.userTenantIds.map(id => storage.getTenant(id))
+      ).then(tenants => tenants.filter(Boolean));
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error getting user tenants:', error);
+    res.status(500).json({ error: "Failed to get user access" });
+  }
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes
   setupAuth(app);
-  // Tenant Management
+  // Tenant Management - only return tenants the user has access to
   app.get("/api/tenants", async (req: Request, res: Response) => {
     try {
-      const tenants = await storage.getTenants();
-      res.json(tenants);
+      // If user is not authenticated, return empty array
+      if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+        return res.json([]);
+      }
+
+      let accessibleTenants = [];
+
+      // System admins can see all tenants
+      if (req.user.isSystemAdmin) {
+        accessibleTenants = await storage.getTenants();
+      } else {
+        // Regular users can only see tenants they're assigned to
+        const userTenantRelationships = await storage.getUserTenants(req.user.id);
+        const tenantIds = userTenantRelationships.map(ut => ut.tenantId);
+        
+        if (tenantIds.length > 0) {
+          accessibleTenants = await Promise.all(
+            tenantIds.map(id => storage.getTenant(id))
+          );
+          // Filter out any null results
+          accessibleTenants = accessibleTenants.filter(Boolean);
+        }
+      }
+
+      res.json(accessibleTenants);
     } catch (error) {
       console.error("Error fetching tenants:", error);
       res.status(500).json({ error: "Failed to fetch tenants" });
