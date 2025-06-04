@@ -255,21 +255,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes
   setupAuth(app);
   // Tenant Management - only return tenants the user has access to
-  app.get("/api/tenants", async (req: Request, res: Response) => {
+  app.get("/api/tenants", requireAuth, async (req: Request, res: Response) => {
     try {
-      // If user is not authenticated, return empty array
-      if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
-        return res.json([]);
-      }
-
+      const user = (req as any).user;
       let accessibleTenants = [];
 
       // System admins can see all tenants
-      if (req.user.isSystemAdmin) {
+      if (user.isSystemAdmin) {
         accessibleTenants = await storage.getTenants();
       } else {
         // Regular users can only see tenants they're assigned to
-        const userTenantRelationships = await storage.getUserTenants(req.user.id);
+        const userTenantRelationships = await storage.getUserTenants(user.id);
         const tenantIds = userTenantRelationships.map(ut => ut.tenantId);
         
         if (tenantIds.length > 0) {
