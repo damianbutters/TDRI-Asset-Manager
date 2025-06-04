@@ -88,6 +88,7 @@ export interface IStorage {
   
   // Budget allocation operations
   getBudgetAllocations(): Promise<BudgetAllocation[]>;
+  getBudgetAllocationsByTenants(tenantIds: number[]): Promise<BudgetAllocation[]>;
   getBudgetAllocation(id: number): Promise<BudgetAllocation | undefined>;
   getActiveBudgetAllocation(): Promise<BudgetAllocation | undefined>;
   createBudgetAllocation(budget: InsertBudgetAllocation): Promise<BudgetAllocation>;
@@ -2141,6 +2142,22 @@ export class DatabaseStorage implements IStorage {
   // Maintenance project methods
   async getMaintenanceProjects(): Promise<MaintenanceProject[]> {
     return await db.select().from(maintenanceProjects);
+  }
+
+  async getMaintenanceProjectsByTenants(tenantIds: number[]): Promise<MaintenanceProject[]> {
+    if (tenantIds.length === 0) {
+      return [];
+    }
+    
+    // Use SQL IN clause to get projects for multiple tenants
+    const query = `
+      SELECT * FROM maintenance_projects 
+      WHERE tenant_id = ANY($1)
+      ORDER BY created_at DESC
+    `;
+    
+    const result = await this.pool.query(query, [tenantIds]);
+    return result.rows;
   }
   
   async getMaintenanceProject(id: number): Promise<MaintenanceProject | undefined> {
