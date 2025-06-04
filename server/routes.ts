@@ -2517,6 +2517,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // User Management endpoints
   app.get("/api/users", async (req: Request, res: Response) => {
+    // Check authentication
+    if (!req.session?.isAuthenticated || !req.session?.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
     try {
       const users = await storage.getUsers();
       res.json(users);
@@ -2690,6 +2695,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // User-Tenant relationship management
   app.get("/api/user-tenants", async (req: Request, res: Response) => {
+    // Check authentication
+    if (!req.session?.isAuthenticated || !req.session?.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
     try {
       const userTenants = await storage.getAllUserTenants();
       res.json(userTenants);
