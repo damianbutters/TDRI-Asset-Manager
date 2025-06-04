@@ -180,11 +180,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   // Tenant Management
   app.get("/api/tenants", async (req: Request, res: Response) => {
-    // Check authentication
-    if (!req.session?.isAuthenticated || !req.session?.userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
     try {
       const tenants = await storage.getTenants();
       res.json(tenants);
@@ -2517,18 +2512,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // User Management endpoints
   app.get("/api/users", async (req: Request, res: Response) => {
-    console.log("GET /api/users - Session data:", req.session);
-    
-    // Check authentication
-    if (!req.session?.isAuthenticated || !req.session?.userId) {
-      console.log("GET /api/users - Authentication failed");
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
     try {
-      console.log("GET /api/users - Fetching users...");
       const users = await storage.getUsers();
-      console.log(`GET /api/users - Retrieved ${users.length} users`);
       res.json(users);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -2700,11 +2685,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // User-Tenant relationship management
   app.get("/api/user-tenants", async (req: Request, res: Response) => {
-    // Check authentication
-    if (!req.session?.isAuthenticated || !req.session?.userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
     try {
       const userTenants = await storage.getAllUserTenants();
       res.json(userTenants);
