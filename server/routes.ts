@@ -483,18 +483,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Road Assets
+  // Road Assets - filter by user's accessible tenants
   app.get("/api/road-assets", async (req: Request, res: Response) => {
     try {
-      // Check if tenant_id was provided as a query parameter
-      const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id as string) : undefined;
-      
-      // If user is authenticated, use their current tenant if no tenant_id is provided
-      const currentUser = req.user as User | undefined;
-      const effectiveTenantId = tenantId || (currentUser?.currentTenantId || undefined);
-      
-      const assets = await storage.getRoadAssets(effectiveTenantId);
-      res.json(assets);
+      // If user is not authenticated, return empty array
+      if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+        return res.json([]);
+      }
+
+      let accessibleAssets = [];
+
+      // System admins can see all assets
+      if (req.user.isSystemAdmin) {
+        accessibleAssets = await storage.getRoadAssets();
+      } else {
+        // Regular users can only see assets from tenants they're assigned to
+        const userTenantRelationships = await storage.getUserTenants(req.user.id);
+        const tenantIds = userTenantRelationships.map(ut => ut.tenantId);
+        
+        if (tenantIds.length > 0) {
+          // Get assets for all accessible tenants
+          accessibleAssets = await storage.getRoadAssetsByTenants(tenantIds);
+        }
+      }
+
+      res.json(accessibleAssets);
     } catch (error) {
       console.error("Error getting road assets:", error);
       res.status(500).json({ message: "Internal server error" });
