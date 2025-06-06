@@ -97,11 +97,11 @@ interface HotspotsResponse {
 const MoistureHotspots: React.FC = () => {
   const { toast } = useToast();
   const { currentTenant } = useTenant();
-  const [selectedRoadId, setSelectedRoadId] = useState<string>('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [isDrawingPolygon, setIsDrawingPolygon] = useState<boolean>(false);
   const [polygonCoordinates, setPolygonCoordinates] = useState<LatLngTuple[]>([]);
-  const [filteredHotspots, setFilteredHotspots] = useState<MoistureReading[] | null>(null);
+  const [areaHotspots, setAreaHotspots] = useState<MoistureReading[] | null>(null);
+  const [isLoadingAreaData, setIsLoadingAreaData] = useState<boolean>(false);
 
   // Function to check if a point is inside a polygon using ray casting algorithm
   const isPointInPolygon = (point: LatLngTuple, polygon: LatLngTuple[]): boolean => {
@@ -122,66 +122,71 @@ const MoistureHotspots: React.FC = () => {
     return inside;
   };
 
-  // Function to filter hotspots by polygon area
-  const filterHotspotsByPolygon = (hotspots: MoistureReading[], polygon: LatLngTuple[]): MoistureReading[] => {
-    if (polygon.length < 3) return hotspots;
+  // Function to fetch moisture data for the selected area
+  const fetchAreaMoistureData = async (coordinates: LatLngTuple[]) => {
+    if (coordinates.length < 3) return;
     
-    return hotspots.filter(hotspot => 
-      isPointInPolygon([hotspot.latitude, hotspot.longitude], polygon)
-    );
+    setIsLoadingAreaData(true);
+    
+    try {
+      const response = await fetch('/api/moisture-hotspots/area', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          polygon: coordinates
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch area moisture data');
+      }
+
+      const data = await response.json();
+      setAreaHotspots(data.hotspots);
+      
+      toast({
+        title: 'Area Analyzed',
+        description: `Found ${data.totalReadings} moisture readings with ${data.hotspotCount} hotspots in the selected area across ${data.areaInfo.roadsInArea.length} roads.`,
+      });
+    } catch (error) {
+      console.error('Error fetching area moisture data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to analyze the selected area. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingAreaData(false);
+    }
   };
 
   // Function to handle polygon completion
   const handlePolygonComplete = (coordinates: LatLngTuple[]) => {
     setPolygonCoordinates(coordinates);
     setIsDrawingPolygon(false);
-    
-    if (hotspotsData?.hotspots) {
-      const filtered = filterHotspotsByPolygon(hotspotsData.hotspots, coordinates);
-      setFilteredHotspots(filtered);
-      
-      toast({
-        title: 'Area Selected',
-        description: `${filtered.length} hotspots found in the selected area.`,
-      });
-    }
+    fetchAreaMoistureData(coordinates);
   };
 
   // Function to clear polygon selection
   const clearPolygonSelection = () => {
     setPolygonCoordinates([]);
-    setFilteredHotspots(null);
+    setAreaHotspots(null);
     setIsDrawingPolygon(false);
     
     toast({
       title: 'Selection Cleared',
-      description: 'Showing all hotspots for the selected road.',
+      description: 'Area selection removed.',
     });
   };
 
-  // Fetch road assets
-  const { data: roadAssets, isLoading: isLoadingRoads } = useQuery({
-    queryKey: ['/api/road-assets', currentTenant?.id],
-    enabled: !!currentTenant,
-  });
-
-  // Fetch hotspots data when a road is selected
-  const { 
-    data: hotspotsData, 
-    isLoading: isLoadingHotspots,
-    refetch: refetchHotspots
-  } = useQuery<HotspotsResponse>({
-    queryKey: ['/api/road-assets', selectedRoadId, 'moisture-hotspots'],
-    queryFn: () => 
-      fetch(`/api/road-assets/${selectedRoadId}/moisture-hotspots?includeStreetView=true`)
-        .then(res => {
-          if (!res.ok) {
-            throw new Error('Failed to fetch hotspots data');
-          }
-          return res.json();
-        }),
-    enabled: !!selectedRoadId,
-  });
+  // Default area info for displaying when no polygon is selected
+  const defaultAreaInfo = {
+    totalReadingsInArea: 0,
+    roadsInArea: [],
+    polygonPoints: 0
+  };
 
   // Reference to the map container for capturing
   const mapRef = useRef<HTMLDivElement>(null);
@@ -722,52 +727,50 @@ const MoistureHotspots: React.FC = () => {
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Select Road Asset</CardTitle>
+          <CardTitle>Area Selection for Moisture Analysis</CardTitle>
           <CardDescription>
-            Choose a road asset to view its moisture hotspots (top 5% highest moisture readings)
+            Draw a polygon on the map to select an area and analyze all moisture readings within that region (across all roads)
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="road-select" className="text-sm font-medium">
-                Road Asset
-              </label>
-              <Select 
-                value={selectedRoadId} 
-                onValueChange={(value) => setSelectedRoadId(value)}
-                disabled={isLoadingRoads}
-              >
-                <SelectTrigger id="road-select" className="w-full sm:w-[300px]">
-                  <SelectValue placeholder="Select a road asset" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.isArray(roadAssets) && roadAssets.map((road: RoadAsset) => (
-                    <SelectItem key={road.id} value={road.id.toString()}>
-                      {road.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {polygonCoordinates.length === 0 ? (
+              <div className="text-center p-6 border-2 border-dashed border-gray-300 rounded-lg">
+                <Edit3 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Area Selected</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Click "Draw Area" to select a region on the map for moisture analysis
+                </p>
+                <Button 
+                  onClick={() => setIsDrawingPolygon(true)}
+                  disabled={isDrawingPolygon}
+                >
+                  <Edit3 className="mr-2 h-4 w-4" />
+                  Draw Area
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center">
+                  <MapPin className="h-5 w-5 text-blue-600 mr-2" />
+                  <div>
+                    <h4 className="font-medium text-blue-900">Area Selected</h4>
+                    <p className="text-sm text-blue-700">
+                      {filteredHotspots?.length || 0} moisture readings found in the selected area
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline"
+                  onClick={clearPolygonSelection}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Clear Area
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
-        <CardFooter>
-          <Button 
-            variant="outline" 
-            disabled={!selectedRoadId || isLoadingHotspots}
-            onClick={() => refetchHotspots()}
-          >
-            {isLoadingHotspots ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading
-              </>
-            ) : (
-              'Refresh Data'
-            )}
-          </Button>
-        </CardFooter>
       </Card>
 
       {isLoadingHotspots && selectedRoadId ? (
