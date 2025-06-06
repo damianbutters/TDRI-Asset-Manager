@@ -21,7 +21,7 @@ export default function ImportExport() {
   const handleImportComplete = (data: any) => {
     // Invalidate queries to refresh data after import
     queryClient.invalidateQueries({ queryKey: ['/api/road-assets'] });
-    
+
     toast({
       title: "Import Successful",
       description: data.message || `Successfully imported data.`,
@@ -31,7 +31,7 @@ export default function ImportExport() {
   // Handle CSV export
   const handleExportRoadAssets = () => {
     setExportLoading(true);
-    
+
     try {
       // Prepare data for export
       const exportData = roadAssets.map(asset => ({
@@ -45,7 +45,7 @@ export default function ImportExport() {
         lastInspection: new Date(asset.lastInspection).toISOString().split('T')[0],
         nextInspection: asset.nextInspection ? new Date(asset.nextInspection).toISOString().split('T')[0] : ''
       }));
-      
+
       // Convert to CSV
       const headers = Object.keys(exportData[0] || {}).join(',');
       const rows = exportData.map(obj => 
@@ -53,9 +53,9 @@ export default function ImportExport() {
           typeof value === 'string' && value.includes(',') ? `"${value}"` : value
         ).join(',')
       );
-      
+
       const csv = [headers, ...rows].join('\n');
-      
+
       // Create and trigger download
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -65,7 +65,7 @@ export default function ImportExport() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       toast({
         title: "Export Successful",
         description: `Successfully exported ${exportData.length} road assets.`,
@@ -87,20 +87,20 @@ export default function ImportExport() {
     "assetId", "name", "location", "length", "width", 
     "surfaceType", "condition", "lastInspection", "nextInspection"
   ];
-  
+
   const inspectionFields = [
     "assetId", "inspectionDate", "condition", "notes", "inspector"
   ];
-  
+
   const maintenanceFields = [
     "assetId", "maintenanceType", "scheduledDate", "status", "cost", "notes"
   ];
-  
+
   // Template fields with examples for moisture data
   const moistureDataFields = [
-    "longitude", "latitude", "moisture", "readingDate", "roadAssetId"
+    "longitude", "latitude", "moisture", "value", "readingDate", "roadAssetId"
   ];
-  
+
   // Example data to show in the template (using Mechanicsville, VA coordinates)
   const moistureDataExample = {
     longitude: -77.3733,
@@ -145,7 +145,7 @@ export default function ImportExport() {
                     <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
                     <TabsTrigger value="moisture">Moisture Data</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="roadAssets">
                     <CSVImport 
                       endpoint="/api/import/road-assets" 
@@ -153,7 +153,7 @@ export default function ImportExport() {
                       onImportComplete={handleImportComplete}
                     />
                   </TabsContent>
-                  
+
                   <TabsContent value="inspections">
                     <CSVImport 
                       endpoint="/api/import/inspections" 
@@ -161,7 +161,7 @@ export default function ImportExport() {
                       onImportComplete={handleImportComplete}
                     />
                   </TabsContent>
-                  
+
                   <TabsContent value="maintenance">
                     <CSVImport 
                       endpoint="/api/import/maintenance" 
@@ -169,7 +169,7 @@ export default function ImportExport() {
                       onImportComplete={handleImportComplete}
                     />
                   </TabsContent>
-                  
+
                   <TabsContent value="moisture">
                     <CSVImport 
                       endpoint="/api/import/moisture-data" 
@@ -198,7 +198,7 @@ export default function ImportExport() {
                 </Tabs>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="p-4 border-b border-gray-200">
                 <CardTitle>Import Guidelines</CardTitle>
@@ -218,7 +218,7 @@ export default function ImportExport() {
                     <li>Condition scores should be integers between 0 and 100</li>
                   </ul>
                 </div>
-                
+
                 <div>
                   <h3 className="text-sm font-medium mb-2">Data Validation</h3>
                   <p className="text-sm text-neutral-textSecondary">
@@ -227,7 +227,7 @@ export default function ImportExport() {
                     be shown after import is complete with the number of successful imports and errors.
                   </p>
                 </div>
-                
+
                 <div>
                   <h3 className="text-sm font-medium mb-2">For Large Datasets</h3>
                   <p className="text-sm text-neutral-textSecondary">
@@ -269,7 +269,7 @@ export default function ImportExport() {
                     Export Road Assets
                   </Button>
                 </Card>
-                
+
                 <Card className="p-4 border">
                   <h3 className="text-sm font-medium">Inspection History</h3>
                   <p className="text-xs text-neutral-textSecondary mt-1 mb-3">
@@ -287,7 +287,7 @@ export default function ImportExport() {
                     Export Inspections
                   </Button>
                 </Card>
-                
+
                 <Card className="p-4 border">
                   <h3 className="text-sm font-medium">Maintenance Projects</h3>
                   <p className="text-xs text-neutral-textSecondary mt-1 mb-3">
@@ -306,7 +306,7 @@ export default function ImportExport() {
                   </Button>
                 </Card>
               </div>
-              
+
               <div className="mt-6">
                 <h3 className="text-sm font-medium mb-2">Data Export Options</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -321,7 +321,7 @@ export default function ImportExport() {
                       <Button variant="outline" className="flex-1" disabled>GeoJSON</Button>
                     </div>
                   </Card>
-                  
+
                   <Card className="p-4 border">
                     <h4 className="text-sm font-medium">Report Generation</h4>
                     <p className="text-xs text-neutral-textSecondary mt-1">

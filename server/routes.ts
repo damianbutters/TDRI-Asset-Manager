@@ -42,15 +42,15 @@ async function findClosestRoadAsset(
 ): Promise<number | null> {
   // Get all road assets, filtered by tenant if provided
   const allRoadAssets = await storage.getRoadAssets(tenantId);
-  
+
   if (!allRoadAssets.length) {
     console.log("No road assets found in the database");
     return null;
   }
-  
+
   let closestAsset = null;
   let minDistance = Number.MAX_VALUE;
-  
+
   for (const asset of allRoadAssets) {
     if (asset.geometry && 
         typeof asset.geometry === 'object' &&
@@ -63,13 +63,13 @@ async function findClosestRoadAsset(
         if (Array.isArray(point) && point.length >= 2) {
           const assetLong = point[0];
           const assetLat = point[1];
-          
+
           // Simple Euclidean distance calculation (not accurate for geographic coordinates but works for demo)
           const distance = Math.sqrt(
             Math.pow(longitude - assetLong, 2) + 
             Math.pow(latitude - assetLat, 2)
           );
-          
+
           if (distance < minDistance) {
             minDistance = distance;
             closestAsset = asset;
@@ -78,13 +78,13 @@ async function findClosestRoadAsset(
       }
     }
   }
-  
+
   // Only consider the asset a match if it's within our distance threshold
   if (closestAsset && minDistance < maxDistanceThreshold) {
     console.log(`Found nearby road asset: ${closestAsset.name} (ID: ${closestAsset.id}) at distance ${minDistance}`);
     return closestAsset.id;
   }
-  
+
   console.log(`No road asset found within threshold distance (${maxDistanceThreshold}) of coordinates: ${longitude}, ${latitude}`);
   return null;
 }
@@ -97,29 +97,29 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
   try {
     // Following Nominatim usage policy - identify app and add delay between requests
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
-    
+
     // Sleep for 1 second to respect Nominatim usage policy
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'TDRIPlanner-RoadAssetManagement/1.0',
         'Accept-Language': 'en-US,en'
       }
     });
-    
+
     if (!response.ok) {
       throw new Error(`OpenStreetMap API returned ${response.status}: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     console.log("OSM API RESPONSE:", JSON.stringify(data));
-    
+
     // Extract road info from the API response
     const address = data.address;
     let roadName = "Unknown Road";
     let location = "Unknown Location";
-    
+
     // Try to find the most specific road name in the address hierarchy
     if (address) {
       // Road name priority from most to least specific
@@ -127,7 +127,7 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
         'road', 'street', 'highway', 'pedestrian', 'path', 'footway', 
         'cycleway', 'service', 'track', 'residential'
       ];
-      
+
       // Find the first available road name
       for (const field of roadFields) {
         if (address[field]) {
@@ -135,7 +135,7 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
           break;
         }
       }
-      
+
       // Build location from city, county, state if available
       const locationParts = [];
       if (address.city || address.town || address.village || address.hamlet) {
@@ -147,12 +147,12 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
       if (address.state) {
         locationParts.push(address.state);
       }
-      
+
       if (locationParts.length > 0) {
         location = locationParts.join(", ");
       }
     }
-    
+
     // If no road name was found, use display name as fallback
     if (roadName === "Unknown Road" && data.display_name) {
       const displayParts = data.display_name.split(',');
@@ -160,7 +160,7 @@ async function reverseGeocode(longitude: number, latitude: number): Promise<{roa
         roadName = displayParts[0].trim();
       }
     }
-    
+
     console.log(`GEOCODING: Coordinates (${longitude}, ${latitude}) resolved to "${roadName}" in "${location}"`);
     return { roadName, location };
   } catch (error) {
@@ -207,10 +207,10 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
       FROM users 
       WHERE id = $1
     `;
-    
+
     const result = await pool.query(userQuery, [req.session.userId]);
     const user = result.rows[0];
-    
+
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
@@ -267,7 +267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Regular users can only see tenants they're assigned to
         const userTenantRelationships = await storage.getUserTenants(user.id);
         const tenantIds = userTenantRelationships.map(ut => ut.tenantId);
-        
+
         if (tenantIds.length > 0) {
           accessibleTenants = await Promise.all(
             tenantIds.map(id => storage.getTenant(id))
@@ -290,28 +290,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid tenant ID" });
       }
-      
+
       const tenant = await storage.getTenant(id);
       if (!tenant) {
         return res.status(404).json({ error: "Tenant not found" });
       }
-      
+
       res.json(tenant);
     } catch (error) {
       console.error(`Error fetching tenant with ID ${req.params.id}:`, error);
       res.status(500).json({ error: "Failed to fetch tenant" });
     }
   });
-  
+
   app.post("/api/tenants", async (req: Request, res: Response) => {
     try {
       const tenantSchema = schema.insertTenantSchema;
       const parsedData = tenantSchema.safeParse(req.body);
-      
+
       if (!parsedData.success) {
         return res.status(400).json({ error: "Invalid tenant data", details: parsedData.error.format() });
       }
-      
+
       const tenant = await storage.createTenant(parsedData.data);
       res.status(201).json(tenant);
     } catch (error) {
@@ -319,52 +319,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to create tenant" });
     }
   });
-  
+
   app.put("/api/tenants/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid tenant ID" });
       }
-      
+
       const tenantSchema = schema.insertTenantSchema.partial();
       const parsedData = tenantSchema.safeParse(req.body);
-      
+
       if (!parsedData.success) {
         return res.status(400).json({ error: "Invalid tenant data", details: parsedData.error.format() });
       }
-      
+
       const tenant = await storage.updateTenant(id, parsedData.data);
       if (!tenant) {
         return res.status(404).json({ error: "Tenant not found" });
       }
-      
+
       res.json(tenant);
     } catch (error) {
       console.error(`Error updating tenant with ID ${req.params.id}:`, error);
       res.status(500).json({ error: "Failed to update tenant" });
     }
   });
-  
+
   app.delete("/api/tenants/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid tenant ID" });
       }
-      
+
       const success = await storage.deleteTenant(id);
       if (!success) {
         return res.status(404).json({ error: "Tenant not found" });
       }
-      
+
       res.status(204).end();
     } catch (error) {
       console.error(`Error deleting tenant with ID ${req.params.id}:`, error);
       res.status(500).json({ error: "Failed to delete tenant" });
     }
   });
-  
+
   // User-Tenant Management
   app.get("/api/users/:id/tenants", async (req: Request, res: Response) => {
     try {
@@ -372,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(userId)) {
         return res.status(400).json({ error: "Invalid user ID" });
       }
-      
+
       const tenants = await storage.getUserTenants(userId);
       res.json(tenants);
     } catch (error) {
@@ -380,129 +380,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch user tenants" });
     }
   });
-  
+
   app.post("/api/users/:userId/tenants/:tenantId", async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       const tenantId = parseInt(req.params.tenantId);
-      
+
       if (isNaN(userId) || isNaN(tenantId)) {
         return res.status(400).json({ error: "Invalid user ID or tenant ID" });
       }
-      
+
       const schema = z.object({
         role: z.string(),
         isAdmin: z.boolean()
       });
-      
+
       const parsedData = schema.safeParse(req.body);
-      
+
       if (!parsedData.success) {
         return res.status(400).json({ error: "Invalid data", details: parsedData.error.format() });
       }
-      
+
       const success = await storage.addUserToTenant(
         userId, 
         tenantId, 
         parsedData.data.role, 
         parsedData.data.isAdmin
       );
-      
+
       if (!success) {
         return res.status(404).json({ error: "User or tenant not found" });
       }
-      
+
       res.status(201).json({ message: "User added to tenant" });
     } catch (error) {
       console.error(`Error adding user ${req.params.userId} to tenant ${req.params.tenantId}:`, error);
       res.status(500).json({ error: "Failed to add user to tenant" });
     }
   });
-  
+
   app.delete("/api/users/:userId/tenants/:tenantId", async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       const tenantId = parseInt(req.params.tenantId);
-      
+
       if (isNaN(userId) || isNaN(tenantId)) {
         return res.status(400).json({ error: "Invalid user ID or tenant ID" });
       }
-      
+
       const success = await storage.removeUserFromTenant(userId, tenantId);
-      
+
       if (!success) {
         return res.status(404).json({ error: "User-tenant relationship not found" });
       }
-      
+
       res.status(204).end();
     } catch (error) {
       console.error(`Error removing user ${req.params.userId} from tenant ${req.params.tenantId}:`, error);
       res.status(500).json({ error: "Failed to remove user from tenant" });
     }
   });
-  
+
   app.put("/api/users/:userId/tenants/:tenantId", async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       const tenantId = parseInt(req.params.tenantId);
-      
+
       if (isNaN(userId) || isNaN(tenantId)) {
         return res.status(400).json({ error: "Invalid user ID or tenant ID" });
       }
-      
+
       const schema = z.object({
         role: z.string(),
         isAdmin: z.boolean()
       });
-      
+
       const parsedData = schema.safeParse(req.body);
-      
+
       if (!parsedData.success) {
         return res.status(400).json({ error: "Invalid data", details: parsedData.error.format() });
       }
-      
+
       const success = await storage.updateUserTenantRole(
         userId, 
         tenantId, 
         parsedData.data.role, 
         parsedData.data.isAdmin
       );
-      
+
       if (!success) {
         return res.status(404).json({ error: "User-tenant relationship not found" });
       }
-      
+
       res.json({ message: "User-tenant relationship updated" });
     } catch (error) {
       console.error(`Error updating user ${req.params.userId} tenant ${req.params.tenantId} relationship:`, error);
       res.status(500).json({ error: "Failed to update user-tenant relationship" });
     }
   });
-  
+
   app.put("/api/users/:id/current-tenant", async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.id);
-      
+
       if (isNaN(userId)) {
         return res.status(400).json({ error: "Invalid user ID" });
       }
-      
+
       const schema = z.object({
         tenantId: z.number().nullable()
       });
-      
+
       const parsedData = schema.safeParse(req.body);
-      
+
       if (!parsedData.success) {
         return res.status(400).json({ error: "Invalid data", details: parsedData.error.format() });
       }
-      
+
       const user = await storage.setUserCurrentTenant(userId, parsedData.data.tenantId);
-      
+
       if (!user) {
         return res.status(404).json({ error: "User not found or tenant not accessible" });
       }
-      
+
       res.json(user);
     } catch (error) {
       console.error(`Error setting current tenant for user ${req.params.id}:`, error);
@@ -521,7 +521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // Regular users can only see assets from tenants they're assigned to
         const tenantIds = (req.userTenantIds as number[]) || [];
-        
+
         if (tenantIds.length > 0) {
           // Get assets for all accessible tenants
           accessibleAssets = await storage.getRoadAssetsByTenants(tenantIds);
@@ -721,7 +721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // Regular users can only see projects from tenants they're assigned to
         const tenantIds = (req.userTenantIds as number[]) || [];
-        
+
         if (tenantIds.length > 0) {
           projects = await storage.getMaintenanceProjectsByTenants(tenantIds);
         }
@@ -866,28 +866,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const { csvData } = schema.parse(req.body);
-      
+
       // Parse CSV data and create road assets
       // Split by new lines first
       const lines = csvData.trim().split('\n');
-      
+
       // Skip empty lines
       const nonEmptyLines = lines.filter(line => line.trim().length > 0);
-      
+
       if (nonEmptyLines.length === 0) {
         throw new Error("CSV file is empty");
       }
-      
+
       // Process the first line to extract headers
       // Split by commas, but be careful with quoted values that might contain commas
       const extractValues = (line: string): string[] => {
         const values: string[] = [];
         let inQuotes = false;
         let currentValue = "";
-        
+
         for (let i = 0; i < line.length; i++) {
           const char = line[i];
-          
+
           if (char === '"') {
             // Toggle quote state
             inQuotes = !inQuotes;
@@ -900,50 +900,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
             currentValue += char;
           }
         }
-        
+
         // Add the last value
         values.push(currentValue.trim());
-        
+
         return values;
       };
-      
+
       // Extract headers from the first line
       const headers = extractValues(nonEmptyLines[0]).map(header => header.trim().toLowerCase());
-      
+
       // Check if the first row is a header row by looking for expected column names
       const isFirstRowHeader = headers.some(header => 
         ['assetid', 'name', 'location', 'surfacetype', 'condition'].includes(header)
       );
-      
+
       console.log("Road asset import headers:", headers);
       console.log("Is first row header:", isFirstRowHeader);
-      
+
       // Determine which row to start processing from (skip header row if present)
       const startRow = isFirstRowHeader ? 1 : 0;
-      
+
       let importedCount = 0;
       let errorCount = 0;
       let errorDetails: Array<{ row: number, message: string }> = [];
-      
+
       for (let i = startRow; i < nonEmptyLines.length; i++) {
         try {
           // For data rows, use the same careful splitting 
           const values = extractValues(nonEmptyLines[i]);
-          
+
           console.log(`Road asset row ${i} values:`, values);
-          
+
           const assetData: any = {};
-          
+
           // Store what we found in the row for better error messages
           const rowData: Record<string, string> = {};
-          
+
           headers.forEach((header, index) => {
             const value = values[index]?.trim();
             if (!value) return;
-            
+
             // Store what we found for better error reporting
             rowData[header.toLowerCase()] = value;
-            
+
             switch (header.toLowerCase()) {
               case 'assetid':
                 assetData.assetId = value;
@@ -992,25 +992,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 break;
             }
           });
-          
+
           // Validate required fields
           if (!assetData.assetId) {
             throw new Error(`Missing required field: assetId`);
           }
-          
+
           if (!assetData.name) {
             throw new Error(`Missing required field: name`);
           }
-          
+
           if (assetData.condition === undefined || isNaN(assetData.condition)) {
             const foundValue = rowData['condition'] || 'missing';
             throw new Error(`Missing or invalid condition value: "${foundValue}" (must be a numeric value between 0-100)`);
           }
-          
+
           if (assetData.condition < 0 || assetData.condition > 100) {
             throw new Error(`Condition value out of range: ${assetData.condition} (must be between 0-100)`);
           }
-          
+
           // Create a simplified geometry (for Mechanicsville, VA area)
           assetData.geometry = {
             type: "LineString",
@@ -1019,7 +1019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               [-77.34 + Math.random() * 0.01, 37.6 + Math.random() * 0.01]
             ]
           };
-          
+
           // Validate and create the asset
           const validatedData = insertRoadAssetSchema.parse(assetData);
           await storage.createRoadAsset(validatedData);
@@ -1027,17 +1027,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (error) {
           console.error(`Error importing row ${i}:`, error);
           errorCount++;
-          
+
           // Adjust row number for error display to account for 1-based counting that users expect
           const displayRowNumber = i + 1;
-          
+
           errorDetails.push({
             row: displayRowNumber,
             message: error instanceof Error ? error.message : "Unknown error processing row"
           });
         }
       }
-      
+
       // Log the action
       await storage.createAuditLog({
         userId: 1,
@@ -1048,7 +1048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resourceType: "road_asset",
         resourceId: "bulk-import",
       });
-      
+
       res.json({ 
         success: true, 
         message: `Successfully imported ${importedCount} road assets. Errors: ${errorCount}.`,
@@ -1093,7 +1093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get rainfall data
       const rainfallData = await weatherService.getRainfallDataForRoadAsset(id);
-      
+
       res.json({
         roadAssetId: id,
         roadName: roadAsset.name,
@@ -1123,7 +1123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update rainfall data
       const success = await weatherService.updateRainfallData(roadAsset);
-      
+
       if (!success) {
         return res.status(500).json({ message: "Failed to update rainfall data" });
       }
@@ -1141,7 +1141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get updated road asset
       const updatedAsset = await storage.getRoadAsset(id);
-      
+
       res.json({
         success: true,
         message: "Rainfall data updated successfully",
@@ -1160,7 +1160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       weatherService.updateAllRoadAssets().catch((error) => {
         console.error("Background rainfall update failed:", error);
       });
-      
+
       // Log the action
       await storage.createAuditLog({
         userId: 1,
@@ -1171,7 +1171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resourceType: "system",
         resourceId: "rainfall-update",
       });
-      
+
       res.json({
         success: true,
         message: "Rainfall data update started for all road assets"
@@ -1181,36 +1181,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
-  
+
   app.post("/api/import/moisture-data", async (req: Request, res: Response) => {
     try {
       const schema = zfd.formData({
         csvData: zfd.text(),
       });
-      
+
       const { csvData } = schema.parse(req.body);
-      
+
       // Parse CSV data with moisture readings - handle potential double quotes and comma escaping
       // Split by new lines first
       const lines = csvData.trim().split('\n');
-      
+
       // Skip empty lines
       const nonEmptyLines = lines.filter(line => line.trim().length > 0);
-      
+
       if (nonEmptyLines.length === 0) {
         throw new Error("CSV file is empty");
       }
-      
+
       // Process the first line to extract headers
       // Split by commas, but be careful with quoted values that might contain commas
       const extractValues = (line: string): string[] => {
         const values: string[] = [];
         let inQuotes = false;
         let currentValue = "";
-        
+
         for (let i = 0; i < line.length; i++) {
           const char = line[i];
-          
+
           if (char === '"') {
             // Toggle quote state
             inQuotes = !inQuotes;
@@ -1223,63 +1223,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
             currentValue += char;
           }
         }
-        
+
         // Add the last value
         values.push(currentValue.trim());
-        
+
         return values;
       };
-      
+
       // Extract headers from the first line
       const headers = extractValues(nonEmptyLines[0]).map(header => header.trim().toLowerCase());
-      
+
       // Check if the first row is a header row by looking for expected column names
       const isFirstRowHeader = headers.some(header => 
         ['longitude', 'latitude', 'moisture', 'readingdate', 'roadassetid'].includes(header)
       );
-      
+
       console.log("Headers:", headers);
       console.log("Is first row header:", isFirstRowHeader);
-      
+
       // Determine which row to start processing from (skip header row if present)
       const startRow = isFirstRowHeader ? 1 : 0;
-      
+
       let importedCount = 0;
       let errorCount = 0;
       let newAssetsCreated = 0;
       let updatedAssets = new Set<number>();
       let errorDetails: Array<{ row: number, message: string }> = [];
-      
+
       // Loop through data rows (skipping header if present)
       for (let i = startRow; i < nonEmptyLines.length; i++) {
         try {
           // For data rows, use the same careful splitting
           const values = extractValues(nonEmptyLines[i]);
-          
+
           console.log(`Row ${i} values:`, values);
-          
+
           // Extract data from the CSV line
           let longitude: number | undefined;
           let latitude: number | undefined;
           let moisture: number | undefined;
           let readingDate: Date | undefined;
           let roadAssetId: string | undefined;
-          
+
           // Store what we found in the row for better error messages
           const rowData: Record<string, string> = {};
-          
+
           // Check if the CSV line has enough values
           if (values.length < 3) {
             throw new Error(`Insufficient data in row (expected at least longitude, latitude, and moisture values but found only ${values.length} column(s))`);
           }
-          
+
           headers.forEach((header, index) => {
             const value = values[index]?.trim();
             if (!value) return;
-            
+
             // Store what we found for better error reporting
             rowData[header.toLowerCase()] = value;
-            
+
             switch (header.toLowerCase()) {
               case 'longitude':
                 longitude = parseFloat(value);
@@ -1288,14 +1288,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 latitude = parseFloat(value);
                 break;
               case 'moisture':
-                moisture = parseFloat(value);
+                // Parse the moisture value from the row data (support both 'moisture' and 'value' column names)
+          const moistureValue = rowData['moisture'] || rowData['value'] || '';
+          const moisture = parseFloat(moistureValue);
+
+          // Ensure moisture is valid
+          if (moisture === undefined || isNaN(moisture)) {
+            const foundValue = moistureValue || 'missing';
+            throw new Error(`Missing or invalid moisture value: "${foundValue}" (must be a numeric value between 0-100)`);
+          }
                 break;
               case 'readingdate':
                 // Handle a variety of date formats using a more robust parsing approach
                 try {
                   // Try standard Date constructor first
                   const parsedDate = new Date(value);
-                  
+
                   // Check if the date is valid
                   if (!isNaN(parsedDate.getTime())) {
                     readingDate = parsedDate;
@@ -1306,15 +1314,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       .replace(/\(.*\)/g, '') // Remove anything in parentheses
                       .replace(/\.(\d+)$/, 'Z') // Replace trailing milliseconds with Z
                       .trim();
-                      
+
                     readingDate = new Date(cleanedValue);
-                    
+
                     // If still invalid, try one more approach with manual parsing
                     if (isNaN(readingDate.getTime())) {
                       // Try to match various date formats with regex
                       const dateRegex = /(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})[T ]?(\d{1,2})?:?(\d{1,2})?:?(\d{1,2})?/;
                       const match = value.match(dateRegex);
-                      
+
                       if (match) {
                         const [_, year, month, day, hour = '0', minute = '0', second = '0'] = match;
                         readingDate = new Date(
@@ -1328,7 +1336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       }
                     }
                   }
-                  
+
                   // If all parsing attempts failed, throw an error with the problematic value
                   if (readingDate === undefined || isNaN(readingDate.getTime())) {
                     throw new Error(`Invalid date format: "${value}". Try using a standard format like YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS`);
@@ -1348,46 +1356,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 break;
             }
           });
-          
+
           // Validate required fields with specific error messages that include the actual values
           if (longitude === undefined || isNaN(longitude)) {
             const foundValue = rowData['longitude'] || 'missing';
             throw new Error(`Missing or invalid longitude value: "${foundValue}" (must be a numeric value)`);
           }
-          
+
           // Validate longitude range (-180 to 180 degrees)
           if (longitude < -180 || longitude > 180) {
             throw new Error(`Longitude value out of range: ${longitude} (must be between -180 and 180 degrees)`);
           }
-          
+
           if (latitude === undefined || isNaN(latitude)) {
             const foundValue = rowData['latitude'] || 'missing';
             throw new Error(`Missing or invalid latitude value: "${foundValue}" (must be a numeric value)`);
           }
-          
+
           // Validate latitude range (-90 to 90 degrees)
           if (latitude < -90 || latitude > 90) {
             throw new Error(`Latitude value out of range: ${latitude} (must be between -90 and 90 degrees)`);
           }
-          
+
           if (moisture === undefined || isNaN(moisture)) {
             const foundValue = rowData['moisture'] || 'missing';
             throw new Error(`Missing or invalid moisture value: "${foundValue}" (must be a numeric value between 0-100)`);
           }
-          
+
           // Add range validation for moisture
           if (moisture < 0 || moisture > 100) {
             throw new Error(`Moisture value out of range: ${moisture} (must be between 0-100)`);
           }
-          
+
           // If no date is provided, use current date
           if (!readingDate || isNaN(readingDate.getTime())) {
             readingDate = new Date();
           }
-          
+
           // Find the road asset to update, either by ID or by proximity
           let assetToUpdate;
-          
+
           if (roadAssetId) {
             // If road asset ID is provided, find that specific asset
             assetToUpdate = await storage.getRoadAssetByAssetId(roadAssetId);
@@ -1398,22 +1406,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Otherwise, find the nearest road asset by coordinates
             // For now, we'll just get all assets and find the closest one
             const allAssets = await storage.getRoadAssets();
-            
+
             // Diagnostic logging
             console.log(`MOISTURE IMPORT DIAGNOSTIC: Processing coordinates ${longitude}, ${latitude} with moisture ${moisture}`);
             console.log(`MOISTURE IMPORT DIAGNOSTIC: Found ${allAssets.length} existing road assets`);
-            
+
             // Allow import to proceed even if no assets exist - we'll create a new one
-            
+
             // Find the closest asset based on the coordinates in the geometry
             // This is a simplified approach - in a production app, this would use proper geospatial calculations
             let closestAsset = null;
             let minDistance = Number.MAX_VALUE;
-            
+
             // Define maximum distance threshold - any road further than this will be considered a new road
             // For lat/long, a small value like 0.005 represents roughly 500m
             const MAX_DISTANCE_THRESHOLD = 0.005;
-            
+
             for (const asset of allAssets) {
               if (asset.geometry?.type === "LineString" && Array.isArray(asset.geometry.coordinates)) {
                 // Calculate distance to each point in the line and find the minimum
@@ -1421,13 +1429,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   if (Array.isArray(point) && point.length >= 2) {
                     const assetLong = point[0];
                     const assetLat = point[1];
-                    
+
                     // Simple Euclidean distance calculation (not accurate for geographic coordinates but works for demo)
                     const distance = Math.sqrt(
                       Math.pow(longitude - assetLong, 2) + 
                       Math.pow(latitude - assetLat, 2)
                     );
-                    
+
                     if (distance < minDistance) {
                       minDistance = distance;
                       closestAsset = asset;
@@ -1436,10 +1444,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
             }
-            
+
             // Log the minimum distance found for diagnostic purposes
             console.log(`MOISTURE IMPORT DIAGNOSTIC: Minimum distance to existing road: ${minDistance}`);
-            
+
             // Only consider the asset a match if it's within our distance threshold
             if (closestAsset && minDistance < MAX_DISTANCE_THRESHOLD) {
               console.log(`MOISTURE IMPORT DIAGNOSTIC: Found nearby road asset: ${closestAsset.name} (ID: ${closestAsset.id}) at distance ${minDistance}`);
@@ -1448,16 +1456,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Either no asset was found or the closest one was too far away
               // No road assets found nearby - create a new one
               console.log(`MOISTURE IMPORT DIAGNOSTIC: No matching road asset found, creating new road asset for coordinates: ${longitude}, ${latitude}`);
-              
+
               // Generate a new asset ID based on coordinates
               const newAssetId = `RS-${Math.floor(1000 + Math.random() * 9000)}`;
               console.log(`MOISTURE IMPORT DIAGNOSTIC: Generated new asset ID: ${newAssetId}`);
-              
+
               try {
                 // Use OpenStreetMap API for real geocoding to get accurate road name and location
                 const geoInfo = await reverseGeocode(longitude, latitude);
                 console.log(`MOISTURE IMPORT DIAGNOSTIC: Determined road name from coordinates: "${geoInfo.roadName}" in "${geoInfo.location}"`);
-                
+
                 // Create a new road asset with the real location data from OpenStreetMap
                 const newAssetData = {
                   assetId: newAssetId,
@@ -1476,11 +1484,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     ]
                   }
                 };
-                
+
                 console.log(`MOISTURE IMPORT DIAGNOSTIC: Attempting to create new asset with data:`, newAssetData);
                 const newAsset = await storage.createRoadAsset(newAssetData);
                 console.log(`MOISTURE IMPORT DIAGNOSTIC: Successfully created new road asset with ID: ${newAsset.id}`);
-                
+
                 assetToUpdate = newAsset;
               } catch (createError) {
                 console.error(`MOISTURE IMPORT DIAGNOSTIC: Failed to create new road asset:`, createError);
@@ -1490,7 +1498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               newAssetsCreated++;
             }
           }
-          
+
           // Create a moisture reading with coordinates
           if (assetToUpdate) {
             // Create new moisture reading record
@@ -1501,12 +1509,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               moistureValue: moisture,
               readingDate: readingDate
             });
-            
+
             // Update the last moisture reading timestamp on the road asset
             const updatedAsset = await storage.updateRoadAsset(assetToUpdate.id, {
               lastMoistureReading: readingDate
             });
-            
+
             if (moistureReading && updatedAsset) {
               importedCount++;
               updatedAssets.add(assetToUpdate.id);
@@ -1520,17 +1528,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Adjust row number for error display to account for 1-based counting that users expect
           // and potentially skipped header row
           const displayRowNumber = i + 1;
-          
+
           errorDetails.push({
             row: displayRowNumber,
             message: error instanceof Error ? error.message : "Unknown error processing row"
           });
         }
       }
-      
+
       // Calculate existing assets (total minus new ones)
       const existingAssetsUpdated = updatedAssets.size - newAssetsCreated;
-      
+
       // Log the action
       await storage.createAuditLog({
         userId: 1,
@@ -1541,7 +1549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resourceType: "moisture_reading",
         resourceId: "moisture-import",
       });
-      
+
       res.json({ 
         success: true, 
         message: `Successfully imported ${importedCount} detailed moisture readings with coordinates, creating ${newAssetsCreated} new road assets and updating ${existingAssetsUpdated} existing assets. Errors: ${errorCount}.`,
@@ -1576,10 +1584,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all road assets with moisture readings
       const roadAssets = await storage.getRoadAssets();
       const assetsWithMoisture = roadAssets.filter(asset => asset.lastMoistureReading !== null);
-      
+
       // Create a response map of roadAssetId -> moisture readings
       const responseMap: Record<number, any[]> = {};
-      
+
       // Get moisture readings for each asset
       await Promise.all(
         assetsWithMoisture.map(async (asset) => {
@@ -1589,14 +1597,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         })
       );
-      
+
       res.json(responseMap);
     } catch (error) {
       console.error("Error getting all moisture readings:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
-  
+
   app.get("/api/road-assets/:id/moisture-readings", async (req: Request, res: Response) => {
     try {
       const roadAssetId = parseInt(req.params.id);
@@ -1616,7 +1624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
-  
+
   // Get moisture hotspots (top 5% moisture readings) for a specific road asset
   app.get("/api/road-assets/:id/moisture-hotspots", async (req: Request, res: Response) => {
     try {
@@ -1632,29 +1640,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all moisture readings for this road asset
       const readings = await storage.getMoistureReadings(roadAssetId);
-      
+
       if (readings.length === 0) {
         return res.status(404).json({ error: "No moisture readings found for this road asset" });
       }
-      
+
       // Sort readings by moisture value in descending order
       const sortedReadings = [...readings].sort((a, b) => b.moistureValue - a.moistureValue);
-      
+
       // Calculate the number of readings that represent the top 5%
       const topPercentageCount = Math.max(1, Math.ceil(sortedReadings.length * 0.05));
-      
+
       // Get the top 5% readings
       const hotspots = sortedReadings.slice(0, topPercentageCount);
 
       // Check if we should include Street View images from Google Maps
       const includeStreetView = req.query.includeStreetView === 'true';
-      
+
       // Array to hold the enhanced hotspots with street view data if requested
       const enhancedHotspots = await Promise.all(
         hotspots.map(async (hotspot) => {
           // Include Google Maps URL for each hotspot
           const googleMapsUrl = getGoogleMapsUrl(hotspot.latitude, hotspot.longitude);
-          
+
           // If Street View images are requested and we have the API key
           let streetViewImages = [];
           if (includeStreetView && process.env.GOOGLE_MAPS_API_KEY) {
@@ -1664,7 +1672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.error(`Error fetching Street View images for hotspot at (${hotspot.latitude}, ${hotspot.longitude}):`, err);
             }
           }
-          
+
           return {
             ...hotspot,
             googleMapsUrl,
@@ -1672,7 +1680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
+
       res.json({
         roadAsset,
         hotspots: enhancedHotspots,
@@ -1708,7 +1716,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/moisture-readings", async (req: Request, res: Response) => {
     try {
       const validatedData = insertMoistureReadingSchema.parse(req.body);
-      
+
       // Verify the road asset exists
       const roadAsset = await storage.getRoadAsset(validatedData.roadAssetId);
       if (!roadAsset) {
@@ -1724,6 +1732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "Created moisture reading",
         details: `Created moisture reading for road asset ${roadAsset.name} (ID: ${roadAsset.id})`,
         ipAddress: req.ip,
+```text
         resourceType: "moisture_reading",
         resourceId: reading.id.toString(),
       });
@@ -1876,7 +1885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
-  
+
   // Get roadway assets by asset type with tenant filtering
   app.get("/api/asset-types/:id/assets", async (req: Request, res: Response) => {
     try {
@@ -1887,14 +1896,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if tenant_id was provided as a query parameter
       const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id as string) : undefined;
-      
+
       // If user is authenticated, use their current tenant if no tenant_id is provided
       const currentUser = req.user as User | undefined;
       const effectiveTenantId = tenantId || (currentUser?.currentTenantId || undefined);
-      
+
       // Get assets of this type, filtered by tenant if applicable
       const assets = await storage.getRoadwayAssetsByType(assetTypeId, effectiveTenantId);
-      
+
       // Log the action
       await storage.createAuditLog({
         userId: currentUser?.id || 1,
@@ -1912,36 +1921,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
-  
+
   // Associate a roadway asset with a tenant
   app.post("/api/tenants/:tenantId/roadway-assets/:assetId", async (req: Request, res: Response) => {
     try {
       const tenantId = parseInt(req.params.tenantId);
       const assetId = parseInt(req.params.assetId);
-      
+
       if (isNaN(tenantId) || isNaN(assetId)) {
         return res.status(400).json({ message: "Invalid tenant ID or asset ID" });
       }
-      
+
       // Verify the tenant exists
       const tenant = await storage.getTenant(tenantId);
       if (!tenant) {
         return res.status(404).json({ message: "Tenant not found" });
       }
-      
+
       // Verify the asset exists
       const asset = await storage.getRoadwayAsset(assetId);
       if (!asset) {
         return res.status(404).json({ message: "Roadway asset not found" });
       }
-      
+
       // Associate the asset with the tenant
       const success = await storage.assignRoadwayAssetToTenant(tenantId, assetId);
-      
+
       if (!success) {
         return res.status(500).json({ message: "Failed to associate asset with tenant" });
       }
-      
+
       // Log the action
       const currentUser = req.user as User | undefined;
       await storage.createAuditLog({
@@ -1953,31 +1962,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resourceType: "roadway_asset",
         resourceId: assetId.toString(),
       });
-      
+
       res.status(201).json({ message: "Asset associated with tenant successfully" });
     } catch (error) {
       console.error("Error associating asset with tenant:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
-  
+
   // Remove a roadway asset from a tenant
   app.delete("/api/tenants/:tenantId/roadway-assets/:assetId", async (req: Request, res: Response) => {
     try {
       const tenantId = parseInt(req.params.tenantId);
       const assetId = parseInt(req.params.assetId);
-      
+
       if (isNaN(tenantId) || isNaN(assetId)) {
         return res.status(400).json({ message: "Invalid tenant ID or asset ID" });
       }
-      
+
       // Remove the asset from the tenant
       const success = await storage.removeRoadwayAssetFromTenant(tenantId, assetId);
-      
+
       if (!success) {
         return res.status(404).json({ message: "Asset not associated with tenant or association could not be removed" });
       }
-      
+
       // Log the action
       const currentUser = req.user as User | undefined;
       await storage.createAuditLog({
@@ -1989,29 +1998,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resourceType: "roadway_asset",
         resourceId: assetId.toString(),
       });
-      
+
       res.status(200).json({ message: "Asset removed from tenant successfully" });
     } catch (error) {
       console.error("Error removing asset from tenant:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
-  
+
   // Get tenants associated with a roadway asset
   app.get("/api/roadway-assets/:assetId/tenants", async (req: Request, res: Response) => {
     try {
       const assetId = parseInt(req.params.assetId);
-      
+
       if (isNaN(assetId)) {
         return res.status(400).json({ message: "Invalid asset ID" });
       }
-      
+
       // Verify the asset exists
       const asset = await storage.getRoadwayAsset(assetId);
       if (!asset) {
         return res.status(404).json({ message: "Roadway asset not found" });
       }
-      
+
       // We don't have a direct method to get tenants for a roadway asset,
       // so we'll query using SQL directly
       const tenants = await db.execute(sql`
@@ -2020,7 +2029,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         JOIN tenant_roadway_assets tra ON t.id = tra.tenant_id
         WHERE tra.roadway_asset_id = ${assetId}
       `).then(result => result.rows as Tenant[]);
-      
+
       res.json(tenants);
     } catch (error) {
       console.error("Error getting asset tenants:", error);
@@ -2095,11 +2104,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Check if tenant_id was provided as a query parameter
       const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id as string) : undefined;
-      
+
       // If user is authenticated, use their current tenant if no tenant_id is provided
       const currentUser = req.user as User | undefined;
       const effectiveTenantId = tenantId || (currentUser?.currentTenantId || undefined);
-      
+
       const assets = await storage.getRoadwayAssets(effectiveTenantId);
       res.json(assets);
     } catch (error) {
@@ -2117,14 +2126,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if tenant_id was provided as a query parameter
       const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id as string) : undefined;
-      
+
       // If user is authenticated, use their current tenant if no tenant_id is provided
       const currentUser = req.user as User | undefined;
       const effectiveTenantId = tenantId || (currentUser?.currentTenantId || undefined);
-      
+
       console.log(`Fetching roadway asset ID ${id}${effectiveTenantId ? ` for tenant ${effectiveTenantId}` : ''}`);
       const asset = await storage.getRoadwayAsset(id, effectiveTenantId);
-      
+
       if (!asset) {
         return res.status(404).json({ message: "Roadway asset not found" });
       }
@@ -2139,11 +2148,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/roadway-assets", async (req: Request, res: Response) => {
     try {
       const validatedData = insertRoadwayAssetSchema.parse(req.body);
-      
+
       // Check if the asset has coordinates in the geometry field or direct lat/lng fields
       let longitude: number | null = null;
       let latitude: number | null = null;
-      
+
       // Extract coordinates from geometry if available
       if (validatedData.geometry && 
           typeof validatedData.geometry === 'object' &&
@@ -2160,16 +2169,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         longitude = validatedData.longitude;
         latitude = validatedData.latitude;
       }
-      
+
       // If we have coordinates, find the closest road
       if (longitude !== null && latitude !== null) {
         // Get the current user and their tenant for filtering road assets
         const currentUser = req.user as User | undefined;
         const tenantId = currentUser?.currentTenantId;
-        
+
         console.log(`Finding closest road for coordinates: ${longitude}, ${latitude}${tenantId ? ` in tenant ${tenantId}` : ''}`);
         const closestRoadId = await findClosestRoadAsset(longitude, latitude, 0.005, tenantId);
-        
+
         if (closestRoadId) {
           console.log(`Found closest road with ID: ${closestRoadId}`);
           validatedData.roadAssetId = closestRoadId;
@@ -2179,17 +2188,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.log('No coordinates available to find closest road');
       }
-      
+
       // Check for tenant_id in request body, or use current user's tenant if available
       const requestTenantId = req.body.tenant_id ? parseInt(req.body.tenant_id) : undefined;
       const currentUser = req.user as User | undefined;
       const effectiveTenantId = requestTenantId || currentUser?.currentTenantId;
-      
+
       // If we have a tenant ID, add it to the asset data
       if (effectiveTenantId) {
         validatedData.tenantId = effectiveTenantId;
       }
-      
+
       const asset = await storage.createRoadwayAsset(validatedData);
 
       // If we have a tenant ID, associate the asset with the tenant
@@ -2229,7 +2238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get tenant context for filtering
       const currentUser = req.user as User | undefined;
       const effectiveTenantId = currentUser?.currentTenantId;
-      
+
       // Get the asset with tenant filtering
       console.log(`Checking roadway asset ID ${id}${effectiveTenantId ? ` for tenant ${effectiveTenantId}` : ''}`);
       const existingAsset = await storage.getRoadwayAsset(id, effectiveTenantId);
@@ -2238,11 +2247,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validatedData = insertRoadwayAssetSchema.partial().parse(req.body);
-      
+
       // Check if coordinates are being updated
       let longitude: number | null = null;
       let latitude: number | null = null;
-      
+
       // Extract coordinates from geometry if available
       if (validatedData.geometry && 
           typeof validatedData.geometry === 'object' &&
@@ -2259,13 +2268,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         longitude = validatedData.longitude;
         latitude = validatedData.latitude;
       }
-      
+
       // If coordinates were updated, find the closest road
       if (longitude !== null && latitude !== null) {
         // Use the already defined current user and tenant from earlier in this function
         console.log(`Finding closest road for updated asset ID ${id} at coordinates: ${longitude}, ${latitude}${effectiveTenantId ? ` in tenant ${effectiveTenantId}` : ''}`);
         const closestRoadId = await findClosestRoadAsset(longitude, latitude, 0.005, effectiveTenantId);
-        
+
         if (closestRoadId) {
           console.log(`Found closest road with ID: ${closestRoadId} for asset ID: ${id}`);
           validatedData.roadAssetId = closestRoadId;
@@ -2273,27 +2282,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('No close road found for the updated coordinates');
         }
       }
-      
+
       // Check for tenant_id in request body, or use the current tenant context
       const requestTenantId = req.body.tenant_id ? parseInt(req.body.tenant_id) : undefined;
       // Use existing effectiveTenantId that was defined earlier in this function
       const updatedTenantId = requestTenantId || effectiveTenantId;
-      
+
       // If we have a tenant ID and it's different from the existing one, update it
       if (updatedTenantId !== undefined && updatedTenantId !== existingAsset.tenantId) {
         validatedData.tenantId = updatedTenantId;
-        
+
         // Update the tenant association
         if (existingAsset.tenantId) {
           // Remove from old tenant
           await storage.removeRoadwayAssetFromTenant(existingAsset.tenantId, id);
         }
-        
+
         // Add to new tenant
         await storage.assignRoadwayAssetToTenant(updatedTenantId, id);
         console.log(`Updated roadway asset ${id} tenant association to ${updatedTenantId}`);
       }
-      
+
       const updatedAsset = await storage.updateRoadwayAsset(id, validatedData);
 
       // Log the action
@@ -2327,7 +2336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get tenant context for filtering
       const currentUser = req.user as User | undefined;
       const effectiveTenantId = currentUser?.currentTenantId;
-      
+
       // Get the asset with tenant filtering
       console.log(`Checking roadway asset ID ${id}${effectiveTenantId ? ` for tenant ${effectiveTenantId}` : ''}`);
       const existingAsset = await storage.getRoadwayAsset(id, effectiveTenantId);
@@ -2491,7 +2500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Check if asset has coordinates to find the closest road
           let longitude: number | null = null;
           let latitude: number | null = null;
-          
+
           // Extract coordinates from geometry if available
           if (asset.geometry && 
               typeof asset.geometry === 'object' &&
@@ -2508,40 +2517,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
             longitude = asset.longitude;
             latitude = asset.latitude;
           }
-          
+
           // If we have coordinates, find the closest road
           if (longitude !== null && latitude !== null) {
             // Get the current user and their tenant for filtering road assets
             const currentUser = req.user as User | undefined;
             const tenantId = currentUser?.currentTenantId;
-            
+
             console.log(`Finding closest road for imported asset: ${asset.assetId} at coordinates: ${longitude}, ${latitude}${tenantId ? ` in tenant ${tenantId}` : ''}`);
             const closestRoadId = await findClosestRoadAsset(longitude, latitude, 0.005, tenantId);
-            
+
             if (closestRoadId) {
               console.log(`Found closest road with ID: ${closestRoadId} for imported asset: ${asset.assetId}`);
               asset.roadAssetId = closestRoadId;
             }
           }
-          
+
           // Check for tenant_id in request body or use current user's tenant
           const requestTenantId = req.body.tenant_id ? parseInt(req.body.tenant_id) : undefined;
           const currentUser = req.user as User | undefined;
           const effectiveTenantId = requestTenantId || currentUser?.currentTenantId;
-          
+
           // If we have a tenant ID, add it to the asset data
           if (effectiveTenantId) {
             asset.tenantId = effectiveTenantId;
           }
-          
+
           const createdAsset = await storage.createRoadwayAsset(asset);
-          
+
           // If we have a tenant ID, associate the asset with the tenant
           if (effectiveTenantId) {
             await storage.assignRoadwayAssetToTenant(effectiveTenantId, createdAsset.id);
             console.log(`Associated imported roadway asset ${createdAsset.id} with tenant ${effectiveTenantId}`);
           }
-          
+
           results.push({
             success: true,
             assetId: createdAsset.assetId,
@@ -2587,13 +2596,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/export/roadway-assets", async (req: Request, res: Response) => {
     try {
       let assets;
-      
+
       // Get tenant context
       const currentUser = req.user as User | undefined;
       const tenantId = req.query.tenant_id ? 
         parseInt(req.query.tenant_id as string) : 
         (currentUser?.currentTenantId || undefined);
-      
+
       // Filter by asset type if specified
       if (req.query.assetTypeId) {
         const assetTypeId = parseInt(req.query.assetTypeId as string);
@@ -2635,34 +2644,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
-  
+
   app.get("/api/users/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid user ID" });
       }
-      
+
       const user = await storage.getUser(id);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      
+
       res.json(user);
     } catch (error) {
       console.error(`Error fetching user with ID ${req.params.id}:`, error);
       res.status(500).json({ error: "Failed to fetch user" });
     }
   });
-  
+
   app.post("/api/users", async (req: Request, res: Response) => {
     try {
       const userData = insertUserSchema.safeParse(req.body);
-      
+
       if (!userData.success) {
         return res.status(400).json({ error: "Invalid user data", details: userData.error.format() });
       }
-      
+
       // Generate a random username from email if not provided
       let username = userData.data.username;
       if (!username && userData.data.email) {
@@ -2670,14 +2679,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const randomSuffix = crypto.randomBytes(4).toString('hex');
         username = `${emailPrefix}_${randomSuffix}`;
       }
-      
+
       // Check if username already exists using direct SQL
       if (username) {
         const existingUserQuery = `
           SELECT * FROM users WHERE username = $1
         `;
         const existingUserResult = await pool.query(existingUserQuery, [username]);
-        
+
         if (existingUserResult.rows.length > 0) {
           return res.status(409).json({ error: "Username already exists" });
         }
@@ -2689,19 +2698,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           SELECT * FROM users WHERE email = $1
         `;
         const existingEmailResult = await pool.query(existingEmailQuery, [userData.data.email]);
-        
+
         if (existingEmailResult.rows.length > 0) {
           return res.status(409).json({ error: "Email address already exists" });
         }
       }
-      
+
       // For new passwordless users, generate a random temporary password
       // It will be never used since the user will log in with magic links
       let password = userData.data.password;
       if (!password && userData.data.email) {
         password = crypto.randomBytes(16).toString('hex');
       }
-      
+
       // Insert the user using direct SQL
       const createUserQuery = `
         INSERT INTO users (
@@ -2714,7 +2723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ) VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, username, full_name, role, email, is_system_admin AS "isSystemAdmin"
       `;
-      
+
       const userResult = await pool.query(createUserQuery, [
         username,
         password,
@@ -2723,7 +2732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userData.data.email,
         userData.data.isSystemAdmin || false
       ]);
-      
+
       const user = userResult.rows[0];
 
       // If email is provided, try to send a welcome email with magic link
@@ -2736,29 +2745,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // We don't return an error here, user creation was successful
         }
       }
-      
+
       res.status(201).json(user);
     } catch (error) {
       console.error("Error creating user:", error);
       res.status(500).json({ error: "Failed to create user" });
     }
   });
-  
+
   app.put("/api/users/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid user ID" });
       }
-      
+
       // Allow partial updates without requiring all fields
       const userUpdateSchema = insertUserSchema.partial();
       const userData = userUpdateSchema.safeParse(req.body);
-      
+
       if (!userData.success) {
         return res.status(400).json({ error: "Invalid user data", details: userData.error.format() });
       }
-      
+
       // If username is being changed, check that it doesn't conflict with existing users
       if (userData.data.username) {
         const existingUser = await storage.getUserByUsername(userData.data.username);
@@ -2766,38 +2775,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(409).json({ error: "Username already exists" });
         }
       }
-      
+
       const updatedUser = await storage.updateUser(id, userData.data);
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
       }
-      
+
       res.json(updatedUser);
     } catch (error) {
       console.error(`Error updating user with ID ${req.params.id}:`, error);
       res.status(500).json({ error: "Failed to update user" });
     }
   });
-  
+
   app.delete("/api/users/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid user ID" });
       }
-      
+
       const success = await storage.deleteUser(id);
       if (!success) {
         return res.status(404).json({ error: "User not found" });
       }
-      
+
       res.status(204).end();
     } catch (error) {
       console.error(`Error deleting user with ID ${req.params.id}:`, error);
       res.status(500).json({ error: "Failed to delete user" });
     }
   });
-  
+
   // User-Tenant relationship management
   app.get("/api/user-tenants", async (req: Request, res: Response) => {
     try {
@@ -2808,23 +2817,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch user-tenant relationships" });
     }
   });
-  
+
   app.post("/api/user-tenants", async (req: Request, res: Response) => {
     try {
       const userTenantData = insertUserTenantSchema.safeParse(req.body);
-      
+
       if (!userTenantData.success) {
         return res.status(400).json({ error: "Invalid user-tenant data", details: userTenantData.error.format() });
       }
-      
+
       // Check if the user and tenant exist
       const user = await storage.getUser(userTenantData.data.userId);
       const tenant = await storage.getTenant(userTenantData.data.tenantId);
-      
+
       if (!user || !tenant) {
         return res.status(404).json({ error: "User or tenant not found" });
       }
-      
+
       const userTenant = await storage.createUserTenant(userTenantData.data);
       res.status(201).json(userTenant);
     } catch (error) {
@@ -2832,50 +2841,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to create user-tenant relationship" });
     }
   });
-  
+
   app.put("/api/user-tenants/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid user-tenant ID" });
       }
-      
+
       // Allow partial updates of role and isAdmin
       const updateSchema = z.object({
         role: z.string().optional(),
         isAdmin: z.boolean().optional(),
       });
-      
+
       const updateData = updateSchema.safeParse(req.body);
-      
+
       if (!updateData.success) {
         return res.status(400).json({ error: "Invalid update data", details: updateData.error.format() });
       }
-      
+
       const updatedUserTenant = await storage.updateUserTenant(id, updateData.data);
       if (!updatedUserTenant) {
         return res.status(404).json({ error: "User-tenant relationship not found" });
       }
-      
+
       res.json(updatedUserTenant);
     } catch (error) {
       console.error(`Error updating user-tenant relationship with ID ${req.params.id}:`, error);
       res.status(500).json({ error: "Failed to update user-tenant relationship" });
     }
   });
-  
+
   app.delete("/api/user-tenants/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid user-tenant ID" });
       }
-      
+
       const success = await storage.deleteUserTenant(id);
       if (!success) {
         return res.status(404).json({ error: "User-tenant relationship not found" });
       }
-      
+
       res.status(204).end();
     } catch (error) {
       console.error(`Error deleting user-tenant relationship with ID ${req.params.id}:`, error);
