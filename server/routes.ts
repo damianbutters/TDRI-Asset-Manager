@@ -1235,7 +1235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if the first row is a header row by looking for expected column names
       const isFirstRowHeader = headers.some(header => 
-        ['longitude', 'latitude', 'moisture', 'readingdate', 'roadassetid'].includes(header)
+        ['longitude', 'latitude', 'moisture', 'value', 'readingdate', 'roadassetid'].includes(header)
       );
 
       console.log("Headers:", headers);
@@ -1288,15 +1288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 latitude = parseFloat(value);
                 break;
               case 'moisture':
-                // Parse the moisture value from the row data (support both 'moisture' and 'value' column names)
-          const moistureValue = rowData['moisture'] || rowData['value'] || '';
-          const moisture = parseFloat(moistureValue);
-
-          // Ensure moisture is valid
-          if (moisture === undefined || isNaN(moisture)) {
-            const foundValue = moistureValue || 'missing';
-            throw new Error(`Missing or invalid moisture value: "${foundValue}" (must be a numeric value between 0-100)`);
-          }
+              case 'value':
+                moisture = parseFloat(value);
                 break;
               case 'readingdate':
                 // Handle a variety of date formats using a more robust parsing approach
