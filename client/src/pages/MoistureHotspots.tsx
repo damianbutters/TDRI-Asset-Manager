@@ -832,11 +832,27 @@ const MoistureHotspots: React.FC = () => {
                 <dl className="grid grid-cols-1 gap-4 text-sm">
                   <div className="flex flex-col">
                     <dt className="text-gray-500">Total Readings</dt>
-                    <dd className="font-medium">{hotspotsData.totalReadings}</dd>
+                    <dd className="font-medium">
+                      {filteredHotspots ? filteredHotspots.length : hotspotsData.totalReadings}
+                      {filteredHotspots && (
+                        <span className="text-xs text-gray-400 ml-1">
+                          (of {hotspotsData.totalReadings})
+                        </span>
+                      )}
+                    </dd>
                   </div>
                   <div className="flex flex-col">
-                    <dt className="text-gray-500">Hotspot Count (Top 5%)</dt>
-                    <dd className="font-medium">{hotspotsData.hotspotCount}</dd>
+                    <dt className="text-gray-500">
+                      {filteredHotspots ? 'Selected Area Hotspots' : 'Hotspot Count (Top 5%)'}
+                    </dt>
+                    <dd className="font-medium">
+                      {filteredHotspots ? filteredHotspots.length : hotspotsData.hotspotCount}
+                      {filteredHotspots && (
+                        <span className="text-xs text-gray-400 ml-1">
+                          (of {hotspotsData.hotspotCount})
+                        </span>
+                      )}
+                    </dd>
                   </div>
                   <div className="flex flex-col">
                     <dt className="text-gray-500">Moisture Threshold</dt>
