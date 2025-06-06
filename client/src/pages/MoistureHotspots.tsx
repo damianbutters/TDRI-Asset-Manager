@@ -534,7 +534,6 @@ const MoistureHotspots: React.FC = () => {
                           <SelectValue placeholder="Choose a road..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All Roads</SelectItem>
                           {roadAssets?.map((road: RoadAsset) => (
                             <SelectItem key={road.id} value={road.id.toString()}>
                               {road.name} - {road.location}
