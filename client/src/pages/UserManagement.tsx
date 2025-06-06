@@ -246,6 +246,74 @@ export default function UserManagement() {
     },
   });
 
+  // Mutations for tenants
+  const createTenantMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof tenantSchema>) => {
+      const res = await apiRequest("POST", "/api/tenants", data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Tenant created",
+        description: "The tenant has been created successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/tenants"] });
+      setIsTenantDialogOpen(false);
+      tenantForm.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error creating tenant",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateTenantMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: z.infer<typeof tenantSchema> }) => {
+      const res = await apiRequest("PUT", `/api/tenants/${id}`, data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Tenant updated",
+        description: "The tenant has been updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/tenants"] });
+      setIsTenantDialogOpen(false);
+      setSelectedTenant(null);
+      tenantForm.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating tenant",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteTenantMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/tenants/${id}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Tenant deleted",
+        description: "The tenant has been deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/tenants"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error deleting tenant",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Handle user form submission
   const onUserSubmit = (data: z.infer<typeof userSchema>) => {
     const formData = { ...data };
@@ -280,6 +348,15 @@ export default function UserManagement() {
     }
   };
 
+  // Handle tenant form submission
+  const onTenantSubmit = (data: z.infer<typeof tenantSchema>) => {
+    if (selectedTenant) {
+      updateTenantMutation.mutate({ id: selectedTenant.id, data });
+    } else {
+      createTenantMutation.mutate(data);
+    }
+  };
+
   // Handle edit user
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
@@ -290,6 +367,21 @@ export default function UserManagement() {
       isSystemAdmin: user.isSystemAdmin || false,
     });
     setIsUserDialogOpen(true);
+  };
+
+  // Handle edit tenant
+  const handleEditTenant = (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    tenantForm.reset({
+      name: tenant.name,
+      code: tenant.code,
+      description: tenant.description || '',
+      contactEmail: tenant.contactEmail || '',
+      contactPhone: tenant.contactPhone || '',
+      address: tenant.address || '',
+      active: tenant.active,
+    });
+    setIsTenantDialogOpen(true);
   };
 
   // Handle create new user
@@ -326,6 +418,21 @@ export default function UserManagement() {
       isAdmin: false,
     });
     setIsUserTenantDialogOpen(true);
+  };
+
+  // Handle create new tenant
+  const handleCreateTenant = () => {
+    setSelectedTenant(null);
+    tenantForm.reset({
+      name: "",
+      code: "",
+      description: "",
+      contactEmail: "",
+      contactPhone: "",
+      address: "",
+      active: true,
+    });
+    setIsTenantDialogOpen(true);
   };
 
   // Handle delete user
@@ -425,6 +532,82 @@ export default function UserManagement() {
     [userTenants, tenants]
   );
 
+  // Table columns for tenants
+  const tenantColumns = useMemo<ColumnDef<Tenant>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Name",
+      },
+      {
+        accessorKey: "code",
+        header: "Code",
+      },
+      {
+        accessorKey: "description",
+        header: "Description",
+        cell: ({ row }) => {
+          const description = row.original.description;
+          return description ? (
+            <span className="text-sm">{description}</span>
+          ) : (
+            <span className="text-gray-400 text-sm">No description</span>
+          );
+        },
+      },
+      {
+        accessorKey: "contactEmail",
+        header: "Contact Email",
+        cell: ({ row }) => {
+          const email = row.original.contactEmail;
+          return email ? (
+            <span className="text-sm">{email}</span>
+          ) : (
+            <span className="text-gray-400 text-sm">No email</span>
+          );
+        },
+      },
+      {
+        accessorKey: "active",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.active ? "default" : "secondary"}>
+            {row.original.active ? "Active" : "Inactive"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost" 
+              size="icon" 
+              onClick={() => handleEditTenant(row.original)}
+              title="Edit tenant"
+            >
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost" 
+              size="icon"
+              onClick={() => {
+                if (confirm(`Are you sure you want to delete the tenant ${row.original.name}? This action cannot be undone.`)) {
+                  deleteTenantMutation.mutate(row.original.id);
+                }
+              }}
+              title="Delete tenant"
+            >
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
   // Table columns for user tenants
   const userTenantColumns = useMemo<ColumnDef<UserTenant>[]>(
     () => [
@@ -514,6 +697,7 @@ export default function UserManagement() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="tenants">Tenants</TabsTrigger>
           <TabsTrigger value="associations">User-Tenant Associations</TabsTrigger>
         </TabsList>
 
@@ -534,6 +718,28 @@ export default function UserManagement() {
                 <div className="flex justify-center p-4">Loading users...</div>
               ) : (
                 <DataTable columns={userColumns} data={users} />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="tenants">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Tenants</CardTitle>
+                <CardDescription>Manage tenant organizations in the system</CardDescription>
+              </div>
+              <Button onClick={handleCreateTenant}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Tenant
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isLoadingTenants ? (
+                <div className="flex justify-center p-4">Loading tenants...</div>
+              ) : (
+                <DataTable columns={tenantColumns} data={tenants} />
               )}
             </CardContent>
           </Card>
