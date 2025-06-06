@@ -99,6 +99,65 @@ const MoistureHotspots: React.FC = () => {
   const { currentTenant } = useTenant();
   const [selectedRoadId, setSelectedRoadId] = useState<string>('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+  const [isDrawingPolygon, setIsDrawingPolygon] = useState<boolean>(false);
+  const [polygonCoordinates, setPolygonCoordinates] = useState<LatLngTuple[]>([]);
+  const [filteredHotspots, setFilteredHotspots] = useState<MoistureReading[] | null>(null);
+
+  // Function to check if a point is inside a polygon using ray casting algorithm
+  const isPointInPolygon = (point: LatLngTuple, polygon: LatLngTuple[]): boolean => {
+    if (polygon.length < 3) return false;
+    
+    const [lat, lng] = point;
+    let inside = false;
+    
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i];
+      const [xj, yj] = polygon[j];
+      
+      if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+    }
+    
+    return inside;
+  };
+
+  // Function to filter hotspots by polygon area
+  const filterHotspotsByPolygon = (hotspots: MoistureReading[], polygon: LatLngTuple[]): MoistureReading[] => {
+    if (polygon.length < 3) return hotspots;
+    
+    return hotspots.filter(hotspot => 
+      isPointInPolygon([hotspot.latitude, hotspot.longitude], polygon)
+    );
+  };
+
+  // Function to handle polygon completion
+  const handlePolygonComplete = (coordinates: LatLngTuple[]) => {
+    setPolygonCoordinates(coordinates);
+    setIsDrawingPolygon(false);
+    
+    if (hotspotsData?.hotspots) {
+      const filtered = filterHotspotsByPolygon(hotspotsData.hotspots, coordinates);
+      setFilteredHotspots(filtered);
+      
+      toast({
+        title: 'Area Selected',
+        description: `${filtered.length} hotspots found in the selected area.`,
+      });
+    }
+  };
+
+  // Function to clear polygon selection
+  const clearPolygonSelection = () => {
+    setPolygonCoordinates([]);
+    setFilteredHotspots(null);
+    setIsDrawingPolygon(false);
+    
+    toast({
+      title: 'Selection Cleared',
+      description: 'Showing all hotspots for the selected road.',
+    });
+  };
 
   // Fetch road assets
   const { data: roadAssets, isLoading: isLoadingRoads } = useQuery({
@@ -721,20 +780,47 @@ const MoistureHotspots: React.FC = () => {
       {hotspotsData ? (
         <>
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">
-              Hotspots for {hotspotsData.roadAsset.name}
-            </h2>
-            <Button 
-              onClick={handleGeneratePdf}
-              disabled={isGeneratingPdf}
-            >
-              {isGeneratingPdf ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
+            <div>
+              <h2 className="text-2xl font-bold">
+                Hotspots for {hotspotsData.roadAsset.name}
+              </h2>
+              {filteredHotspots && (
+                <p className="text-sm text-gray-600 mt-1">
+                  Showing {filteredHotspots.length} of {hotspotsData.hotspots.length} hotspots in selected area
+                </p>
               )}
-              Generate PDF Report
-            </Button>
+            </div>
+            <div className="flex gap-2">
+              {polygonCoordinates.length > 0 ? (
+                <Button 
+                  variant="outline"
+                  onClick={clearPolygonSelection}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Clear Area
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline"
+                  onClick={() => setIsDrawingPolygon(true)}
+                  disabled={isDrawingPolygon}
+                >
+                  <Edit3 className="mr-2 h-4 w-4" />
+                  Select Area
+                </Button>
+              )}
+              <Button 
+                onClick={handleGeneratePdf}
+                disabled={isGeneratingPdf}
+              >
+                {isGeneratingPdf ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Generate PDF Report
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -771,11 +857,22 @@ const MoistureHotspots: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Hotspot Distribution</CardTitle>
+                {isDrawingPolygon && (
+                  <CardDescription className="text-blue-600">
+                    Click on the map to draw a polygon area. Click the first point again to complete.
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent>
                 <div className="h-[300px] rounded-md relative">
                   {hotspotsData && hotspotsData.hotspots.length > 0 ? (
-                    <MapHotspots hotspots={hotspotsData.hotspots} threshold={hotspotsData.threshold} />
+                    <MapHotspots 
+                      hotspots={filteredHotspots || hotspotsData.hotspots} 
+                      threshold={hotspotsData.threshold}
+                      isDrawingPolygon={isDrawingPolygon}
+                      polygonCoordinates={polygonCoordinates}
+                      onPolygonComplete={handlePolygonComplete}
+                    />
                   ) : (
                     <div className="h-full flex items-center justify-center bg-gray-100">
                       <p className="text-gray-500">No hotspots data available</p>
@@ -789,7 +886,7 @@ const MoistureHotspots: React.FC = () => {
           <h3 className="text-xl font-bold mt-12 mb-6">Detailed Hotspots</h3>
           
           <div className="grid grid-cols-1 gap-6">
-            {hotspotsData.hotspots.map((hotspot) => (
+            {(filteredHotspots || hotspotsData.hotspots).map((hotspot) => (
               <Card key={hotspot.id} className="overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4">
                   <div className="p-6">
@@ -883,6 +980,9 @@ const MoistureHotspots: React.FC = () => {
 interface MapHotspotsProps {
   hotspots: MoistureReading[];
   threshold: number;
+  isDrawingPolygon?: boolean;
+  polygonCoordinates?: LatLngTuple[];
+  onPolygonComplete?: (coordinates: LatLngTuple[]) => void;
 }
 
 // Internal component that adjusts the map's view to the bounds
@@ -898,7 +998,72 @@ const MapBoundsComponent = ({ bounds }: { bounds: [[number, number], [number, nu
   return null;
 };
 
-const MapHotspots: React.FC<MapHotspotsProps> = ({ hotspots, threshold }) => {
+// Component for handling polygon drawing interactions
+const PolygonDrawer: React.FC<{
+  isDrawing: boolean;
+  onComplete: (coordinates: LatLngTuple[]) => void;
+}> = ({ isDrawing, onComplete }) => {
+  const map = useMap();
+  const [tempPoints, setTempPoints] = useState<LatLngTuple[]>([]);
+
+  useEffect(() => {
+    if (!isDrawing) {
+      setTempPoints([]);
+      return;
+    }
+
+    const handleMapClick = (e: L.LeafletMouseEvent) => {
+      const newPoint: LatLngTuple = [e.latlng.lat, e.latlng.lng];
+      
+      setTempPoints(prev => {
+        const newPoints = [...prev, newPoint];
+        
+        // If clicking near the first point (within 50 meters), complete the polygon
+        if (newPoints.length >= 3) {
+          const firstPoint = newPoints[0];
+          const distance = map.distance(firstPoint, newPoint);
+          
+          if (distance < 50) { // 50 meters tolerance
+            onComplete(newPoints.slice(0, -1)); // Remove the duplicate last point
+            return [];
+          }
+        }
+        
+        return newPoints;
+      });
+    };
+
+    map.on('click', handleMapClick);
+    
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [isDrawing, map, onComplete]);
+
+  // Render temporary polygon while drawing
+  if (tempPoints.length >= 2) {
+    return (
+      <Polygon
+        positions={tempPoints}
+        color="blue"
+        fillColor="blue"
+        fillOpacity={0.2}
+        weight={2}
+        dashArray="5, 5"
+      />
+    );
+  }
+
+  return null;
+};
+
+const MapHotspots: React.FC<MapHotspotsProps> = ({ 
+  hotspots, 
+  threshold, 
+  isDrawingPolygon = false,
+  polygonCoordinates = [],
+  onPolygonComplete
+}) => {
   // Calculate center point
   const center = useMemo((): LatLngTuple => {
     if (!hotspots || hotspots.length === 0) return [40.7128, -74.0060]; // Default: NYC
@@ -956,6 +1121,25 @@ const MapHotspots: React.FC<MapHotspotsProps> = ({ hotspots, threshold }) => {
         
         {/* Add map bounds handler component */}
         <MapBoundsComponent bounds={bounds} />
+        
+        {/* Render selected polygon area */}
+        {polygonCoordinates.length >= 3 && (
+          <Polygon
+            positions={polygonCoordinates}
+            color="blue"
+            fillColor="blue"
+            fillOpacity={0.1}
+            weight={2}
+          />
+        )}
+        
+        {/* Polygon drawing component */}
+        {isDrawingPolygon && onPolygonComplete && (
+          <PolygonDrawer
+            isDrawing={isDrawingPolygon}
+            onComplete={onPolygonComplete}
+          />
+        )}
         
         {hotspots.map((hotspot) => {
           // Calculate color based on moisture (redder = higher moisture)
