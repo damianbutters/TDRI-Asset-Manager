@@ -369,13 +369,13 @@ const MoistureHotspots: React.FC = () => {
         doc.text(`Analysis Type: Polygon Area Selection (Multi-Road)`, 14, 30);
         doc.text(`Area Points: ${polygonCoordinates.length} vertices`, 14, 38);
       } else if (isRoadWithPolygon) {
-        doc.text(`Road: ${hotspotsData.roadAsset.name}`, 14, 30);
+        doc.text(`Road: ${hotspotsData?.roadAsset?.name || 'Unknown'}`, 14, 30);
         doc.text(`Analysis Type: Road with Polygon Filter`, 14, 38);
         doc.text(`Polygon Points: ${polygonCoordinates.length} vertices`, 14, 46);
       } else {
-        doc.text(`Road: ${hotspotsData.roadAsset.name}`, 14, 30);
+        doc.text(`Road: ${hotspotsData?.roadAsset?.name || 'Unknown'}`, 14, 30);
         doc.text(`Analysis Type: Full Road Analysis`, 14, 38);
-        doc.text(`Road Length: ${hotspotsData.roadAsset.length}m`, 14, 46);
+        doc.text(`Road Length: ${hotspotsData?.roadAsset?.length || 0}m`, 14, 46);
       }
       
       doc.text(`Date: ${format(new Date(), 'MMMM d, yyyy')}`, 14, isRoadWithPolygon ? 54 : 46);
@@ -390,8 +390,8 @@ const MoistureHotspots: React.FC = () => {
       doc.text(`• Lowest moisture reading: ${minMoisture.toFixed(2)}%`, 20, summaryStart + 32);
       
       if (isRoadOnly) {
-        doc.text(`• Road condition score: ${hotspotsData.roadAsset.condition}/100`, 20, summaryStart + 40);
-        doc.text(`• Road material: ${hotspotsData.roadAsset.material}`, 20, summaryStart + 48);
+        doc.text(`• Road condition score: ${hotspotsData?.roadAsset?.condition || 0}/100`, 20, summaryStart + 40);
+        doc.text(`• Road material: ${hotspotsData?.roadAsset?.material || 'Unknown'}`, 20, summaryStart + 48);
       }
       
       // Add hotspots table
@@ -534,7 +534,7 @@ const MoistureHotspots: React.FC = () => {
                           <SelectValue placeholder="Choose a road..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {roadAssets?.map((road: RoadAsset) => (
+                          {(roadAssets || []).map((road: RoadAsset) => (
                             <SelectItem key={road.id} value={road.id.toString()}>
                               {road.name} - {road.location}
                             </SelectItem>
@@ -597,7 +597,7 @@ const MoistureHotspots: React.FC = () => {
 
                     {((filteredHotspots && filteredHotspots.length > 0) || 
                       (areaHotspots && areaHotspots.length > 0) ||
-                      (hotspotsData && hotspotsData.hotspots.length > 0)) && (
+                      (hotspotsData && hotspotsData.hotspots && hotspotsData.hotspots.length > 0)) && (
                       <Button
                         onClick={handleGeneratePdf}
                         disabled={isGeneratingPdf}
