@@ -37,13 +37,26 @@ const userTenantSchema = z.object({
   isAdmin: z.boolean().optional().default(false),
 });
 
+// Form validation schema for tenant creation
+const tenantSchema = z.object({
+  name: z.string().min(2, "Tenant name must be at least 2 characters"),
+  code: z.string().min(2, "Tenant code must be at least 2 characters"),
+  description: z.string().optional(),
+  contactEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
+  contactPhone: z.string().optional(),
+  address: z.string().optional(),
+  active: z.boolean().optional().default(true),
+});
+
 export default function UserManagement() {
   const { toast } = useToast();
   const { currentTenant } = useTenant();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [isUserTenantDialogOpen, setIsUserTenantDialogOpen] = useState(false);
+  const [isTenantDialogOpen, setIsTenantDialogOpen] = useState(false);
   const [selectedUserTenant, setSelectedUserTenant] = useState<UserTenant | null>(null);
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [activeTab, setActiveTab] = useState("users");
 
   // Fetch users
@@ -80,6 +93,20 @@ export default function UserManagement() {
       tenantId: 0,
       role: "",
       isAdmin: false,
+    },
+  });
+
+  // Tenant form setup
+  const tenantForm = useForm<z.infer<typeof tenantSchema>>({
+    resolver: zodResolver(tenantSchema),
+    defaultValues: {
+      name: "",
+      code: "",
+      description: "",
+      contactEmail: "",
+      contactPhone: "",
+      address: "",
+      active: true,
     },
   });
 
