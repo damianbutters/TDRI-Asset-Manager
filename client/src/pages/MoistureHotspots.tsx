@@ -1,8 +1,10 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/hooks/use-tenant';
+import { useQuery } from '@tanstack/react-query';
 import { MapContainer, TileLayer, CircleMarker, Popup, Polygon, useMap } from 'react-leaflet';
 import { Loader2, FileText, Trash2, Edit3, MapPin, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -12,6 +14,23 @@ import 'leaflet/dist/leaflet.css';
 
 // Type definitions
 type LatLngTuple = [number, number];
+
+interface RoadAsset {
+  id: number;
+  name: string;
+  location: string;
+  length: number;
+  width: number;
+  lanes: number;
+  type: string;
+  material: string;
+  condition: number;
+  lastInspection: string | null;
+  lastMaintenance: string | null;
+  lastMoistureReading: string | null;
+  averageRainfall: number | null;
+  geometry: any;
+}
 
 interface MoistureReading {
   id: number;
@@ -27,6 +46,14 @@ interface MoistureReading {
     direction: number;
     base64?: string;
   }[];
+}
+
+interface HotspotsResponse {
+  roadAsset: RoadAsset;
+  hotspots: MoistureReading[];
+  totalReadings: number;
+  hotspotCount: number;
+  threshold: number;
 }
 
 interface AutoTableOptions {
@@ -254,11 +281,53 @@ const MapHotspots: React.FC<MapHotspotsProps> = ({
 const MoistureHotspots: React.FC = () => {
   const { toast } = useToast();
   const { currentTenant } = useTenant();
+  const [selectedRoadId, setSelectedRoadId] = useState<string>('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [isDrawingPolygon, setIsDrawingPolygon] = useState<boolean>(false);
   const [polygonCoordinates, setPolygonCoordinates] = useState<LatLngTuple[]>([]);
   const [areaHotspots, setAreaHotspots] = useState<MoistureReading[] | null>(null);
   const [isLoadingAreaData, setIsLoadingAreaData] = useState<boolean>(false);
+  const [filteredHotspots, setFilteredHotspots] = useState<MoistureReading[] | null>(null);
+
+  // Function to check if a point is inside a polygon using ray casting algorithm
+  const isPointInPolygon = (point: LatLngTuple, polygon: LatLngTuple[]): boolean => {
+    if (polygon.length < 3) return false;
+    
+    const [lat, lng] = point;
+    let inside = false;
+    
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i];
+      const [xj, yj] = polygon[j];
+      
+      if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+    }
+    
+    return inside;
+  };
+
+  // Function to filter hotspots by polygon area
+  const filterHotspotsByPolygon = (hotspots: MoistureReading[], polygon: LatLngTuple[]): MoistureReading[] => {
+    if (polygon.length < 3) return hotspots;
+    
+    return hotspots.filter(hotspot => 
+      isPointInPolygon([hotspot.latitude, hotspot.longitude], polygon)
+    );
+  };
+
+  // Fetch road assets
+  const { data: roadAssets, isLoading: isLoadingRoads } = useQuery({
+    queryKey: ['/api/road-assets', currentTenant?.id],
+    enabled: !!currentTenant,
+  });
+
+  // Fetch hotspots data when road is selected
+  const { data: hotspotsData, isLoading: isLoadingHotspots, refetch: refetchHotspots } = useQuery<HotspotsResponse>({
+    queryKey: ['/api/road-assets', selectedRoadId, 'moisture-hotspots'],
+    enabled: !!selectedRoadId,
+  });
 
   // Function to fetch moisture data for the selected area
   const fetchAreaMoistureData = async (coordinates: LatLngTuple[]) => {
@@ -304,12 +373,26 @@ const MoistureHotspots: React.FC = () => {
   const handlePolygonComplete = (coordinates: LatLngTuple[]) => {
     setPolygonCoordinates(coordinates);
     setIsDrawingPolygon(false);
-    fetchAreaMoistureData(coordinates);
+    
+    if (hotspotsData?.hotspots) {
+      // If we have road data, filter it by polygon
+      const filtered = filterHotspotsByPolygon(hotspotsData.hotspots, coordinates);
+      setFilteredHotspots(filtered);
+      
+      toast({
+        title: 'Area Selected',
+        description: `${filtered.length} hotspots found in the selected area.`,
+      });
+    } else {
+      // If no road selected, fetch area data across all roads
+      fetchAreaMoistureData(coordinates);
+    }
   };
 
   // Function to clear polygon selection
   const clearPolygonSelection = () => {
     setPolygonCoordinates([]);
+    setFilteredHotspots(null);
     setAreaHotspots(null);
     setIsDrawingPolygon(false);
     
@@ -323,10 +406,12 @@ const MoistureHotspots: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   
   const handleGeneratePdf = async () => {
-    if (!areaHotspots || areaHotspots.length === 0) {
+    const currentHotspots = filteredHotspots || areaHotspots || hotspotsData?.hotspots;
+    
+    if (!currentHotspots || currentHotspots.length === 0) {
       toast({
         title: 'No Data Available',
-        description: 'Please select an area with moisture readings to generate a report.',
+        description: 'Please select a road or area with moisture readings to generate a report.',
         variant: 'destructive',
       });
       return;
@@ -362,32 +447,63 @@ const MoistureHotspots: React.FC = () => {
         console.log("Map reference not found, skipping map capture");
       }
       
-      // Calculate area statistics
-      const totalReadings = areaHotspots.length;
-      const averageMoisture = areaHotspots.reduce((sum, h) => sum + h.moistureValue, 0) / totalReadings;
-      const maxMoisture = Math.max(...areaHotspots.map(h => h.moistureValue));
-      const minMoisture = Math.min(...areaHotspots.map(h => h.moistureValue));
+      // Determine report type and data source
+      const isAreaAnalysis = !!areaHotspots;
+      const isRoadWithPolygon = !!filteredHotspots && !!hotspotsData;
+      const isRoadOnly = !!hotspotsData && !filteredHotspots;
+      
+      // Calculate statistics
+      const totalReadings = currentHotspots.length;
+      const averageMoisture = currentHotspots.reduce((sum, h) => sum + h.moistureValue, 0) / totalReadings;
+      const maxMoisture = Math.max(...currentHotspots.map(h => h.moistureValue));
+      const minMoisture = Math.min(...currentHotspots.map(h => h.moistureValue));
       
       // Add title and summary
       doc.setFontSize(20);
-      doc.text('Moisture Hotspots Report - Area Analysis', 105, 15, { align: 'center' });
+      let reportTitle = 'Moisture Hotspots Report';
+      if (isAreaAnalysis) {
+        reportTitle += ' - Multi-Road Area Analysis';
+      } else if (isRoadWithPolygon) {
+        reportTitle += ` - ${hotspotsData.roadAsset.name} (Selected Area)`;
+      } else if (isRoadOnly) {
+        reportTitle += ` - ${hotspotsData.roadAsset.name}`;
+      }
+      
+      doc.text(reportTitle, 105, 15, { align: 'center' });
       
       doc.setFontSize(12);
-      doc.text(`Analysis Type: Polygon Area Selection`, 14, 30);
-      doc.text(`Area Points: ${polygonCoordinates.length} vertices`, 14, 38);
-      doc.text(`Date: ${format(new Date(), 'MMMM d, yyyy')}`, 14, 46);
-      doc.text(`Tenant: ${currentTenant?.name || 'All'}`, 14, 54);
+      if (isAreaAnalysis) {
+        doc.text(`Analysis Type: Polygon Area Selection (Multi-Road)`, 14, 30);
+        doc.text(`Area Points: ${polygonCoordinates.length} vertices`, 14, 38);
+      } else if (isRoadWithPolygon) {
+        doc.text(`Road: ${hotspotsData.roadAsset.name}`, 14, 30);
+        doc.text(`Analysis Type: Road with Polygon Filter`, 14, 38);
+        doc.text(`Polygon Points: ${polygonCoordinates.length} vertices`, 14, 46);
+      } else {
+        doc.text(`Road: ${hotspotsData.roadAsset.name}`, 14, 30);
+        doc.text(`Analysis Type: Full Road Analysis`, 14, 38);
+        doc.text(`Road Length: ${hotspotsData.roadAsset.length}m`, 14, 46);
+      }
+      
+      doc.text(`Date: ${format(new Date(), 'MMMM d, yyyy')}`, 14, isRoadWithPolygon ? 54 : 46);
+      doc.text(`Tenant: ${currentTenant?.name || 'All'}`, 14, isRoadWithPolygon ? 62 : 54);
       
       // Summary information
-      doc.text('Report Summary:', 14, 66);
-      doc.text(`• Total moisture readings in area: ${totalReadings}`, 20, 74);
-      doc.text(`• Average moisture level: ${averageMoisture.toFixed(2)}%`, 20, 82);
-      doc.text(`• Highest moisture reading: ${maxMoisture.toFixed(2)}%`, 20, 90);
-      doc.text(`• Lowest moisture reading: ${minMoisture.toFixed(2)}%`, 20, 98);
+      const summaryStart = isRoadWithPolygon ? 74 : 66;
+      doc.text('Report Summary:', 14, summaryStart);
+      doc.text(`• Total moisture readings: ${totalReadings}`, 20, summaryStart + 8);
+      doc.text(`• Average moisture level: ${averageMoisture.toFixed(2)}%`, 20, summaryStart + 16);
+      doc.text(`• Highest moisture reading: ${maxMoisture.toFixed(2)}%`, 20, summaryStart + 24);
+      doc.text(`• Lowest moisture reading: ${minMoisture.toFixed(2)}%`, 20, summaryStart + 32);
+      
+      if (isRoadOnly) {
+        doc.text(`• Road condition score: ${hotspotsData.roadAsset.condition}/100`, 20, summaryStart + 40);
+        doc.text(`• Road material: ${hotspotsData.roadAsset.material}`, 20, summaryStart + 48);
+      }
       
       // Add hotspots table
       const tableColumns = ['ID', 'Date', 'Moisture %', 'Depth (cm)', 'Coordinates'];
-      const tableRows = areaHotspots.map(spot => [
+      const tableRows = currentHotspots.map(spot => [
         spot.id.toString(),
         format(new Date(spot.readingDate), 'MM/dd/yyyy'),
         spot.moistureValue.toFixed(2),
