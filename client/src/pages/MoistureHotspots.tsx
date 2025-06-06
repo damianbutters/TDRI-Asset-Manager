@@ -727,6 +727,27 @@ const MoistureHotspots: React.FC = () => {
                           </div>
                         </div>
                       )}
+
+                      {/* PDF Export Button */}
+                      <div className="pt-4 border-t">
+                        <Button
+                          onClick={handleGeneratePdf}
+                          disabled={isGeneratingPdf}
+                          className="w-full"
+                        >
+                          {isGeneratingPdf ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Generating PDF...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Export PDF Report
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   );
                 } else if ((selectedRoadId && isLoadingHotspots) || isLoadingAreaData) {
