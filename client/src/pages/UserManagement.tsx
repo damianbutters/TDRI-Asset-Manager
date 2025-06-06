@@ -957,6 +957,131 @@ export default function UserManagement() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Tenant Dialog */}
+      <Dialog open={isTenantDialogOpen} onOpenChange={setIsTenantDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedTenant ? "Edit Tenant" : "Create New Tenant"}
+            </DialogTitle>
+          </DialogHeader>
+          <Form {...tenantForm}>
+            <form onSubmit={tenantForm.handleSubmit(onTenantSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={tenantForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tenant Name *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g., City of Mechanicsville" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={tenantForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tenant Code *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g., MECH" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={tenantForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Brief description of the tenant organization" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={tenantForm.control}
+                  name="contactEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contact Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" {...field} placeholder="contact@organization.com" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={tenantForm.control}
+                  name="contactPhone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contact Phone</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="(555) 123-4567" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={tenantForm.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="123 Main St, City, State 12345" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={tenantForm.control}
+                name="active"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Active Tenant</FormLabel>
+                      <p className="text-sm text-gray-500">
+                        Active tenants can access the system and manage their data
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button 
+                  type="submit" 
+                  disabled={createTenantMutation.isPending || updateTenantMutation.isPending}
+                >
+                  {(createTenantMutation.isPending || updateTenantMutation.isPending) ? "Saving..." : "Save"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
