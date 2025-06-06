@@ -85,190 +85,93 @@ interface MapHotspotsProps {
   onPolygonComplete?: (coordinates: LatLngTuple[]) => void;
 }
 
-// Component for handling polygon drawing interactions
-const PolygonDrawer: React.FC<{
-  isDrawing: boolean;
-  onComplete: (coordinates: LatLngTuple[]) => void;
-}> = ({ isDrawing, onComplete }) => {
+// Polygon Drawing Map Component
+const PolygonDrawingMap: React.FC<{ onMapClick: (e: any) => void }> = ({ onMapClick }) => {
   const map = useMap();
-  const [tempPoints, setTempPoints] = useState<LatLngTuple[]>([]);
 
   useEffect(() => {
-    if (!isDrawing) {
-      setTempPoints([]);
-      return;
-    }
-
-    const handleMapClick = (e: L.LeafletMouseEvent) => {
-      const newPoint: LatLngTuple = [e.latlng.lat, e.latlng.lng];
-      
-      setTempPoints(prev => {
-        const newPoints = [...prev, newPoint];
-        
-        // If clicking near the first point (within 50 meters), complete the polygon
-        if (newPoints.length >= 3) {
-          const firstPoint = newPoints[0];
-          const distance = map.distance(firstPoint, newPoint);
-          
-          if (distance < 50) { // 50 meters tolerance
-            onComplete(newPoints.slice(0, -1)); // Remove the duplicate last point
-            return [];
-          }
-        }
-        
-        return newPoints;
-      });
-    };
-
-    map.on('click', handleMapClick);
-    
+    map.on('click', onMapClick);
     return () => {
-      map.off('click', handleMapClick);
+      map.off('click', onMapClick);
     };
-  }, [isDrawing, map, onComplete]);
-
-  // Render temporary polygon while drawing
-  if (tempPoints.length >= 2) {
-    return (
-      <Polygon
-        positions={tempPoints}
-        color="blue"
-        fillColor="blue"
-        fillOpacity={0.2}
-        weight={2}
-        dashArray="5, 5"
-      />
-    );
-  }
+  }, [map, onMapClick]);
 
   return null;
 };
 
-// Map bounds management component
-const MapBoundsComponent: React.FC<{ bounds: L.LatLngBounds | null }> = ({ bounds }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (bounds && bounds.isValid()) {
-      try {
-        map.fitBounds(bounds, { padding: [20, 20] });
-      } catch (error) {
-        console.error('Error setting map bounds:', error);
-      }
-    }
-  }, [bounds, map]);
-
-  return null;
-};
-
+// Map Component for Hotspots
 const MapHotspots: React.FC<MapHotspotsProps> = ({ 
   hotspots, 
   threshold, 
-  isDrawingPolygon = false,
-  polygonCoordinates = [],
-  onPolygonComplete
+  isDrawingPolygon = false, 
+  polygonCoordinates = [], 
+  onPolygonComplete 
 }) => {
-  // Calculate center point
-  const center = useMemo((): LatLngTuple => {
-    if (!hotspots || hotspots.length === 0) return [40.7128, -74.0060]; // Default: NYC
-    
-    const avgLat = hotspots.reduce((sum, h) => sum + h.latitude, 0) / hotspots.length;
-    const avgLng = hotspots.reduce((sum, h) => sum + h.longitude, 0) / hotspots.length;
-    
-    return [avgLat, avgLng];
-  }, [hotspots]);
+  const handleMapClick = (e: any) => {
+    if (isDrawingPolygon && onPolygonComplete) {
+      const newPoint: LatLngTuple = [e.latlng.lat, e.latlng.lng];
+      const newCoordinates = [...polygonCoordinates, newPoint];
+      
+      if (newCoordinates.length >= 3) {
+        onPolygonComplete(newCoordinates);
+      }
+    }
+  };
 
-  // Calculate bounds for all hotspots
-  const bounds = useMemo(() => {
-    if (!hotspots || hotspots.length === 0) return null;
-    
-    const lats = hotspots.map(h => h.latitude);
-    const lngs = hotspots.map(h => h.longitude);
-    
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-    
-    return L.latLngBounds([minLat, minLng], [maxLat, maxLng]);
+  const center = useMemo((): LatLngTuple => {
+    if (hotspots && hotspots.length > 0) {
+      const totalLat = hotspots.reduce((sum, hotspot) => sum + hotspot.latitude, 0);
+      const totalLng = hotspots.reduce((sum, hotspot) => sum + hotspot.longitude, 0);
+      return [totalLat / hotspots.length, totalLng / hotspots.length];
+    }
+    return [37.608, -77.374];
   }, [hotspots]);
 
   return (
     <MapContainer
       center={center}
       zoom={13}
-      style={{ width: '100%', height: '100%' }}
-      className="z-0"
+      style={{ height: '100%', width: '100%' }}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       
-      {/* Add map bounds handler component */}
-      <MapBoundsComponent bounds={bounds} />
+      {isDrawingPolygon && <PolygonDrawingMap onMapClick={handleMapClick} />}
       
-      {/* Render selected polygon area */}
-      {polygonCoordinates.length >= 3 && (
+      {polygonCoordinates.length > 0 && (
         <Polygon
           positions={polygonCoordinates}
-          color="blue"
-          fillColor="blue"
-          fillOpacity={0.1}
-          weight={2}
+          pathOptions={{
+            color: 'blue',
+            fillColor: 'lightblue',
+            fillOpacity: 0.3,
+            weight: 2
+          }}
         />
       )}
-      
-      {/* Polygon drawing component */}
-      {isDrawingPolygon && onPolygonComplete && (
-        <PolygonDrawer
-          isDrawing={isDrawingPolygon}
-          onComplete={onPolygonComplete}
-        />
-      )}
-      
-      {hotspots.map((hotspot) => {
-        // Calculate color based on moisture (redder = higher moisture)
-        const intensity = Math.min(100, (hotspot.moistureValue / threshold) * 100);
-        const r = Math.round(255 * (intensity / 100));
-        const g = Math.round(255 * (1 - (intensity / 100)));
-        const b = 50;
 
+      {hotspots.map((hotspot) => {
+        const isHighMoisture = hotspot.moistureValue > threshold;
         return (
           <CircleMarker
             key={hotspot.id}
             center={[hotspot.latitude, hotspot.longitude]}
-            radius={8}
-            fillColor={`rgb(${r}, ${g}, ${b})`}
-            color="white"
-            weight={2}
-            fillOpacity={0.8}
+            radius={isHighMoisture ? 8 : 4}
+            pathOptions={{
+              color: isHighMoisture ? 'red' : 'orange',
+              fillColor: isHighMoisture ? 'red' : 'orange',
+              fillOpacity: 0.7,
+              weight: 2
+            }}
           >
             <Popup>
-              <div className="p-2">
-                <h4 className="font-semibold">Moisture Reading #{hotspot.id}</h4>
-                <p className="text-sm">
-                  <strong>Moisture:</strong> {hotspot.moistureValue.toFixed(2)}%
-                </p>
-                <p className="text-sm">
-                  <strong>Date:</strong> {format(new Date(hotspot.readingDate), 'MMM d, yyyy')}
-                </p>
-                <p className="text-sm">
-                  <strong>Depth:</strong> {hotspot.depth}cm
-                </p>
-                <p className="text-sm">
-                  <strong>Location:</strong> {hotspot.latitude.toFixed(4)}, {hotspot.longitude.toFixed(4)}
-                </p>
-                {hotspot.googleMapsUrl && (
-                  <a 
-                    href={hotspot.googleMapsUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-600 text-sm underline"
-                  >
-                    View on Google Maps
-                  </a>
-                )}
+              <div className="text-sm">
+                <div className="font-medium">Reading #{hotspot.id}</div>
+                <div>Moisture: {hotspot.moistureValue.toFixed(2)}%</div>
+                <div>Depth: {hotspot.depth}cm</div>
+                <div>Date: {format(new Date(hotspot.readingDate), 'MM/dd/yyyy')}</div>
               </div>
             </Popup>
           </CircleMarker>
@@ -341,29 +244,28 @@ const MoistureHotspots: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          polygon: coordinates
-        })
+        body: JSON.stringify({ coordinates }),
       });
-
+      
       if (!response.ok) {
         throw new Error('Failed to fetch area moisture data');
       }
-
+      
       const data = await response.json();
-      setAreaHotspots(data.hotspots);
+      setAreaHotspots(data.readings || []);
       
       toast({
-        title: 'Area Analyzed',
-        description: `Found ${data.totalReadings} moisture readings with ${data.hotspotCount} hotspots in the selected area across ${data.areaInfo.roadsInArea.length} roads.`,
+        title: 'Area Analysis Complete',
+        description: `Found ${data.readings?.length || 0} moisture readings in the selected area.`,
       });
     } catch (error) {
       console.error('Error fetching area moisture data:', error);
       toast({
         title: 'Error',
-        description: 'Failed to analyze the selected area. Please try again.',
+        description: 'Failed to fetch moisture data for the selected area.',
         variant: 'destructive',
       });
+      setAreaHotspots([]);
     } finally {
       setIsLoadingAreaData(false);
     }
@@ -420,28 +322,19 @@ const MoistureHotspots: React.FC = () => {
     setIsGeneratingPdf(true);
     
     try {
-      console.log("Starting PDF generation");
-      
-      // Create a new PDF document with enhanced type
       const doc = new jsPDF() as EnhancedJsPDF;
       
-      // Capture map view if available
-      let mapImageData = null;
+      // Capture map if available
       if (mapRef.current) {
         try {
-          const mapCanvas = await html2canvas(mapRef.current, {
-            height: 400,
-            width: 600,
-            logging: false,
+          const canvas = await html2canvas(mapRef.current, {
             useCORS: true,
-            scale: 1.5,
-            backgroundColor: '#f8f9fa'
+            scale: 1,
           });
-          
-          mapImageData = mapCanvas.toDataURL('image/jpeg', 0.85);
-          console.log("Map view captured successfully");
+          const imgData = canvas.toDataURL('image/png');
+          console.log("Map captured successfully");
         } catch (mapError) {
-          console.error("Error capturing map:", mapError);
+          console.log("Could not capture map:", mapError);
         }
       } else {
         console.log("Map reference not found, skipping map capture");
@@ -516,64 +409,23 @@ const MoistureHotspots: React.FC = () => {
       doc.setFillColor(41, 128, 185);
       doc.rect(0, 0, 210, 40, 'F');
       
-      // Report title on cover page
+      // White text on blue background
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
-      doc.setFont("helvetica", 'bold');
-      doc.text("Moisture Hotspots Report", 105, 25, { align: "center" });
+      doc.text('TDRIPlanner', 105, 25, { align: 'center' });
       
-      // Area analysis subtitle
-      doc.setFontSize(18);
-      doc.text("Area Analysis Report", 105, 60, { align: "center" });
-      
-      // Add the current date
-      doc.setTextColor(100, 100, 100);
-      doc.setFontSize(12);
-      doc.text(format(new Date(), 'MMMM d, yyyy'), 105, 80, { align: "center" });
-      
-      // Add map image if captured
-      if (mapImageData) {
-        try {
-          doc.addImage(mapImageData, 'JPEG', 15, 100, 180, 120);
-          console.log("Map image added to PDF");
-        } catch (imageError) {
-          console.error("Error adding map image to PDF:", imageError);
-        }
-      }
-      
-      // Add new page for data
-      doc.addPage();
-      
-      // Reset text color for content
+      // Reset text color to black
       doc.setTextColor(0, 0, 0);
-      doc.setFont("helvetica", 'normal');
       
-      // Add detailed summary
-      doc.setFontSize(16);
-      doc.text('Area Analysis Summary', 14, 20);
+      // Try to add table using autoTable if available
+      let yPosition = summaryStart + (isRoadOnly ? 60 : 50);
       
-      doc.setFontSize(12);
-      let yPosition = 35;
-      
-      doc.text(`Total Readings in Selected Area: ${totalReadings}`, 14, yPosition);
-      yPosition += 8;
-      doc.text(`Average Moisture Level: ${averageMoisture.toFixed(2)}%`, 14, yPosition);
-      yPosition += 8;
-      doc.text(`Highest Moisture Reading: ${maxMoisture.toFixed(2)}%`, 14, yPosition);
-      yPosition += 8;
-      doc.text(`Lowest Moisture Reading: ${minMoisture.toFixed(2)}%`, 14, yPosition);
-      yPosition += 8;
-      doc.text(`Analysis Date: ${format(new Date(), 'MMMM d, yyyy')}`, 14, yPosition);
-      yPosition += 8;
-      doc.text(`Polygon Vertices: ${polygonCoordinates.length}`, 14, yPosition);
-      
-      // Add moisture readings table using autoTable if available
       if (doc.autoTable) {
         doc.autoTable({
-          startY: yPosition + 15,
+          startY: yPosition,
           head: [tableColumns],
           body: tableRows,
-          theme: 'striped',
+          theme: 'grid',
           headStyles: {
             fillColor: [41, 128, 185],
             textColor: 255
@@ -615,7 +467,7 @@ const MoistureHotspots: React.FC = () => {
       }
       
       // Save the PDF
-      const fileName = `moisture-hotspots-area-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const fileName = `moisture-hotspots-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
       doc.save(fileName);
       
       toast({
@@ -638,217 +490,344 @@ const MoistureHotspots: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Moisture Hotspots Analysis</h1>
-        <p className="text-muted-foreground">
-          Identify and analyze the most problematic moisture areas using polygon area selection
-        </p>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Moisture Hotspots Analysis</h1>
+          <p className="text-muted-foreground">
+            Select a specific road or draw custom areas to analyze moisture readings
+          </p>
+        </div>
       </div>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Area Selection for Moisture Analysis</CardTitle>
-          <CardDescription>
-            Draw a polygon on the map to select an area and analyze all moisture readings within that region (across all roads)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            {polygonCoordinates.length === 0 ? (
-              <div className="text-center p-6 border-2 border-dashed border-gray-300 rounded-lg">
-                <Edit3 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Area Selected</h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  Click "Draw Area" to select a region on the map for moisture analysis
-                </p>
-                <Button 
-                  onClick={() => setIsDrawingPolygon(true)}
-                  disabled={isDrawingPolygon}
-                >
-                  <Edit3 className="mr-2 h-4 w-4" />
-                  Draw Area
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center">
-                  <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-                  <div>
-                    <h4 className="font-medium text-blue-900">Area Selected</h4>
-                    <p className="text-sm text-blue-700">
-                      {areaHotspots?.length || 0} moisture readings found in the selected area
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  variant="outline"
-                  onClick={clearPolygonSelection}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Clear Area
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Map and Controls */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Moisture Analysis Map
+              </CardTitle>
+              <CardDescription>
+                Select a road or draw an area to analyze moisture hotspots
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Selection Controls */}
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    {/* Road Selection */}
+                    <div className="flex-1">
+                      <label className="text-sm font-medium mb-2 block">Select Road</label>
+                      <Select value={selectedRoadId} onValueChange={(value) => {
+                        setSelectedRoadId(value);
+                        // Clear polygon when selecting a road
+                        if (value) {
+                          setPolygonCoordinates([]);
+                          setFilteredHotspots(null);
+                          setAreaHotspots(null);
+                        }
+                      }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose a road..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All Roads</SelectItem>
+                          {roadAssets?.map((road: RoadAsset) => (
+                            <SelectItem key={road.id} value={road.id.toString()}>
+                              {road.name} - {road.location}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-      {isLoadingAreaData ? (
-        <div className="flex items-center justify-center p-12">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <span className="ml-4 text-lg">Analyzing area moisture data...</span>
-        </div>
-      ) : areaHotspots && areaHotspots.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-3">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Moisture Hotspots Map - Area Analysis</CardTitle>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={clearPolygonSelection}>
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Clear Area
-                    </Button>
-                    <Button 
-                      onClick={handleGeneratePdf}
-                      disabled={isGeneratingPdf}
-                    >
-                      {isGeneratingPdf ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="mr-2 h-4 w-4" />
-                          Generate PDF
-                        </>
-                      )}
-                    </Button>
+                    {/* OR separator */}
+                    <div className="flex items-center justify-center">
+                      <span className="text-sm text-muted-foreground bg-background px-2 py-1 rounded border">OR</span>
+                    </div>
+
+                    {/* Area Drawing */}
+                    <div className="flex-1">
+                      <label className="text-sm font-medium mb-2 block">Draw Custom Area</label>
+                      <Button
+                        onClick={() => {
+                          if (isDrawingPolygon) {
+                            setIsDrawingPolygon(false);
+                            toast({
+                              title: 'Drawing Cancelled',
+                              description: 'Polygon drawing cancelled.',
+                            });
+                          } else {
+                            setIsDrawingPolygon(true);
+                            setPolygonCoordinates([]);
+                            setFilteredHotspots(null);
+                            setAreaHotspots(null);
+                            // Clear road selection when drawing
+                            setSelectedRoadId('');
+                            toast({
+                              title: 'Drawing Mode',
+                              description: 'Click on the map to draw a polygon.',
+                            });
+                          }
+                        }}
+                        variant={isDrawingPolygon ? "destructive" : "default"}
+                        disabled={isLoadingAreaData}
+                        className="w-full"
+                      >
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        {isDrawingPolygon ? 'Cancel Drawing' : 'Draw Area'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 flex-wrap">
+                    {polygonCoordinates.length > 0 && (
+                      <Button
+                        onClick={clearPolygonSelection}
+                        variant="outline"
+                        disabled={isLoadingAreaData}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Clear Area
+                      </Button>
+                    )}
+
+                    {((filteredHotspots && filteredHotspots.length > 0) || 
+                      (areaHotspots && areaHotspots.length > 0) ||
+                      (hotspotsData && hotspotsData.hotspots.length > 0)) && (
+                      <Button
+                        onClick={handleGeneratePdf}
+                        disabled={isGeneratingPdf}
+                        variant="outline"
+                      >
+                        {isGeneratingPdf ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4 mr-2" />
+                            Export PDF
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div ref={mapRef} className="h-[600px] rounded-lg overflow-hidden border">
-                  <MapHotspots 
-                    hotspots={areaHotspots} 
-                    threshold={Math.max(...areaHotspots.map(h => h.moistureValue)) * 0.95}
+
+                {/* Map Container */}
+                <div ref={mapRef} style={{ height: '500px', width: '100%' }}>
+                  <MapHotspots
+                    hotspots={filteredHotspots || areaHotspots || hotspotsData?.hotspots || []}
+                    threshold={hotspotsData?.threshold || 35}
                     isDrawingPolygon={isDrawingPolygon}
                     polygonCoordinates={polygonCoordinates}
                     onPolygonComplete={handlePolygonComplete}
                   />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Area Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="grid grid-cols-1 gap-4 text-sm">
-                  <div className="flex flex-col">
-                    <dt className="text-gray-500">Total Readings in Area</dt>
-                    <dd className="font-medium">{areaHotspots.length}</dd>
+                {(isLoadingHotspots || isLoadingAreaData) && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span className="text-muted-foreground">
+                      {isLoadingHotspots ? 'Loading road moisture data...' : 'Loading area moisture data...'}
+                    </span>
                   </div>
-                  <div className="flex flex-col">
-                    <dt className="text-gray-500">Average Moisture</dt>
-                    <dd className="font-medium">
-                      {(areaHotspots.reduce((sum, h) => sum + h.moistureValue, 0) / areaHotspots.length).toFixed(2)}%
-                    </dd>
-                  </div>
-                  <div className="flex flex-col">
-                    <dt className="text-gray-500">Highest Moisture</dt>
-                    <dd className="font-medium">{Math.max(...areaHotspots.map(h => h.moistureValue)).toFixed(2)}%</dd>
-                  </div>
-                  <div className="flex flex-col">
-                    <dt className="text-gray-500">Lowest Moisture</dt>
-                    <dd className="font-medium">{Math.min(...areaHotspots.map(h => h.moistureValue)).toFixed(2)}%</dd>
-                  </div>
-                  <div className="flex flex-col">
-                    <dt className="text-gray-500">Area Points</dt>
-                    <dd className="font-medium">{polygonCoordinates.length} vertices</dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
+                )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Moisture Readings</CardTitle>
-                <CardDescription>
-                  {areaHotspots.length} readings found in selected area
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4 max-h-80 overflow-y-auto">
-                  {areaHotspots.map((hotspot) => {
-                    const maxMoisture = Math.max(...areaHotspots.map(h => h.moistureValue));
-                    const intensity = Math.min(100, (hotspot.moistureValue / maxMoisture) * 100);
-                    const r = Math.round(255 * (intensity / 100));
-                    const g = Math.round(255 * (1 - (intensity / 100)));
-                    const b = 50;
+                {polygonCoordinates.length > 0 && polygonCoordinates.length < 3 && (
+                  <div className="flex items-center gap-2 text-orange-600 bg-orange-50 p-3 rounded-lg">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">Click at least 3 points to create a selection area</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-                    return (
-                      <div 
-                        key={hotspot.id} 
-                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div 
-                            className="w-4 h-4 rounded-full border-2 border-white shadow-md"
-                            style={{ backgroundColor: `rgb(${r}, ${g}, ${b})` }}
-                          />
-                          <span className="text-sm font-medium">
-                            {hotspot.moistureValue.toFixed(2)}%
-                          </span>
+        {/* Statistics Panel */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Analysis Summary</CardTitle>
+              <CardDescription>
+                Statistics for the selected road or area
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const currentHotspots = filteredHotspots || areaHotspots || hotspotsData?.hotspots;
+                const currentThreshold = hotspotsData?.threshold || 35;
+                
+                if (currentHotspots && currentHotspots.length > 0) {
+                  return (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {currentHotspots.length}
+                          </div>
+                          <div className="text-sm text-muted-foreground">Total Readings</div>
                         </div>
-                        <div className="text-xs text-gray-500 space-y-1">
-                          <div>ID: {hotspot.id}</div>
-                          <div>Date: {format(new Date(hotspot.readingDate), 'MMM d, yyyy')}</div>
-                          <div>Depth: {hotspot.depth}cm</div>
-                          <div>Location: {hotspot.latitude.toFixed(4)}, {hotspot.longitude.toFixed(4)}</div>
-                          {hotspot.streetViewImages && hotspot.streetViewImages.length > 0 && (
-                            <div className="mt-2">
-                              <div className="text-xs font-medium mb-1">Street View:</div>
-                              <div className="grid grid-cols-2 gap-1">
-                                {hotspot.streetViewImages.slice(0, 2).map((image: any, idx: number) => (
-                                  <img 
-                                    key={idx}
-                                    src={image.url} 
-                                    alt={`Street view ${idx + 1}`}
-                                    className="w-full h-16 object-cover rounded border"
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-orange-600">
+                            {currentHotspots.filter(h => h.moistureValue > currentThreshold).length}
+                          </div>
+                          <div className="text-sm text-muted-foreground">High Moisture</div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Average Moisture:</span>
+                          <span className="text-sm font-medium">
+                            {(currentHotspots.reduce((sum, h) => sum + h.moistureValue, 0) / currentHotspots.length).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Max Moisture:</span>
+                          <span className="text-sm font-medium">
+                            {Math.max(...currentHotspots.map(h => h.moistureValue)).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Min Moisture:</span>
+                          <span className="text-sm font-medium">
+                            {Math.min(...currentHotspots.map(h => h.moistureValue)).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {hotspotsData && (
+                        <div className="pt-4 border-t">
+                          <h4 className="text-sm font-medium mb-2">Road Details</h4>
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <div>Name: {hotspotsData.roadAsset.name}</div>
+                            <div>Length: {hotspotsData.roadAsset.length}m</div>
+                            <div>Condition: {hotspotsData.roadAsset.condition}/100</div>
+                            {filteredHotspots && (
+                              <div>Area filter: {polygonCoordinates.length} vertices</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {areaHotspots && (
+                        <div className="pt-4 border-t">
+                          <h4 className="text-sm font-medium mb-2">Area Details</h4>
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <div>Polygon vertices: {polygonCoordinates.length}</div>
+                            <div>Multi-road analysis</div>
+                            <div>Analysis timestamp: {format(new Date(), 'HH:mm:ss')}</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                } else if ((selectedRoadId && isLoadingHotspots) || isLoadingAreaData) {
+                  return (
+                    <div className="text-center text-muted-foreground py-8">
+                      <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
+                      <p className="text-sm">Loading moisture data...</p>
+                    </div>
+                  );
+                } else if (polygonCoordinates.length > 0) {
+                  return (
+                    <div className="text-center text-muted-foreground py-8">
+                      <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                      <p className="text-sm">No moisture readings found in the selected area</p>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="text-center text-muted-foreground py-8">
+                      <MapPin className="h-8 w-8 mx-auto mb-2" />
+                      <p className="text-sm">Select a road or draw an area to view analysis</p>
+                    </div>
+                  );
+                }
+              })()}
+            </CardContent>
+          </Card>
+
+          {/* Recent Hotspots List */}
+          {(() => {
+            const currentHotspots = filteredHotspots || areaHotspots || hotspotsData?.hotspots;
+            
+            if (currentHotspots && currentHotspots.length > 0) {
+              return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Moisture Readings</CardTitle>
+                    <CardDescription>
+                      {filteredHotspots ? 'Readings in selected area of road' : 
+                       areaHotspots ? 'Readings within selected area' : 
+                       'All readings for selected road'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {currentHotspots
+                        .sort((a, b) => b.moistureValue - a.moistureValue)
+                        .slice(0, 20)
+                        .map((hotspot) => (
+                          <div
+                            key={hotspot.id}
+                            className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="text-sm font-medium">Reading #{hotspot.id}</div>
+                              <div className={`text-sm font-bold ${
+                                hotspot.moistureValue > 35 ? 'text-red-600' : 
+                                hotspot.moistureValue > 25 ? 'text-orange-600' : 'text-green-600'
+                              }`}>
+                                {hotspot.moistureValue.toFixed(1)}%
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <div>Depth: {hotspot.depth}cm</div>
+                              <div>Date: {format(new Date(hotspot.readingDate), 'MM/dd/yyyy')}</div>
+                              <div>Location: {hotspot.latitude.toFixed(6)}, {hotspot.longitude.toFixed(6)}</div>
+                            </div>
+                            {hotspot.streetViewImages && hotspot.streetViewImages.length > 0 && (
+                              <div className="mt-2">
+                                <div className="text-xs text-muted-foreground mb-1">Street View:</div>
+                                <div className="flex gap-1 flex-wrap">
+                                  {hotspot.streetViewImages.map((image: any, idx: number) => (
+                                    <img
+                                      key={idx}
+                                      src={`data:image/jpeg;base64,${image.base64}`}
+                                      alt={`Street view ${idx + 1}`}
+                                      className="w-16 h-12 object-cover rounded border cursor-pointer hover:scale-105 transition-transform"
+                                      onClick={() => {
+                                        // Open in new tab for larger view
+                                        const newWindow = window.open();
+                                        if (newWindow) {
+                                          newWindow.document.write(`<img src="data:image/jpeg;base64,${image.base64}" style="max-width: 100%; height: auto;" />`);
+                                        }
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+            return null;
+          })()}
         </div>
-      ) : polygonCoordinates.length === 0 ? (
-        <div className="text-center py-12">
-          <MapPin className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Area Selected</h3>
-          <p className="text-gray-500 mb-4">Draw a polygon on the map above to analyze moisture readings in a specific area</p>
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <AlertCircle className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Data Found</h3>
-          <p className="text-gray-500">No moisture readings found in the selected area. Try selecting a different area.</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
