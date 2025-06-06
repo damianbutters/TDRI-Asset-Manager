@@ -1732,7 +1732,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "Created moisture reading",
         details: `Created moisture reading for road asset ${roadAsset.name} (ID: ${roadAsset.id})`,
         ipAddress: req.ip,
-```text
         resourceType: "moisture_reading",
         resourceId: reading.id.toString(),
       });
