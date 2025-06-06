@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Download, ExternalLink, MapPin } from 'lucide-react';
+import { Loader2, Download, ExternalLink, MapPin, Edit3, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -49,8 +49,8 @@ interface EnhancedJsPDF extends jsPDF {
 }
 
 // Leaflet imports for map visualization
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
-import { LatLngBounds, LatLng, LatLngTuple } from 'leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap, Polygon } from 'react-leaflet';
+import L, { LatLngBounds, LatLng, LatLngTuple } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 interface RoadAsset {
