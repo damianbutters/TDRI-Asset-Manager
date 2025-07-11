@@ -27,7 +27,7 @@ interface MapProps {
   zoom?: number;
   onAssetClick?: (asset: RoadAsset) => void;
   initialLayer?: "pci" | "moisture";
-  moistureReadings?: Record<number, MoistureReading[]>;
+  moistureReadings?: Record<number, MoistureReading>;
 }
 
 function MapController({ roadAssets }: { roadAssets: RoadAsset[] }) {
@@ -71,7 +71,7 @@ function MoistureReadingsLayer({
   rangeMode, 
   thresholds 
 }: { 
-  readings: Record<number, MoistureReading[]>;
+  readings: Record<number, MoistureReading>;
   rangeMode: MoistureRangeMode;
   thresholds: MoistureThresholds;
 }) {
@@ -80,72 +80,69 @@ function MoistureReadingsLayer({
   // Process readings based on selected range mode
   return (
     <>
-      {Object.entries(readings).map(([roadAssetId, roadReadings]) => {
-        // Calculate min and max moisture values for this road (used in local mode)
+      {Object.entries(readings).map(([roadAssetId, reading]) => {
+        // Since we now have only one reading per asset, we'll use global thresholds or single value
         let minMoisture = 0;
-        let maxMoisture = 0;
+        let maxMoisture = 100;
         
         if (rangeMode === "local") {
-          const moistureValues = roadReadings.map(r => r.moistureValue);
-          minMoisture = Math.min(...moistureValues);
-          maxMoisture = Math.max(...moistureValues);
-          console.log(`Road ${roadAssetId} moisture range: ${minMoisture} to ${maxMoisture}`);
+          // For local mode with single reading, we'll use the reading value as reference
+          minMoisture = Math.max(0, reading.moistureValue - 5);
+          maxMoisture = Math.min(100, reading.moistureValue + 5);
+          console.log(`Road ${roadAssetId} moisture value: ${reading.moistureValue}`);
         }
         
-        return roadReadings.map(reading => {
-          console.log("Rendering reading:", reading);
+        // Choose color based on range mode
+        let readingColor: string;
+        let rangeInfo: React.ReactNode;
+        
+        if (rangeMode === "local") {
+          // Local mode uses per-road min/max
+          readingColor = getRelativeMoistureColor(
+            reading.moistureValue, 
+            minMoisture, 
+            maxMoisture
+          );
           
-          // Choose color based on range mode
-          let readingColor: string;
-          let rangeInfo: React.ReactNode;
-          
-          if (rangeMode === "local") {
-            // Local mode uses per-road min/max
-            readingColor = getRelativeMoistureColor(
-              reading.moistureValue, 
-              minMoisture, 
-              maxMoisture
-            );
+          // Calculate percentage within range for local mode
+          const percentOfRange = maxMoisture === minMoisture 
+            ? 0 
+            : ((reading.moistureValue - minMoisture) / (maxMoisture - minMoisture) * 100).toFixed(1);
             
-            // Calculate percentage within range for local mode
-            const percentOfRange = maxMoisture === minMoisture 
-              ? 0 
-              : ((reading.moistureValue - minMoisture) / (maxMoisture - minMoisture) * 100).toFixed(1);
-              
-            rangeInfo = (
-              <>
-                <p className="text-xs">
-                  <span className="font-medium">Road Range:</span> {minMoisture.toFixed(2)}% - {maxMoisture.toFixed(2)}%
-                </p>
-                <p className="text-xs">
-                  <span className="font-medium">Relative:</span> {percentOfRange}% of range
-                </p>
-              </>
-            );
-          } else {
-            // Global mode uses user-defined thresholds
-            readingColor = getMoistureColor(reading.moistureValue, thresholds);
-            
-            // Show threshold info for global mode
-            rangeInfo = (
+          rangeInfo = (
+            <>
               <p className="text-xs">
-                <span className="font-medium">Thresholds:</span> Low: {thresholds.low}%, Med: {thresholds.medium}%, High: {thresholds.high}%
+                <span className="font-medium">Road Range:</span> {minMoisture.toFixed(2)}% - {maxMoisture.toFixed(2)}%
               </p>
-            );
-          }
+              <p className="text-xs">
+                <span className="font-medium">Relative:</span> {percentOfRange}% of range
+              </p>
+            </>
+          );
+        } else {
+          // Global mode uses user-defined thresholds
+          readingColor = getMoistureColor(reading.moistureValue, thresholds);
           
-          return (
-            <CircleMarker
-              key={`moisture-point-${reading.id}`}
-              center={[reading.latitude, reading.longitude]}
-              radius={5}
-              pathOptions={{
-                color: readingColor,
-                fillColor: readingColor,
-                fillOpacity: 0.8,
-                weight: 1,
-              }}
-            >
+          // Show threshold info for global mode
+          rangeInfo = (
+            <p className="text-xs">
+              <span className="font-medium">Thresholds:</span> Low: {thresholds.low}%, Med: {thresholds.medium}%, High: {thresholds.high}%
+            </p>
+          );
+        }
+        
+        return (
+          <CircleMarker
+            key={`moisture-point-${reading.id}`}
+            center={[reading.latitude, reading.longitude]}
+            radius={5}
+            pathOptions={{
+              color: readingColor,
+              fillColor: readingColor,
+              fillOpacity: 0.8,
+              weight: 1,
+            }}
+          >
               <Popup>
                 <div className="p-2">
                   <h3 className="font-medium text-sm">Moisture Reading</h3>
@@ -168,8 +165,7 @@ function MoistureReadingsLayer({
               </Popup>
             </CircleMarker>
           );
-        });
-      })}
+        })}
     </>
   );
 }

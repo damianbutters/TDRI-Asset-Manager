@@ -98,6 +98,7 @@ export interface IStorage {
   
   // Moisture reading operations
   getMoistureReadings(roadAssetId: number): Promise<MoistureReading[]>;
+  getLatestMoistureReadings(): Promise<Record<number, MoistureReading>>;
   getMoistureReading(id: number): Promise<MoistureReading | undefined>;
   createMoistureReading(reading: InsertMoistureReading): Promise<MoistureReading>;
   updateMoistureReading(id: number, reading: Partial<InsertMoistureReading>): Promise<MoistureReading | undefined>;
@@ -1198,6 +1199,20 @@ export class MemStorage implements IStorage {
       .filter(reading => reading.roadAssetId === roadAssetId)
       .sort((a, b) => b.readingDate.getTime() - a.readingDate.getTime());
   }
+
+  // Get only the latest moisture reading per asset (optimized for map view)
+  async getLatestMoistureReadings(): Promise<Record<number, MoistureReading>> {
+    const latestReadings: Record<number, MoistureReading> = {};
+    
+    for (const reading of this.moistureReadings.values()) {
+      const assetId = reading.roadAssetId;
+      if (!latestReadings[assetId] || reading.readingDate > latestReadings[assetId].readingDate) {
+        latestReadings[assetId] = reading;
+      }
+    }
+    
+    return latestReadings;
+  }
   
   async getMoistureReading(id: number): Promise<MoistureReading | undefined> {
     return this.moistureReadings.get(id);
@@ -2278,6 +2293,25 @@ export class DatabaseStorage implements IStorage {
       .from(moistureReadings)
       .where(eq(moistureReadings.roadAssetId, roadAssetId))
       .orderBy(desc(moistureReadings.readingDate));
+  }
+
+  // Get only the latest moisture reading per asset (optimized for map view)
+  async getLatestMoistureReadings(): Promise<Record<number, MoistureReading>> {
+    const readings = await db
+      .select()
+      .from(moistureReadings)
+      .orderBy(desc(moistureReadings.readingDate));
+    
+    const latestReadings: Record<number, MoistureReading> = {};
+    
+    for (const reading of readings) {
+      const assetId = reading.roadAssetId;
+      if (!latestReadings[assetId]) {
+        latestReadings[assetId] = reading;
+      }
+    }
+    
+    return latestReadings;
   }
 
   async getMoistureReading(id: number): Promise<MoistureReading | undefined> {

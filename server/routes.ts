@@ -1574,19 +1574,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Moisture Readings Routes
   app.get("/api/moisture-readings", async (req: Request, res: Response) => {
     try {
+      // Parse query parameters for pagination and filtering
+      const limit = parseInt(req.query.limit as string) || 100; // Default limit of 100 per asset
+      const page = parseInt(req.query.page as string) || 1;
+      const offset = (page - 1) * limit;
+
       // Get all road assets with moisture readings
       const roadAssets = await storage.getRoadAssets();
       const assetsWithMoisture = roadAssets.filter(asset => asset.lastMoistureReading !== null);
 
-      // Create a response map of roadAssetId -> moisture readings
+      // Create a response map of roadAssetId -> moisture readings (limited)
       const responseMap: Record<number, any[]> = {};
 
-      // Get moisture readings for each asset
+      // Get moisture readings for each asset (limited to reduce data transfer)
       await Promise.all(
         assetsWithMoisture.map(async (asset) => {
           const readings = await storage.getMoistureReadings(asset.id);
           if (readings.length > 0) {
-            responseMap[asset.id] = readings;
+            // Only return the most recent readings based on limit
+            responseMap[asset.id] = readings.slice(offset, offset + limit);
           }
         })
       );
@@ -1594,6 +1600,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(responseMap);
     } catch (error) {
       console.error("Error getting all moisture readings:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // New optimized endpoint for map view - only gets latest moisture reading per asset
+  app.get("/api/moisture-readings/latest", async (req: Request, res: Response) => {
+    try {
+      // Use the optimized storage method to get latest readings
+      const latestReadings = await storage.getLatestMoistureReadings();
+      res.json(latestReadings);
+    } catch (error) {
+      console.error("Error getting latest moisture readings:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
