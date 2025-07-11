@@ -1574,19 +1574,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Moisture Readings Routes
   app.get("/api/moisture-readings", async (req: Request, res: Response) => {
     try {
+      // Parse query parameters for pagination and filtering
+      const limit = parseInt(req.query.limit as string) || 100; // Default limit of 100 per asset
+      const page = parseInt(req.query.page as string) || 1;
+      const offset = (page - 1) * limit;
+
       // Get all road assets with moisture readings
       const roadAssets = await storage.getRoadAssets();
       const assetsWithMoisture = roadAssets.filter(asset => asset.lastMoistureReading !== null);
 
-      // Create a response map of roadAssetId -> moisture readings
+      // Create a response map of roadAssetId -> moisture readings (limited)
       const responseMap: Record<number, any[]> = {};
 
-      // Get moisture readings for each asset
+      // Get moisture readings for each asset (limited to reduce data transfer)
       await Promise.all(
         assetsWithMoisture.map(async (asset) => {
           const readings = await storage.getMoistureReadings(asset.id);
           if (readings.length > 0) {
-            responseMap[asset.id] = readings;
+            // Only return the most recent readings based on limit
+            responseMap[asset.id] = readings.slice(offset, offset + limit);
           }
         })
       );
@@ -1594,6 +1600,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(responseMap);
     } catch (error) {
       console.error("Error getting all moisture readings:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // New optimized endpoint for map view - only gets latest moisture reading per asset
+  app.get("/api/moisture-readings/latest", async (req: Request, res: Response) => {
+    try {
+      // Use the optimized storage method to get latest readings
+      const latestReadings = await storage.getLatestMoistureReadings();
+      res.json(latestReadings);
+    } catch (error) {
+      console.error("Error getting latest moisture readings:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -1809,130 +1827,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting moisture reading:", error);
       res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  // New endpoint for area-based moisture hotspot analysis
-  app.post("/api/moisture-hotspots/area", async (req: Request, res: Response) => {
-    try {
-      const { polygon } = req.body;
-      
-      if (!polygon || !Array.isArray(polygon) || polygon.length < 3) {
-        return res.status(400).json({ error: "Valid polygon coordinates required (minimum 3 points)" });
-      }
-
-      console.log("AREA HOTSPOTS: Analyzing polygon with", polygon.length, "points");
-
-      // Point-in-polygon algorithm
-      const isPointInPolygon = (point: number[], polygon: number[][]): boolean => {
-        const [lat, lng] = point;
-        let inside = false;
-        
-        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-          const [xi, yi] = polygon[i];
-          const [xj, yj] = polygon[j];
-          
-          if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
-            inside = !inside;
-          }
-        }
-        
-        return inside;
-      };
-
-      // Get all moisture readings for the current tenant
-      const moistureReadings = await storage.getMoistureReadings();
-      
-      console.log("AREA HOTSPOTS: Found", moistureReadings.length, "total moisture readings");
-
-      // Filter readings within the polygon using point-in-polygon algorithm
-      const readingsInArea = moistureReadings.filter(reading => {
-        const point = [reading.latitude, reading.longitude];
-        return isPointInPolygon(point, polygon);
-      });
-
-      console.log("AREA HOTSPOTS: Found", readingsInArea.length, "readings within polygon");
-
-      if (readingsInArea.length === 0) {
-        return res.json({
-          hotspots: [],
-          totalReadings: 0,
-          hotspotCount: 0,
-          threshold: 0,
-          areaInfo: {
-            totalReadingsInArea: 0,
-            roadsInArea: []
-          }
-        });
-      }
-
-      // Calculate the top 5% threshold for hotspots
-      const sortedReadings = readingsInArea
-        .map(r => r.moistureValue)
-        .sort((a, b) => b - a);
-      
-      const hotspotCount = Math.max(1, Math.ceil(sortedReadings.length * 0.05));
-      const threshold = sortedReadings[hotspotCount - 1] || 0;
-
-      console.log("AREA HOTSPOTS: Threshold calculated:", threshold, "for top", hotspotCount, "readings");
-
-      // Get the hotspot readings (top 5%)
-      const hotspots = readingsInArea
-        .filter(reading => reading.moistureValue >= threshold)
-        .sort((a, b) => b.moistureValue - a.moistureValue);
-
-      // Get unique road asset IDs in the area
-      const uniqueRoadIds = [...new Set(readingsInArea.map(r => r.roadAssetId))];
-      const roadsInArea = await Promise.all(
-        uniqueRoadIds.map(async (roadId) => {
-          if (roadId) {
-            const road = await storage.getRoadAsset(roadId);
-            return road ? { id: road.id, name: road.name } : null;
-          }
-          return null;
-        })
-      );
-
-      const validRoadsInArea = roadsInArea.filter(road => road !== null);
-
-      // Add street view data for hotspots
-      const hotspotsWithStreetView = await Promise.all(
-        hotspots.map(async (hotspot) => {
-          try {
-            const streetViewImages = await getStreetViewImages(hotspot.latitude, hotspot.longitude);
-            const googleMapsUrl = `https://www.google.com/maps?q=${hotspot.latitude},${hotspot.longitude}`;
-            
-            return {
-              ...hotspot,
-              streetViewImages,
-              googleMapsUrl
-            };
-          } catch (error) {
-            console.error('Error getting street view for hotspot:', error);
-            return {
-              ...hotspot,
-              streetViewImages: [],
-              googleMapsUrl: `https://www.google.com/maps?q=${hotspot.latitude},${hotspot.longitude}`
-            };
-          }
-        })
-      );
-
-      res.json({
-        hotspots: hotspotsWithStreetView,
-        totalReadings: readingsInArea.length,
-        hotspotCount,
-        threshold,
-        areaInfo: {
-          totalReadingsInArea: readingsInArea.length,
-          roadsInArea: validRoadsInArea,
-          polygonPoints: polygon.length
-        }
-      });
-
-    } catch (error) {
-      console.error('Error analyzing area hotspots:', error);
-      res.status(500).json({ error: 'Failed to analyze area hotspots' });
     }
   });
 
