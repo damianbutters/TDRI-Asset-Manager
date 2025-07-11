@@ -2300,21 +2300,27 @@ export class DatabaseStorage implements IStorage {
 
   // Get only the latest moisture reading per coordinate (optimized for map view)
   async getLatestMoistureReadings(): Promise<Record<string, MoistureReading>> {
-    const readings = await db
-      .select()
-      .from(moistureReadings)
-      .orderBy(desc(moistureReadings.createdAt));
+    // Use proper Drizzle ORM with raw SQL for PostgreSQL DISTINCT ON
+    const result = await pool.query(`
+      SELECT DISTINCT ON (latitude, longitude) 
+        id, road_asset_id, latitude, longitude, moisture_value, reading_date, created_at
+      FROM moisture_readings 
+      ORDER BY latitude, longitude, created_at DESC
+    `);
     
     const latestReadings: Record<string, MoistureReading> = {};
     
-    for (const reading of readings) {
-      // Create coordinate key from lat/lng
-      const coordinateKey = `${reading.latitude},${reading.longitude}`;
-      
-      // Use createdAt (import timestamp) to determine latest reading for this coordinate
-      if (!latestReadings[coordinateKey]) {
-        latestReadings[coordinateKey] = reading;
-      }
+    for (const row of result.rows) {
+      const coordinateKey = `${row.latitude},${row.longitude}`;
+      latestReadings[coordinateKey] = {
+        id: row.id as number,
+        roadAssetId: row.road_asset_id as number,
+        latitude: row.latitude as number,
+        longitude: row.longitude as number,
+        moistureValue: row.moisture_value as number,
+        readingDate: new Date(row.reading_date as string),
+        createdAt: new Date(row.created_at as string)
+      };
     }
     
     return latestReadings;

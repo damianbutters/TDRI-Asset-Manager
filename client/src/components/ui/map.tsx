@@ -75,44 +75,50 @@ function MoistureReadingsLayer({
   rangeMode: MoistureRangeMode;
   thresholds: MoistureThresholds;
 }) {
-  console.log("Moisture readings in layer:", readings, "Range mode:", rangeMode);
+  // Moisture readings layer with optimized coordinate-based grouping
+  
+  // For local mode, calculate min/max across all readings for proper relative coloring
+  let globalMinMoisture = 0;
+  let globalMaxMoisture = 100;
+  
+  if (rangeMode === "local" && Object.keys(readings).length > 0) {
+    const moistureValues = Object.values(readings).map(r => r.moistureValue);
+    globalMinMoisture = Math.min(...moistureValues);
+    globalMaxMoisture = Math.max(...moistureValues);
+    
+    // Ensure we have some range to work with
+    if (globalMaxMoisture === globalMinMoisture) {
+      globalMinMoisture = Math.max(0, globalMinMoisture - 5);
+      globalMaxMoisture = Math.min(100, globalMaxMoisture + 5);
+    }
+  }
   
   // Process readings based on selected range mode
   return (
     <>
       {Object.entries(readings).map(([coordinateKey, reading]) => {
-        // Since we now have only one reading per asset, we'll use global thresholds or single value
-        let minMoisture = 0;
-        let maxMoisture = 100;
-        
-        if (rangeMode === "local") {
-          // For local mode with single reading, we'll use the reading value as reference
-          minMoisture = Math.max(0, reading.moistureValue - 5);
-          maxMoisture = Math.min(100, reading.moistureValue + 5);
-          console.log(`Coordinate ${coordinateKey} moisture value: ${reading.moistureValue}`);
-        }
         
         // Choose color based on range mode
         let readingColor: string;
         let rangeInfo: React.ReactNode;
         
         if (rangeMode === "local") {
-          // Local mode uses per-road min/max
+          // Local mode uses global min/max across all readings for consistent coloring
           readingColor = getRelativeMoistureColor(
             reading.moistureValue, 
-            minMoisture, 
-            maxMoisture
+            globalMinMoisture, 
+            globalMaxMoisture
           );
           
           // Calculate percentage within range for local mode
-          const percentOfRange = maxMoisture === minMoisture 
+          const percentOfRange = globalMaxMoisture === globalMinMoisture 
             ? 0 
-            : ((reading.moistureValue - minMoisture) / (maxMoisture - minMoisture) * 100).toFixed(1);
+            : ((reading.moistureValue - globalMinMoisture) / (globalMaxMoisture - globalMinMoisture) * 100).toFixed(1);
             
           rangeInfo = (
             <>
               <p className="text-xs">
-                <span className="font-medium">Road Range:</span> {minMoisture.toFixed(2)}% - {maxMoisture.toFixed(2)}%
+                <span className="font-medium">Dataset Range:</span> {globalMinMoisture.toFixed(2)}% - {globalMaxMoisture.toFixed(2)}%
               </p>
               <p className="text-xs">
                 <span className="font-medium">Relative:</span> {percentOfRange}% of range

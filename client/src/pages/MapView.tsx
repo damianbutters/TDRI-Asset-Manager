@@ -49,10 +49,10 @@ export default function MapView() {
   const { data: allMoistureReadings = {} } = useQuery<Record<string, MoistureReading>>({
     queryKey: ['/api/moisture-readings/latest'],
     enabled: roadAssets.some(asset => asset.lastMoistureReading !== null),
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent reloading on zoom
+    refetchOnWindowFocus: false, // Don't refetch when window gains focus
+    refetchOnMount: false, // Don't refetch on component mount if data exists
   });
-
-  // Debug: Log the structure of moisture readings
-  console.log("Moisture readings structure:", allMoistureReadings);
   
   // Update rainfall mutation
   const updateRainfallMutation = useMutation({
