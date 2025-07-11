@@ -27,7 +27,7 @@ interface MapProps {
   zoom?: number;
   onAssetClick?: (asset: RoadAsset) => void;
   initialLayer?: "pci" | "moisture";
-  moistureReadings?: Record<number, MoistureReading>;
+  moistureReadings?: Record<string, MoistureReading>;
 }
 
 function MapController({ roadAssets }: { roadAssets: RoadAsset[] }) {
@@ -71,7 +71,7 @@ function MoistureReadingsLayer({
   rangeMode, 
   thresholds 
 }: { 
-  readings: Record<number, MoistureReading>;
+  readings: Record<string, MoistureReading>;
   rangeMode: MoistureRangeMode;
   thresholds: MoistureThresholds;
 }) {
@@ -80,7 +80,7 @@ function MoistureReadingsLayer({
   // Process readings based on selected range mode
   return (
     <>
-      {Object.entries(readings).map(([roadAssetId, reading]) => {
+      {Object.entries(readings).map(([coordinateKey, reading]) => {
         // Since we now have only one reading per asset, we'll use global thresholds or single value
         let minMoisture = 0;
         let maxMoisture = 100;
@@ -89,7 +89,7 @@ function MoistureReadingsLayer({
           // For local mode with single reading, we'll use the reading value as reference
           minMoisture = Math.max(0, reading.moistureValue - 5);
           maxMoisture = Math.min(100, reading.moistureValue + 5);
-          console.log(`Road ${roadAssetId} moisture value: ${reading.moistureValue}`);
+          console.log(`Coordinate ${coordinateKey} moisture value: ${reading.moistureValue}`);
         }
         
         // Choose color based on range mode
