@@ -98,7 +98,6 @@ export interface IStorage {
   
   // Moisture reading operations
   getMoistureReadings(roadAssetId: number): Promise<MoistureReading[]>;
-  getLatestMoistureReadings(): Promise<Record<string, MoistureReading>>;
   getMoistureReading(id: number): Promise<MoistureReading | undefined>;
   createMoistureReading(reading: InsertMoistureReading): Promise<MoistureReading>;
   updateMoistureReading(id: number, reading: Partial<InsertMoistureReading>): Promise<MoistureReading | undefined>;
@@ -1199,23 +1198,6 @@ export class MemStorage implements IStorage {
       .filter(reading => reading.roadAssetId === roadAssetId)
       .sort((a, b) => b.readingDate.getTime() - a.readingDate.getTime());
   }
-
-  // Get only the latest moisture reading per coordinate (optimized for map view)
-  async getLatestMoistureReadings(): Promise<Record<string, MoistureReading>> {
-    const latestReadings: Record<string, MoistureReading> = {};
-    
-    for (const reading of this.moistureReadings.values()) {
-      // Create coordinate key from lat/lng
-      const coordinateKey = `${reading.latitude},${reading.longitude}`;
-      
-      // Use createdAt (import timestamp) to determine latest reading for this coordinate
-      if (!latestReadings[coordinateKey] || reading.createdAt > latestReadings[coordinateKey].createdAt) {
-        latestReadings[coordinateKey] = reading;
-      }
-    }
-    
-    return latestReadings;
-  }
   
   async getMoistureReading(id: number): Promise<MoistureReading | undefined> {
     return this.moistureReadings.get(id);
@@ -2296,28 +2278,6 @@ export class DatabaseStorage implements IStorage {
       .from(moistureReadings)
       .where(eq(moistureReadings.roadAssetId, roadAssetId))
       .orderBy(desc(moistureReadings.readingDate));
-  }
-
-  // Get only the latest moisture reading per coordinate (optimized for map view)
-  async getLatestMoistureReadings(): Promise<Record<string, MoistureReading>> {
-    const readings = await db
-      .select()
-      .from(moistureReadings)
-      .orderBy(desc(moistureReadings.createdAt));
-    
-    const latestReadings: Record<string, MoistureReading> = {};
-    
-    for (const reading of readings) {
-      // Create coordinate key from lat/lng
-      const coordinateKey = `${reading.latitude},${reading.longitude}`;
-      
-      // Use createdAt (import timestamp) to determine latest reading for this coordinate
-      if (!latestReadings[coordinateKey]) {
-        latestReadings[coordinateKey] = reading;
-      }
-    }
-    
-    return latestReadings;
   }
 
   async getMoistureReading(id: number): Promise<MoistureReading | undefined> {

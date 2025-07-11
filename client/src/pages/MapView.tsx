@@ -45,14 +45,11 @@ export default function MapView() {
     queryKey: ['/api/road-assets'],
   });
   
-  // Fetch latest moisture readings for all roads with moisture data (optimized for map view)
-  const { data: allMoistureReadings = {} } = useQuery<Record<string, MoistureReading>>({
-    queryKey: ['/api/moisture-readings/latest'],
+  // Fetch moisture readings for all roads with moisture data
+  const { data: allMoistureReadings = {} } = useQuery<Record<number, MoistureReading[]>>({
+    queryKey: ['/api/moisture-readings'],
     enabled: roadAssets.some(asset => asset.lastMoistureReading !== null),
   });
-
-  // Debug: Log the structure of moisture readings
-  console.log("Moisture readings structure:", allMoistureReadings);
   
   // Update rainfall mutation
   const updateRainfallMutation = useMutation({
